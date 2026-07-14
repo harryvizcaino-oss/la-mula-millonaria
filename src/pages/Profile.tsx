@@ -192,6 +192,11 @@ export default function Profile() {
   const [displayName, setDisplayName] = useState(user?.name || 'Camionero');
   const [email, setEmail] = useState(user?.email || 'camionero@trucksurfers.co');
   const [phone, setPhone] = useState('+57 300 123 4567');
+
+  useEffect(() => {
+    if (user?.name) setDisplayName(user.name);
+    if (user?.email) setEmail(user.email);
+  }, [user]);
   const [editSheetOpen, setEditSheetOpen] = useState(false);
   const [txFilter, setTxFilter] = useState<'all' | 'earned' | 'spent'>('all');
   const [soundEnabled, setSoundEnabled] = useState(true);
@@ -260,8 +265,12 @@ export default function Profile() {
             transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.1 }}
             className="relative mb-3"
           >
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#F97316] flex items-center justify-center text-slate-900 font-fredoka font-bold text-3xl border-[3px] border-[#F59E0B] shadow-lg">
-              {initials}
+            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#F97316] flex items-center justify-center text-slate-900 font-fredoka font-bold text-3xl border-[3px] border-[#F59E0B] shadow-lg overflow-hidden">
+              {user?.avatar ? (
+                <img src={user.avatar} alt={displayName} className="w-full h-full object-cover" />
+              ) : (
+                initials
+              )}
             </div>
             <button
               onClick={() => setEditSheetOpen(true)}
@@ -750,8 +759,12 @@ export default function Profile() {
               <div className="px-5 pb-8 space-y-4">
                 {/* Avatar preview */}
                 <div className="flex justify-center mb-4">
-                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#F97316] flex items-center justify-center text-slate-900 font-fredoka font-bold text-2xl border-[3px] border-[#F59E0B]">
-                    {initials}
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#F97316] flex items-center justify-center text-slate-900 font-fredoka font-bold text-2xl border-[3px] border-[#F59E0B] overflow-hidden">
+                    {user?.avatar ? (
+                      <img src={user.avatar} alt={displayName} className="w-full h-full object-cover" />
+                    ) : (
+                      initials
+                    )}
                   </div>
                 </div>
 

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/hooks/useAuth';
 import { motion, useInView } from 'framer-motion';
 import {
   Truck,
@@ -99,6 +100,7 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
   const { millas } = useMillas();
   const clicker = useClickerStore();
   const clickPower = calculateClickPower(clicker);
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
 
   return (
     <section className="relative min-h-[100dvh] flex flex-col items-center justify-center px-6 overflow-hidden bg-white">
@@ -214,35 +216,65 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
           </button>
         </motion.div>
 
-        {/* Login */}
+        {/* Auth actions */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.4, duration: 0.3 }}
           className="mt-6 w-full max-w-md flex flex-col gap-2.5"
         >
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              navigate('/login');
-            }}
-            className="h-11 w-full rounded-2xl bg-gradient-to-r from-[#F59E0B] to-[#F97316] text-white font-fredoka font-black text-sm shadow-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-          >
-            Iniciar sesión
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              navigate('/register');
-            }}
-            className="h-11 w-full rounded-2xl bg-white border-2 border-slate-200 text-slate-900 font-fredoka font-black text-sm shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
-          >
-            Crear cuenta
-          </button>
+          {!isLoading && isAuthenticated ? (
+            <>
+              <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white border border-slate-200 shadow-sm">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#F97316] flex items-center justify-center text-slate-900 font-fredoka font-bold text-sm">
+                  {user?.name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'TU'}
+                </div>
+                <div className="flex-1 min-w-0 text-left">
+                  <p className="text-slate-900 text-sm font-bold truncate">{user?.name || 'Jugador'}</p>
+                  <p className="text-slate-500 text-xs truncate">{user?.email || ''}</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => navigate('/profile')}
+                className="h-11 w-full rounded-2xl bg-white border-2 border-slate-200 text-slate-900 font-fredoka font-black text-sm shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+              >
+                Mi perfil
+              </button>
+              <button
+                type="button"
+                onClick={() => logout()}
+                className="h-11 w-full rounded-2xl bg-slate-100 text-slate-600 font-fredoka font-black text-sm hover:bg-slate-200 transition-colors flex items-center justify-center gap-2"
+              >
+                Cerrar sesión
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate('/login');
+                }}
+                className="h-11 w-full rounded-2xl bg-gradient-to-r from-[#F59E0B] to-[#F97316] text-white font-fredoka font-black text-sm shadow-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+              >
+                Iniciar sesión
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  navigate('/register');
+                }}
+                className="h-11 w-full rounded-2xl bg-white border-2 border-slate-200 text-slate-900 font-fredoka font-black text-sm shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+              >
+                Crear cuenta
+              </button>
+            </>
+          )}
         </motion.div>
       </div>
 
