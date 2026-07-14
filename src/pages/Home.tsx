@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { motion, useInView } from 'framer-motion';
 import {
   Truck,
@@ -221,18 +221,28 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
           transition={{ delay: 1.4, duration: 0.3 }}
           className="mt-6 w-full max-w-md flex flex-col gap-2.5"
         >
-          <Link
-            to="/login"
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigate('/login');
+            }}
             className="h-11 w-full rounded-2xl bg-gradient-to-r from-[#F59E0B] to-[#F97316] text-white font-fredoka font-black text-sm shadow-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
           >
             Iniciar sesión
-          </Link>
-          <Link
-            to="/register"
+          </button>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              navigate('/register');
+            }}
             className="h-11 w-full rounded-2xl bg-white border-2 border-slate-200 text-slate-900 font-fredoka font-black text-sm shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
           >
             Crear cuenta
-          </Link>
+          </button>
         </motion.div>
       </div>
 
