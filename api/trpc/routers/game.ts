@@ -2,6 +2,7 @@ import { z } from "zod";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { createRouter, publicQuery, authedQuery } from "../../middleware";
 import { getDb } from "../../queries/connection";
+import { calculateClickPower } from "../../lib/clicker";
 import {
   userPoints,
   gameRuns,
@@ -788,7 +789,54 @@ const clickerRouter = createRouter({
         });
       }
 
-      return { success: true };
+      // Update weekly leaderboard with current clicker power (CPS)
+      const clickPower = calculateClickPower({
+        buildings: input.buildings,
+        upgrades: input.upgrades,
+        powerLevels: input.powerLevels,
+        stars: input.stars,
+      });
+      const weekKey = getWeekKey(now);
+      const displayName = ctx.user.name ?? "Jugador";
+      const avatarUrl = ctx.user.avatar ?? null;
+
+      const existingEntry = await db
+        .select()
+        .from(leaderboard)
+        .where(
+          and(
+            eq(leaderboard.userId, userId),
+            eq(leaderboard.weekKey, weekKey),
+            eq(leaderboard.isGlobal, true),
+          ),
+        )
+        .limit(1);
+
+      if (existingEntry[0]) {
+        await db
+          .update(leaderboard)
+          .set({
+            score: Math.floor(clickPower),
+            distance: Math.floor(input.totalKm),
+            millasEarned: Math.floor(input.totalEarned),
+            displayName,
+            avatarUrl,
+          })
+          .where(eq(leaderboard.id, existingEntry[0].id));
+      } else {
+        await db.insert(leaderboard).values({
+          userId,
+          displayName,
+          avatarUrl,
+          score: Math.floor(clickPower),
+          distance: Math.floor(input.totalKm),
+          millasEarned: Math.floor(input.totalEarned),
+          weekKey,
+          isGlobal: true,
+        });
+      }
+
+      return { success: true, clickPower: Math.floor(clickPower) };
     }),
 });
 

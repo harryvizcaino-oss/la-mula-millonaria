@@ -499,7 +499,13 @@ export default function Leaderboard() {
   const [category, setCategory] = useState<CategoryFilter>('Puntaje');
   const [scope, setScope] = useState<ScopeFilter>('Global');
   const { user } = useAuth();
-  const { data: leaderboardData } = trpc.game.game.getLeaderboard.useQuery({ limit: 50 });
+  const { data: leaderboardData, isRefetching, refetch } = trpc.game.game.getLeaderboard.useQuery(
+    { limit: 50 },
+    {
+      refetchInterval: 10000,
+      staleTime: 0,
+    },
+  );
 
   const leaderboardPlayers: Player[] = useMemo(() => {
     const entries = leaderboardData?.entries ?? [];
