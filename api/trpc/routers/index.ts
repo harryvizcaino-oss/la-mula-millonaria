@@ -1,0 +1,1 @@
+export { gameRouter } from "./game";

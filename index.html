@@ -1,62 +1,27 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Trucker Surfers</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            background-color: #0a1a3a;
-            font-family: 'Arial Black', Arial, sans-serif;
-            color: #ffffff;
-            overflow: hidden;
-        }
-
-        h1 {
-            font-size: 5rem;
-            text-align: center;
-            text-shadow: 4px 4px 0px #ff6600;
-            letter-spacing: 4px;
-            margin-bottom: 60px;
-        }
-
-        .btn-jugar {
-            padding: 20px 80px;
-            font-size: 2rem;
-            font-weight: bold;
-            color: #0a1a3a;
-            background-color: #ffcc00;
-            border: none;
-            border-radius: 12px;
-            cursor: pointer;
-            box-shadow: 0 6px 0 #cc9900;
-            transition: transform 0.1s, box-shadow 0.1s;
-        }
-
-        .btn-jugar:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 9px 0 #cc9900;
-        }
-
-        .btn-jugar:active {
-            transform: translateY(4px);
-            box-shadow: 0 2px 0 #cc9900;
-        }
-    </style>
-</head>
-<body>
-    <h1>TRUCKER SURFERS</h1>
-    <button class="btn-jugar">JUGAR</button>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#FFFFFF" />
+    <meta name="description" content="La Mula Millonaria - Toca tu tractomula, construye tu flota y convierte TicaMillas en premios reales." />
+    <meta name="application-name" content="La Mula Millonaria" />
+    <meta name="apple-mobile-web-app-title" content="La Mula Millonaria" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="msapplication-TileColor" content="#FFFFFF" />
+    <meta name="msapplication-tap-highlight" content="no" />
+    <link rel="icon" type="image/png" href="/logo-icon.png" />
+    <link rel="apple-touch-icon" href="/logo-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <title>La Mula Millonaria</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Reset Game</title>
+</head>
+<body>
+  <h1>Reset del juego</h1>
+  <p>Llaves eliminadas:</p>
+  <ul id="keys"></ul>
+  <script>
+    const keys = ['truckSurfers_millas', 'truckSurfers_clicker_v2'];
+    const list = document.getElementById('keys');
+    keys.forEach(k => {
+      localStorage.removeItem(k);
+      const li = document.createElement('li');
+      li.textContent = k;
+      list.appendChild(li);
+    });
+  </script>
+</body>
+</html>

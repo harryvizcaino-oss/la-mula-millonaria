@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Reset Game</title>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; background: #fff; color: #111; }
+    button { padding: 1rem 2rem; font-size: 1.2rem; border-radius: 1rem; background: #F59E0B; border: none; cursor: pointer; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>Reiniciar La Mula Millonaria</h1>
+  <p>Haz clic para borrar el progreso guardado y volver a empezar.</p>
+  <button id="reset">Reiniciar juego</button>
+  <p id="msg"></p>
+  <script>
+    document.getElementById('reset').addEventListener('click', () => {
+      localStorage.removeItem('truckSurfers_millas');
+      localStorage.removeItem('truckSurfers_clicker_v2');
+      document.getElementById('msg').textContent = 'Progreso borrado. Redirigiendo...';
+      setTimeout(() => { window.location.href = '/'; }, 1000);
+    });
+  </script>
+</body>
+</html>

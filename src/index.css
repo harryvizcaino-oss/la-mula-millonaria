@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-bg-dark: #0D0E14;
+    --color-bg-card: #1A1B26;
+    --color-bg-elevated: #232433;
+    --color-primary: #F59E0B;
+    --color-primary-light: #FBBF24;
+    --color-primary-dark: #D97706;
+    --color-secondary: #3B82F6;
+    --color-secondary-light: #60A5FA;
+    --color-highway: #2D3748;
+    --color-lane-line: #F7FAFC;
+    --color-success: #10B981;
+    --color-danger: #EF4444;
+    --color-warning: #F59E0B;
+    --color-info: #3B82F6;
+    --color-text-primary: #F1F5F9;
+    --color-text-secondary: #94A3B8;
+    --color-text-inverse: #0D0E14;
+    --gradient-hero: linear-gradient(180deg, #0D0E14 0%, #1A1B26 50%, #0D0E14 100%);
+    --gradient-primary: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
+    --gradient-game-sky: linear-gradient(180deg, #1E3A5F 0%, #87CEEB 60%, #D4A574 100%);
+    --gradient-millas: linear-gradient(135deg, #F59E0B 0%, #F97316 100%);
+    --gradient-brand-overlay: linear-gradient(0deg, rgba(13,14,20,0.9) 0%, rgba(13,14,20,0.3) 50%, transparent 100%);
+    --background: 230 25% 5%;
+    --foreground: 210 40% 96%;
+    --card: 230 20% 12%;
+    --card-foreground: 210 40% 96%;
+    --popover: 230 20% 12%;
+    --popover-foreground: 210 40% 96%;
+    --primary: 38 92% 50%;
+    --primary-foreground: 230 25% 5%;
+    --secondary: 217 91% 60%;
+    --secondary-foreground: 210 40% 96%;
+    --muted: 230 20% 12%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 230 20% 16%;
+    --accent-foreground: 210 40% 96%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 96%;
+    --border: 230 15% 20%;
+    --input: 230 15% 20%;
+    --ring: 38 92% 50%;
+    --radius: 0.75rem;
+  }
+
+  * {
+    @apply border-border;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  *::-webkit-scrollbar {
+    display: none;
+  }
+
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  html {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: var(--color-bg-dark);
+    color: var(--color-text-primary);
+    overscroll-behavior-y: none;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  canvas {
+    touch-action: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+}
