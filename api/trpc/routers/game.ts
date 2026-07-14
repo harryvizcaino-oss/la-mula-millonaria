@@ -318,6 +318,65 @@ const pointsRouter = createRouter({
     };
   }),
 
+  // Sync local millas balance to backend
+  syncBalance: authedQuery
+    .input(z.object({ totalMillas: z.number().int().min(0) }))
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.user.unionId;
+      const db = getDb();
+      const now = new Date();
+
+      const existing = await db
+        .select()
+        .from(userPoints)
+        .where(eq(userPoints.userId, userId))
+        .limit(1);
+
+      let pointsRow = existing[0];
+      const diff = input.totalMillas - (pointsRow?.totalMillas ?? 0);
+
+      if (pointsRow) {
+        await db
+          .update(userPoints)
+          .set({
+            totalMillas: input.totalMillas,
+            lifetimeMillas: Math.max(pointsRow.lifetimeMillas, pointsRow.lifetimeMillas + Math.max(0, diff)),
+            updatedAt: now,
+          })
+          .where(eq(userPoints.userId, userId));
+      } else {
+        await db.insert(userPoints).values({
+          userId,
+          totalMillas: input.totalMillas,
+          lifetimeMillas: input.totalMillas,
+          currentStreak: 1,
+          longestStreak: 1,
+          lastPlayedAt: now,
+        });
+      }
+
+      if (diff !== 0) {
+        await db.insert(pointTransactions).values({
+          userId,
+          type: diff > 0 ? "earned_game" : "redeemed_product",
+          amount: diff,
+          description: `Sync ${diff > 0 ? "earned" : "spent"} ${Math.abs(diff)} millas from game`,
+          balanceAfter: input.totalMillas,
+        });
+      }
+
+      const [updated] = await db
+        .select()
+        .from(userPoints)
+        .where(eq(userPoints.userId, userId))
+        .limit(1);
+
+      return {
+        balance: updated?.totalMillas ?? input.totalMillas,
+        lifetime: updated?.lifetimeMillas ?? input.totalMillas,
+      };
+    }),
+
   // Get transaction history with pagination
   getTransactions: authedQuery
     .input(

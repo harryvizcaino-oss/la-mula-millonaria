@@ -26,6 +26,8 @@ import PrimaryButton from '@/components/PrimaryButton';
 import { getGradientClass } from '@/data/mockProducts';
 import type { Product } from '@/data/mockProducts';
 import { useAuth } from '@/hooks/useAuth';
+import { useMillas } from '@/providers/MillasProvider';
+import { trpc } from '@/providers/trpc';
 import confetti from 'canvas-confetti';
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -880,6 +882,7 @@ export default function Redemption() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isLoading: authLoading } = useAuth();
+  const { setMillas } = useMillas();
 
   const [step, setStep] = useState<RedemptionStep>('review');
   const [giftCardCode, setGiftCardCode] = useState('');
@@ -888,32 +891,42 @@ export default function Redemption() {
   // Get product(s) from navigation state
   const product = location.state?.product as Product | undefined;
   const cart = location.state?.cart as Product[] | undefined;
-  const userMillas = (location.state?.userMillas as number) || 15420;
+  const userMillas = (location.state?.userMillas as number) || 0;
 
-  // TODO: VTEX - use tRPC points.redeemProduct.useMutation()
-  // const redeemMutation = trpc.points.redeemProduct.useMutation({
-  //   onSuccess: (data) => { setGiftCardCode(data.giftCardCode); setStep('success'); },
-  //   onError: () => { setStep('error'); },
-  // });
+  const redeemMutation = trpc.game.points.redeemProduct.useMutation({
+    onSuccess: (data) => {
+      setMillas(data.newBalance);
+      setGiftCardCode(generateGiftCardCode());
+      setStep('success');
+    },
+    onError: (err) => {
+      console.error('[Redemption] Failed:', err);
+      setErrorMessage(err.message || 'Error en la redencion');
+      setStep('error');
+    },
+  });
 
   const handleConfirm = useCallback(() => {
+    if (!product && (!cart || cart.length === 0)) return;
+
     setStep('processing');
 
-    // Simulate VTEX API call
-    setTimeout(() => {
-      // Randomly succeed (90%) or fail (10%) for demo
-      if (Math.random() > 0.1) {
-        const code = generateGiftCardCode();
-        setGiftCardCode(code);
-        setStep('success');
-      } else {
-        setStep('error');
-      }
-    }, 4500);
-
-    // TODO: VTEX - Call actual redemption mutation
-    // redeemMutation.mutate({ productId: product?.id, millasCost: product?.millasCost });
-  }, []);
+    if (product) {
+      redeemMutation.mutate({
+        productName: product.name,
+        productImage: product.image,
+        millasCost: product.millasCost,
+      });
+    } else if (cart && cart.length > 0) {
+      // Redeem first product only for now; cart multi-redemption not supported yet
+      const first = cart[0];
+      redeemMutation.mutate({
+        productName: `${first.name} (+${cart.length - 1} mas)`,
+        productImage: first.image,
+        millasCost: cart.reduce((sum, p) => sum + p.millasCost, 0),
+      });
+    }
+  }, [product, cart, redeemMutation]);
 
   const handleRetry = useCallback(() => {
     setStep('review');

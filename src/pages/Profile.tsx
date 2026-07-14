@@ -35,6 +35,7 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { useMillas } from '@/providers/MillasProvider';
+import { trpc } from '@/providers/trpc';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -68,20 +69,49 @@ interface Transaction {
 
 
 /* ------------------------------------------------------------------ */
-/*  Mock Data                                                          */
+/*  Helpers                                                            */
 /* ------------------------------------------------------------------ */
-const TRANSACTIONS: Transaction[] = [
-  { id: '1', type: 'game', title: 'Partida Clasica', date: '18 Ene 2026, 14:30', amount: 245, balanceAfter: 15420, icon: Gamepad2, iconColor: 'text-[#F59E0B]', iconBg: 'bg-[#F59E0B]/10' },
-  { id: '2', type: 'game', title: 'Partida Contrarreloj', date: '18 Ene 2026, 12:15', amount: 180, balanceAfter: 15175, icon: Gamepad2, iconColor: 'text-[#F59E0B]', iconBg: 'bg-[#F59E0B]/10' },
-  { id: '3', type: 'redemption', title: 'Redencion: Audifonos BT', date: '18 Ene 2026, 09:00', amount: -8500, balanceAfter: 14995, icon: ShoppingBag, iconColor: 'text-[#EF4444]', iconBg: 'bg-[#EF4444]/10' },
-  { id: '4', type: 'game', title: 'Partida Clasica', date: '17 Ene 2026, 20:45', amount: 520, balanceAfter: 23495, icon: Gamepad2, iconColor: 'text-[#F59E0B]', iconBg: 'bg-[#F59E0B]/10' },
-  { id: '5', type: 'achievement', title: 'Logro: Esquivador', date: '17 Ene 2026, 18:20', amount: 500, balanceAfter: 22975, icon: Award, iconColor: 'text-[#F59E0B]', iconBg: 'bg-[#F59E0B]/10' },
-  { id: '6', type: 'daily', title: 'Bonus Diario', date: '17 Ene 2026, 08:00', amount: 100, balanceAfter: 22475, icon: Target, iconColor: 'text-[#10B981]', iconBg: 'bg-[#10B981]/10' },
-  { id: '7', type: 'game', title: 'Partida Clasica', date: '16 Ene 2026, 22:10', amount: 315, balanceAfter: 22375, icon: Gamepad2, iconColor: 'text-[#F59E0B]', iconBg: 'bg-[#F59E0B]/10' },
-  { id: '8', type: 'referral', title: 'Referido: Juan Perez', date: '15 Ene 2026, 16:30', amount: 1000, balanceAfter: 22060, icon: Users, iconColor: 'text-[#3B82F6]', iconBg: 'bg-[#3B82F6]/10' },
-  { id: '9', type: 'game', title: 'Partida Clasica', date: '14 Ene 2026, 19:00', amount: 420, balanceAfter: 21060, icon: Gamepad2, iconColor: 'text-[#F59E0B]', iconBg: 'bg-[#F59E0B]/10' },
-  { id: '10', type: 'redemption', title: 'Redencion: Cargador USB', date: '12 Ene 2026, 11:00', amount: -3200, balanceAfter: 20640, icon: ShoppingBag, iconColor: 'text-[#EF4444]', iconBg: 'bg-[#EF4444]/10' },
-];
+function formatTransactionDate(date: Date | string | null): string {
+  if (!date) return '';
+  const d = new Date(date);
+  return d.toLocaleString('es-CO', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function getTransactionIcon(type: string) {
+  switch (type) {
+    case 'earned_game':
+    case 'earned_daily':
+    case 'earned_streak':
+    case 'earned_challenge':
+    case 'bonus':
+      return { icon: Gamepad2, iconColor: 'text-[#F59E0B]', iconBg: 'bg-[#F59E0B]/10' };
+    case 'redeemed_product':
+    case 'redeemed_giftcard':
+      return { icon: ShoppingBag, iconColor: 'text-[#EF4444]', iconBg: 'bg-[#EF4444]/10' };
+    default:
+      return { icon: Coins, iconColor: 'text-[#3B82F6]', iconBg: 'bg-[#3B82F6]/10' };
+  }
+}
+
+function getTransactionTitle(type: string, description: string | null): string {
+  if (description) return description;
+  switch (type) {
+    case 'earned_game': return 'Ganado en juego';
+    case 'earned_daily': return 'Bonus diario';
+    case 'earned_streak': return 'Bonus de racha';
+    case 'earned_challenge': return 'Desafio completado';
+    case 'redeemed_product': return 'Redencion de producto';
+    case 'redeemed_giftcard': return 'Redencion de gift card';
+    case 'bonus': return 'Bonus';
+    default: return 'Transaccion';
+  }
+}
 
 const FAQ_ITEMS = [
   { q: 'Como gano TicaMillas?', a: 'Toca la tractomula en La Mula Millonaria, compra vehiculos para tu flota y cada kilometro recorrido suma TicaMillas.' },
@@ -187,6 +217,8 @@ function SettingsItem({
 export default function Profile() {
   const { user, isLoading, logout } = useAuth();
   const { millas } = useMillas();
+  const { data: txData } = trpc.game.points.getTransactions.useQuery({ limit: 50 });
+  const { data: statsData } = trpc.game.game.getUserStats.useQuery();
 
   /* Local state */
   const [displayName, setDisplayName] = useState(user?.name || 'Camionero');
@@ -224,11 +256,31 @@ export default function Profile() {
   const isSocialAuth = !!user?.email;
   const vtexLinked = true;
 
-  const filteredTransactions = TRANSACTIONS.filter((tx) => {
+  const transactions: Transaction[] = (txData?.transactions ?? []).map((tx) => {
+    const { icon, iconColor, iconBg } = getTransactionIcon(tx.type);
+    return {
+      id: String(tx.id),
+      type: tx.type,
+      title: getTransactionTitle(tx.type, tx.description),
+      date: formatTransactionDate(tx.createdAt),
+      amount: tx.amount,
+      balanceAfter: Number(tx.balanceAfter),
+      icon,
+      iconColor,
+      iconBg,
+    };
+  });
+
+  const filteredTransactions = transactions.filter((tx) => {
     if (txFilter === 'earned') return tx.amount >= 0;
     if (txFilter === 'spent') return tx.amount < 0;
     return true;
   });
+
+  const userStats = statsData?.stats;
+  const totalRuns = userStats?.totalRuns ?? 0;
+  const totalDistance = Math.floor((userStats?.totalDistance ?? 0) / 1000);
+  const bestScore = userStats?.bestScore ?? 0;
 
   const toggleNotification = (id: string) => {
     setNotifications((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -340,10 +392,10 @@ export default function Profile() {
       <Section className="mx-4 mt-4 py-4 border-y border-white/[0.06]" delay={0.2}>
         <div className="grid grid-cols-4 gap-2">
           {[
-            { icon: Gamepad2, label: 'Juegos', value: 142 },
-            { icon: Trophy, label: 'Rank', value: 42, prefix: '#' },
+            { icon: Gamepad2, label: 'Juegos', value: totalRuns },
+            { icon: Trophy, label: 'Rank', value: bestScore, prefix: '#' },
             { icon: Coins, label: 'TicaMillas', value: millas },
-            { icon: Route, label: 'Total', value: 87.4, suffix: 'km' },
+            { icon: Route, label: 'Total', value: totalDistance, suffix: 'km' },
           ].map((stat, i) => {
             const Icon = stat.icon;
             return (

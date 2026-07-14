@@ -16,6 +16,8 @@ import {
 import { cn } from '@/lib/utils';
 import { mockPlayers, mockCurrentUser, mockFriends, weeklyPrizes } from '@/data/mockLeaderboard';
 import type { Player } from '@/data/mockLeaderboard';
+import { trpc } from '@/providers/trpc';
+import { useAuth } from '@/hooks/useAuth';
 
 type TimeFilter = 'Semanal' | 'Mensual' | 'Global';
 type CategoryFilter = 'Puntaje' | 'TicaMillas' | 'Distancia';
@@ -496,10 +498,28 @@ export default function Leaderboard() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('Semanal');
   const [category, setCategory] = useState<CategoryFilter>('Puntaje');
   const [scope, setScope] = useState<ScopeFilter>('Global');
+  const { user } = useAuth();
+  const { data: leaderboardData } = trpc.game.game.getLeaderboard.useQuery({ limit: 50 });
+
+  const leaderboardPlayers: Player[] = useMemo(() => {
+    const entries = leaderboardData?.entries ?? [];
+    if (entries.length === 0) return mockPlayers;
+    return entries.map((entry, index) => ({
+      id: entry.id,
+      name: entry.displayName || 'Jugador',
+      avatar: entry.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.userId}`,
+      score: entry.score,
+      millas: entry.millasEarned,
+      distance: entry.distance,
+      level: 1,
+      trend: 'same',
+      trendValue: 0,
+    }));
+  }, [leaderboardData]);
 
   const sortedPlayers = useMemo(() => {
-    return [...mockPlayers].sort((a, b) => getCategoryValue(b, category) - getCategoryValue(a, category));
-  }, [category]);
+    return [...leaderboardPlayers].sort((a, b) => getCategoryValue(b, category) - getCategoryValue(a, category));
+  }, [leaderboardPlayers, category]);
 
   const displayedPlayers = scope === 'Global' ? sortedPlayers : mockFriends;
 
