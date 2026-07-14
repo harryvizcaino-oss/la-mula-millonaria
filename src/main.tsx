@@ -13,6 +13,8 @@ createRoot(document.getElementById('root')!).render(
     <ClerkProvider
       publishableKey={clerkPublishableKey}
       afterSignOutUrl="/"
+      signInFallbackRedirectUrl="/game"
+      signUpFallbackRedirectUrl="/game"
       allowedRedirectOrigins={[
         "https://la-mula-millonaria-production.up.railway.app",
         "http://localhost:5173",

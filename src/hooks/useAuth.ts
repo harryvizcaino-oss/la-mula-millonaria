@@ -1,7 +1,7 @@
 import { trpc } from "@/providers/trpc";
 import { useAuth as useClerkAuth, useUser, useClerk } from "@clerk/clerk-react";
 import { useCallback, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate } from "react-router-dom";
 import { LOGIN_PATH } from "@/const";
 
 type UseAuthOptions = {
@@ -42,26 +42,27 @@ export function useAuth(options?: UseAuthOptions) {
   const logout = useCallback(() => logoutMutation.mutate(), [logoutMutation]);
 
   const isLoading = !clerkLoaded || meLoading;
+  const isAuthenticated = !!user || clerkAuth.isSignedIn;
 
   useEffect(() => {
-    if (redirectOnUnauthenticated && !isLoading && !user) {
+    if (redirectOnUnauthenticated && !isLoading && !isAuthenticated) {
       const currentPath = window.location.pathname;
       if (currentPath !== redirectPath) {
         navigate(redirectPath);
       }
     }
-  }, [redirectOnUnauthenticated, isLoading, user, navigate, redirectPath]);
+  }, [redirectOnUnauthenticated, isLoading, isAuthenticated, navigate, redirectPath]);
 
   return useMemo(
     () => ({
       user: user ?? null,
-      isAuthenticated: !!user,
+      isAuthenticated,
       isLoading: isLoading || logoutMutation.isPending,
       error,
       logout,
       refresh: refetch,
       clerkUser: clerkUser ?? null,
     }),
-    [user, isLoading, logoutMutation.isPending, error, logout, refetch, clerkUser],
+    [user, isAuthenticated, isLoading, logoutMutation.isPending, error, logout, refetch, clerkUser],
   );
 }
