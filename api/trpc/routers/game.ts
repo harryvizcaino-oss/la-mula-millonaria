@@ -10,6 +10,7 @@ import {
   redemptions,
   dailyChallenges,
   userChallenges,
+  userClickerState,
 } from "@db/schema";
 
 // ─── Helpers ─────────────────────────────────────────────────────────
@@ -693,10 +694,109 @@ const challengesRouter = createRouter({
     }),
 });
 
+// ─── Clicker sub-router ──────────────────────────────────────────────
+
+const clickerStateInput = z.object({
+  buildings: z.record(z.string(), z.number().int().min(0)),
+  upgrades: z.record(z.string(), z.boolean()),
+  powerLevels: z.record(z.string(), z.number().int().min(0)),
+  totalClicks: z.number().int().min(0),
+  totalKm: z.number().min(0),
+  totalEarned: z.number().min(0),
+  stars: z.number().int().min(0),
+  goldenTickets: z.number().int().min(0),
+  autoclickLevel: z.number().int().min(0),
+  lastTickAt: z.number().int().min(0),
+});
+
+const clickerRouter = createRouter({
+  // Load persisted clicker state
+  getState: authedQuery.query(async ({ ctx }) => {
+    const userId = ctx.user.unionId;
+    const db = getDb();
+
+    const rows = await db
+      .select()
+      .from(userClickerState)
+      .where(eq(userClickerState.userId, userId))
+      .limit(1);
+
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      buildings: row.buildings as Record<string, number>,
+      upgrades: row.upgrades as Record<string, boolean>,
+      powerLevels: row.powerLevels as Record<string, number>,
+      totalClicks: Number(row.totalClicks),
+      totalKm: Number(row.totalKm),
+      totalEarned: Number(row.totalEarned),
+      stars: row.stars,
+      goldenTickets: row.goldenTickets,
+      autoclickLevel: row.autoclickLevel,
+      lastTickAt: Number(row.lastTickAt),
+    };
+  }),
+
+  // Save clicker state
+  saveState: authedQuery
+    .input(clickerStateInput)
+    .mutation(async ({ ctx, input }) => {
+      const userId = ctx.user.unionId;
+      const db = getDb();
+      const now = new Date();
+
+      const existing = await db
+        .select()
+        .from(userClickerState)
+        .where(eq(userClickerState.userId, userId))
+        .limit(1);
+
+      if (existing[0]) {
+        await db
+          .update(userClickerState)
+          .set({
+            buildings: input.buildings,
+            upgrades: input.upgrades,
+            powerLevels: input.powerLevels,
+            totalClicks: input.totalClicks,
+            totalKm: String(input.totalKm),
+            totalEarned: String(input.totalEarned),
+            stars: input.stars,
+            goldenTickets: input.goldenTickets,
+            autoclickLevel: input.autoclickLevel,
+            lastTickAt: input.lastTickAt,
+            updatedAt: now,
+          })
+          .where(eq(userClickerState.id, existing[0].id));
+      } else {
+        await db.insert(userClickerState).values({
+          userId,
+          buildings: input.buildings,
+          upgrades: input.upgrades,
+          powerLevels: input.powerLevels,
+          totalClicks: input.totalClicks,
+          totalKm: String(input.totalKm),
+          totalEarned: String(input.totalEarned),
+          stars: input.stars,
+          goldenTickets: input.goldenTickets,
+          autoclickLevel: input.autoclickLevel,
+          lastTickAt: input.lastTickAt,
+          updatedAt: now,
+        });
+      }
+
+      return { success: true };
+    }),
+});
+
 // ─── Main game router ────────────────────────────────────────────────
 
 export const gameRouter = createRouter({
   game: gameCoreRouter,
   points: pointsRouter,
   challenges: challengesRouter,
+  clicker: clickerRouter,
 });

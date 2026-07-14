@@ -9,6 +9,7 @@ import {
   int,
   boolean,
   decimal,
+  json,
 } from "drizzle-orm/mysql-core";
 
 export const users = mysqlTable("users", {
@@ -143,3 +144,25 @@ export const userChallenges = mysqlTable("user_challenges", {
 
 export type UserChallenge = typeof userChallenges.$inferSelect;
 export type InsertUserChallenge = typeof userChallenges.$inferInsert;
+
+// ─── Clicker incremental game state ──────────────────────────────────
+
+export const userClickerState = mysqlTable("user_clicker_state", {
+  id: bigint("id", { mode: "number" }).primaryKey().autoincrement(),
+  userId: varchar("user_id", { length: 255 }).notNull().unique(),
+  buildings: json("buildings").notNull(),
+  upgrades: json("upgrades").notNull(),
+  powerLevels: json("power_levels").notNull(),
+  totalClicks: bigint("total_clicks", { mode: "number" }).notNull().default(0),
+  totalKm: decimal("total_km", { precision: 24, scale: 6 }).notNull().default("0"),
+  totalEarned: decimal("total_earned", { precision: 24, scale: 6 }).notNull().default("0"),
+  stars: int("stars").notNull().default(0),
+  goldenTickets: int("golden_tickets").notNull().default(0),
+  autoclickLevel: int("autoclick_level").notNull().default(0),
+  lastTickAt: bigint("last_tick_at", { mode: "number" }).notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export type UserClickerState = typeof userClickerState.$inferSelect;
+export type InsertUserClickerState = typeof userClickerState.$inferInsert;

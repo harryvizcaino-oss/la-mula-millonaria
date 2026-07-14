@@ -32,6 +32,7 @@ export interface ClickerState {
   prestige: () => { success: boolean; starsGained: number };
   clearOfflineEarnings: () => void;
   buyAutoclick: (currentMillas: number) => { success: boolean; cost: number; duration: number };
+  hydrate: (saved: Partial<Omit<ClickerState, keyof Pick<ClickerState, 'tick' | 'click' | 'buyBuilding' | 'buyUpgrade' | 'buyPower' | 'addGoldenTickets' | 'redeemGoldenTickets' | 'prestige' | 'clearOfflineEarnings' | 'buyAutoclick' | 'hydrate'>>>) => void;
 }
 
 function calculateProduction(state: Omit<ClickerState, keyof Pick<ClickerState, 'tick' | 'click' | 'buyBuilding' | 'buyUpgrade' | 'buyPower' | 'addGoldenTickets' | 'redeemGoldenTickets' | 'prestige' | 'clearOfflineEarnings' | 'buyAutoclick'>>): number {
@@ -197,6 +198,21 @@ export const useClickerStore = create<ClickerState>()(
           autoclickUntil: Math.max(state.autoclickUntil, Date.now()) + duration,
         });
         return { success: true, cost, duration };
+      },
+
+      hydrate: (saved) => {
+        const next: Partial<ClickerState> = {};
+        if (saved.buildings !== undefined) next.buildings = saved.buildings;
+        if (saved.upgrades !== undefined) next.upgrades = saved.upgrades;
+        if (saved.powerLevels !== undefined) next.powerLevels = saved.powerLevels;
+        if (saved.totalClicks !== undefined) next.totalClicks = saved.totalClicks;
+        if (saved.totalKm !== undefined) next.totalKm = saved.totalKm;
+        if (saved.totalEarned !== undefined) next.totalEarned = saved.totalEarned;
+        if (saved.stars !== undefined) next.stars = saved.stars;
+        if (saved.goldenTickets !== undefined) next.goldenTickets = saved.goldenTickets;
+        if (saved.autoclickLevel !== undefined) next.autoclickLevel = saved.autoclickLevel;
+        if (saved.lastTickAt !== undefined) next.lastTickAt = saved.lastTickAt;
+        if (Object.keys(next).length > 0) set(next);
       },
     }),
     {

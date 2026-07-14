@@ -14,11 +14,18 @@ import Login from "./pages/Login"
 import Register from "./pages/Register"
 import NotFound from "./pages/NotFound"
 import { ClickerEngine } from './components/ClickerEngine'
+import { useClickerSync } from './hooks/useClickerSync'
+
+function ClickerSync() {
+  useClickerSync()
+  return null
+}
 
 export default function App() {
   return (
     <>
       <ClickerEngine />
+      <ClickerSync />
       <Routes>
       <Route element={<Layout />}>
         <Route path="/" element={<Home />} />
