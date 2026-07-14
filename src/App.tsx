@@ -11,6 +11,7 @@ import Profile from './pages/Profile'
 import Garage from './pages/Garage'
 import Brands from './pages/Brands'
 import Login from "./pages/Login"
+import Register from "./pages/Register"
 import NotFound from "./pages/NotFound"
 import { ClickerEngine } from './components/ClickerEngine'
 
@@ -32,6 +33,7 @@ export default function App() {
       </Route>
       <Route path="/auth" element={<Auth />} />
       <Route path="/login" element={<Login />} />
+      <Route path="/register" element={<Register />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
     </>

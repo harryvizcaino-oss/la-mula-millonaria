@@ -10,7 +10,14 @@ const clerkPublishableKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY
 
 createRoot(document.getElementById('root')!).render(
   <HashRouter>
-    <ClerkProvider publishableKey={clerkPublishableKey} afterSignOutUrl="/">
+    <ClerkProvider
+      publishableKey={clerkPublishableKey}
+      afterSignOutUrl="/"
+      allowedRedirectOrigins={[
+        "https://la-mula-millonaria-production.up.railway.app",
+        "http://localhost:5173",
+      ]}
+    >
       <TRPCProvider>
         <MillasProvider>
           <App />
