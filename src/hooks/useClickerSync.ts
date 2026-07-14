@@ -57,7 +57,8 @@ export function useClickerSync() {
         console.error('[useClickerSync] Failed to load clicker state:', err);
         hydratedRef.current = true;
       });
-  }, [isLoaded, isSignedIn, user, utils.game.clicker.getState]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn, user]);
 
   // Periodically save clicker state to the server
   useEffect(() => {

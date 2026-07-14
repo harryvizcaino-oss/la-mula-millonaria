@@ -57,7 +57,8 @@ export function MillasProvider({ children }: { children: ReactNode }) {
       .finally(() => {
         setIsLoading(false);
       });
-  }, [isLoaded, isSignedIn, user, utils.game.points.getBalance]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoaded, isSignedIn, user]);
 
   // Persist to localStorage
   useEffect(() => {
