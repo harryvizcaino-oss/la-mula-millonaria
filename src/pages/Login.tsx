@@ -38,7 +38,7 @@ export default function Login() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <SignIn routing="path" signUpUrl="/register" afterSignInUrl="/" />
+      <SignIn routing="path" path="/login" signUpUrl="/register" afterSignInUrl="/" />
     </div>
   );
 }
