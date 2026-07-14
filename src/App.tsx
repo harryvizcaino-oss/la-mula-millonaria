@@ -2,7 +2,7 @@ import { Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import Game from './pages/Game'
-import Auth from './pages/Auth'
+
 import Dashboard from './pages/Dashboard'
 import Marketplace from './pages/Marketplace'
 import Redemption from './pages/Redemption'
@@ -31,7 +31,6 @@ export default function App() {
         <Route path="/redemption" element={<Redemption />} />
         <Route path="/brands" element={<Brands />} />
       </Route>
-      <Route path="/auth" element={<Auth />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="*" element={<NotFound />} />
