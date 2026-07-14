@@ -31,8 +31,8 @@ export default function App() {
         <Route path="/redemption" element={<Redemption />} />
         <Route path="/brands" element={<Brands />} />
       </Route>
-      <Route path="/login" element={<Login />} />
-      <Route path="/register" element={<Register />} />
+      <Route path="/login/*" element={<Login />} />
+      <Route path="/register/*" element={<Register />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
     </>
