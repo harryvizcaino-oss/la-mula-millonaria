@@ -24,6 +24,8 @@ export function useClickerSync() {
   const { user, isLoaded, isSignedIn } = useUser();
   const utils = trpc.useUtils();
   const saveMutation = trpc.game.clicker.saveState.useMutation();
+  const saveMutateRef = useRef(saveMutation.mutate);
+  saveMutateRef.current = saveMutation.mutate;
 
   const hydratedRef = useRef(false);
   const lastSavedRef = useRef<ReturnType<typeof serializeClickerState> | null>(null);
@@ -84,7 +86,7 @@ export function useClickerSync() {
         return;
       }
 
-      saveMutation.mutate(current, {
+      saveMutateRef.current(current, {
         onSuccess: () => {
           lastSavedRef.current = current;
         },
@@ -98,9 +100,10 @@ export function useClickerSync() {
       clearInterval(interval);
       // Final save on unmount
       const current = serializeClickerState(useClickerStore.getState());
-      saveMutation.mutate(current);
+      saveMutateRef.current(current);
     };
-  }, [isSignedIn, user, saveMutation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn, user]);
 
   // Reset hydration flag when the user signs out so the next sign-in reloads
   useEffect(() => {

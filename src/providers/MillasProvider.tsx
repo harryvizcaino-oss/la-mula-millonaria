@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useUser } from '@clerk/clerk-react';
 import { trpc } from '@/providers/trpc';
 
@@ -34,6 +34,8 @@ export function MillasProvider({ children }: { children: ReactNode }) {
 
   const utils = trpc.useUtils();
   const syncMutation = trpc.game.points.syncBalance.useMutation();
+  const syncMutateRef = useRef(syncMutation.mutate);
+  syncMutateRef.current = syncMutation.mutate;
 
   // Load server balance when authenticated user is available
   useEffect(() => {
@@ -71,7 +73,7 @@ export function MillasProvider({ children }: { children: ReactNode }) {
 
     const interval = setInterval(() => {
       if (millas !== syncedBalance) {
-        syncMutation.mutate(
+        syncMutateRef.current(
           { totalMillas: millas },
           {
             onSuccess: (data) => {
@@ -89,10 +91,11 @@ export function MillasProvider({ children }: { children: ReactNode }) {
       clearInterval(interval);
       // Final sync on unmount
       if (millas !== syncedBalance) {
-        syncMutation.mutate({ totalMillas: millas });
+        syncMutateRef.current({ totalMillas: millas });
       }
     };
-  }, [isSignedIn, user, millas, syncedBalance, syncMutation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSignedIn, user, millas, syncedBalance]);
 
   const addMillas = useCallback((amount: number) => {
     setMillasState((prev) => Math.max(0, prev + Math.floor(amount)));
