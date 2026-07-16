@@ -36,6 +36,7 @@ interface FloatingNumber {
   y: number;
   text: string;
   color: string;
+  arcX: number;
 }
 
 interface Particle {
@@ -136,6 +137,9 @@ export default function Game() {
   const [cycleClicks, setCycleClicks] = useState(0);
   const [ticketBurst, setTicketBurst] = useState(false);
   const [autoclickRemaining, setAutoclickRemaining] = useState(0);
+  const [truckTilt, setTruckTilt] = useState({ rotateX: 0, rotateY: 0 });
+  const [shockwaves, setShockwaves] = useState<{ id: number; x: number; y: number }[]>([]);
+  const [exhaustPuffs, setExhaustPuffs] = useState<{ id: number; x: number; y: number; scale: number; opacity: number }[]>([]);
 
   const floatingIdRef = useRef(0);
   const particleIdRef = useRef(0);
@@ -151,6 +155,8 @@ export default function Game() {
   const productionMultiplierRef = useRef(1);
   const clickMultiplierRef = useRef(1);
   const discountMultiplierRef = useRef(1);
+  const shockwaveIdRef = useRef(0);
+  const exhaustIdRef = useRef(0);
 
   const clickPower = useMemo(() => calculateClickPower(store), [store.upgrades, store.stars, store.buildings, store.powerLevels]);
 
@@ -308,25 +314,25 @@ export default function Game() {
   };
 
   const spawnParticles = (x: number, y: number) => {
-    const emojis = ['✨', '🪙', '⭐', '💥'];
+    const emojis = ['✨', '🪙', '⭐', '💥', '🔥'];
     const newParticles: Particle[] = [];
-    for (let i = 0; i < 8; i++) {
+    for (let i = 0; i < 14; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const speed = 60 + Math.random() * 100;
+      const speed = 80 + Math.random() * 140;
       newParticles.push({
         id: ++particleIdRef.current,
         x,
         y,
         emoji: emojis[Math.floor(Math.random() * emojis.length)],
         vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 40,
+        vy: Math.sin(angle) * speed - 60,
         rotate: Math.random() * 360,
       });
     }
     setParticles((prev) => [...prev, ...newParticles]);
     setTimeout(() => {
       setParticles((prev) => prev.filter((p) => !newParticles.find((np) => np.id === p.id)));
-    }, 700);
+    }, 900);
   };
 
   const spawnParticlesPercent = (pctX: number, pctY: number) => {
@@ -335,6 +341,36 @@ export default function Game() {
     const rect = arena.getBoundingClientRect();
     spawnParticles((pctX / 100) * rect.width, (pctY / 100) * rect.height);
   };
+
+  const spawnShockwave = (x: number, y: number) => {
+    const id = ++shockwaveIdRef.current;
+    setShockwaves((prev) => [...prev, { id, x, y }]);
+    setTimeout(() => {
+      setShockwaves((prev) => prev.filter((s) => s.id !== id));
+    }, 700);
+  };
+
+  const spawnExhaustPuff = (x: number, y: number) => {
+    const id = ++exhaustIdRef.current;
+    setExhaustPuffs((prev) => [...prev, { id, x, y, scale: 0.4, opacity: 0.7 }]);
+  };
+
+  const handlePointerMove = useCallback((e: React.PointerEvent) => {
+    const arena = clickAreaRef.current?.getBoundingClientRect();
+    if (!arena) return;
+    const centerX = arena.left + arena.width / 2;
+    const centerY = arena.top + arena.height / 2;
+    const percentX = (e.clientX - centerX) / (arena.width / 2);
+    const percentY = (e.clientY - centerY) / (arena.height / 2);
+    setTruckTilt({
+      rotateX: -percentY * 14,
+      rotateY: percentX * 14,
+    });
+  }, []);
+
+  const handlePointerLeave = useCallback(() => {
+    setTruckTilt({ rotateX: 0, rotateY: 0 });
+  }, []);
 
   const handleTruckClick = useCallback(
     (e: React.PointerEvent) => {
@@ -360,6 +396,12 @@ export default function Game() {
       const result = store.click();
       addMillas(Math.floor(result.millas * multiplier));
 
+      // 3D punch + shockwave
+      setTruckTilt({ rotateX: 6, rotateY: 0 });
+      setTimeout(() => setTruckTilt({ rotateX: 0, rotateY: 0 }), 120);
+      spawnShockwave(relX, relY);
+      spawnExhaustPuff(relX + 60, relY + 50);
+
       setTruckBump(true);
       setTruckHappy(true);
       setShake(true);
@@ -370,11 +412,11 @@ export default function Game() {
       const id = ++floatingIdRef.current;
       setFloatingNumbers((prev) => [
         ...prev,
-        { id, x: relX + (Math.random() - 0.5) * 30, y: relY, text: `+${formatNumber(amount)}`, color: multiplier > 1 ? '#FACC15' : '#FBBF24' },
+        { id, x: relX + (Math.random() - 0.5) * 30, y: relY, text: `+${formatNumber(amount)}`, color: multiplier > 1 ? '#FACC15' : '#FBBF24', arcX: (Math.random() - 0.5) * 80 },
       ]);
       setTimeout(() => {
         setFloatingNumbers((prev) => prev.filter((n) => n.id !== id));
-      }, 900);
+      }, 1000);
 
       spawnParticles(relX, relY);
     },
@@ -617,8 +659,19 @@ export default function Game() {
             <div className="absolute inset-x-0 top-0 h-3 bg-[#A3E635] opacity-60" />
           </div>
 
-          {/* Road */}
-          <div className="absolute bottom-6 inset-x-4 h-14 bg-[#57534E] rounded-full shadow-inner">
+          {/* Road with moving dashed lines */}
+          <div className="absolute bottom-6 inset-x-4 h-14 bg-[#57534E] rounded-full shadow-inner overflow-hidden">
+            <div className="absolute inset-0 flex items-center">
+              <motion.div
+                className="flex gap-6"
+                animate={{ x: ['0%', '-50%'] }}
+                transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
+              >
+                {Array.from({ length: 16 }).map((_, i) => (
+                  <div key={i} className="w-8 h-1.5 bg-white/30 rounded-full flex-shrink-0" />
+                ))}
+              </motion.div>
+            </div>
             <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-4 bg-black/40 rounded-full overflow-hidden border border-white/10">
               <motion.div
                 className="h-full bg-gradient-to-r from-[#EF4444] to-[#DC2626]"
@@ -641,27 +694,66 @@ export default function Game() {
             </motion.div>
           )}
 
-          {/* Click target */}
+          {/* Click target with 3D perspective */}
           <div
             ref={clickAreaRef}
             className="absolute inset-0 flex items-center justify-center"
+            style={{ perspective: 900 }}
+            onPointerMove={handlePointerMove}
+            onPointerLeave={handlePointerLeave}
           >
             <motion.div
               animate={{ scale: [1, 1.08, 1], opacity: [0.25, 0.45, 0.25] }}
               transition={{ duration: 1.5, repeat: Infinity }}
-              className="absolute w-52 h-52 rounded-full bg-white/20 border-4 border-white/30 pointer-events-none"
+              className="absolute w-56 h-56 rounded-full bg-white/10 border-4 border-white/20 pointer-events-none"
+              style={{ transformStyle: 'preserve-3d' }}
             />
+
+            {/* Shockwaves */}
+            <AnimatePresence>
+              {shockwaves.map((s) => (
+                <motion.div
+                  key={s.id}
+                  initial={{ opacity: 0.8, scale: 0.2 }}
+                  animate={{ opacity: 0, scale: 2.2 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.7, ease: 'easeOut' }}
+                  className="absolute w-32 h-32 rounded-full border-4 border-white/60 pointer-events-none z-0"
+                  style={{ left: s.x - 64, top: s.y - 64 }}
+                />
+              ))}
+            </AnimatePresence>
+
+            {/* Exhaust smoke puffs */}
+            <AnimatePresence>
+              {exhaustPuffs.map((p) => (
+                <motion.div
+                  key={p.id}
+                  initial={{ opacity: 0.7, scale: 0.4, y: 0, x: 0 }}
+                  animate={{ opacity: 0, scale: 1.4, y: -40, x: -30 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.9, ease: 'easeOut' }}
+                  className="absolute w-8 h-8 rounded-full bg-white/40 blur-sm pointer-events-none z-0"
+                  style={{ left: p.x, top: p.y }}
+                />
+              ))}
+            </AnimatePresence>
 
             <motion.div
               animate={{
-                scale: truckBump ? [1, 0.92, 1.05, 1] : 1,
-                y: truckHappy ? [0, -6, 0] : 0,
+                scale: truckBump ? [1, 0.9, 1.06, 1] : 1,
+                y: truckHappy ? [0, -8, 0] : 0,
+                rotateX: truckTilt.rotateX,
+                rotateY: truckTilt.rotateY,
               }}
-              transition={{ duration: 0.22 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 18 }}
               className="relative z-10 cursor-pointer select-none mt-12"
+              style={{ transformStyle: 'preserve-3d' }}
               onPointerDown={handleTruckClick}
             >
-              <span className="text-[9rem] leading-none drop-shadow-[0_14px_28px_rgba(0,0,0,0.45)] filter">
+              {/* Truck shadow */}
+              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-32 h-8 bg-black/25 rounded-full blur-md" />
+              <span className="text-[9rem] leading-none drop-shadow-[0_18px_32px_rgba(0,0,0,0.5)] filter block" style={{ transform: 'translateZ(24px)' }}>
                 {CLICKER_BUILDINGS.find((b) => b.id === activeVehicleId)?.emoji ?? '🚛'}
               </span>
             </motion.div>
@@ -727,15 +819,20 @@ export default function Game() {
             ))}
           </AnimatePresence>
 
-          {/* Floating numbers */}
+          {/* Floating numbers with arc trajectory */}
           <AnimatePresence>
             {floatingNumbers.map((n) => (
               <motion.div
                 key={n.id}
-                initial={{ opacity: 1, y: 0, scale: 0.6 }}
-                animate={{ opacity: 0, y: -100, scale: 1.3 }}
+                initial={{ opacity: 1, y: 0, scale: 0.6, x: 0 }}
+                animate={{
+                  opacity: 0,
+                  y: -120,
+                  scale: 1.3,
+                  x: n.arcX,
+                }}
                 exit={{ opacity: 0 }}
-                transition={{ duration: 0.9, ease: 'easeOut' }}
+                transition={{ duration: 1, ease: [0.25, 0.46, 0.45, 0.94] }}
                 className="absolute pointer-events-none font-fredoka font-black text-3xl flex items-center gap-1"
                 style={{ left: n.x - 30, top: n.y - 40, color: n.color, textShadow: '0 3px 10px rgba(0,0,0,0.6)' }}
               >
