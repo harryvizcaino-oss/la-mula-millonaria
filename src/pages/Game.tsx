@@ -6,27 +6,21 @@ import {
   Star,
   Zap,
   TrendingUp,
-  MapPin,
   Sparkles,
   MousePointerClick,
   HelpCircle,
-  Gem,
   Crown,
-  Building2,
-  Ticket,
   Clock,
   Bell,
 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { useMillas } from '@/providers/MillasProvider';
 import { useClickerStore, calculateClickPower } from '@/store/clickerStore';
 import { CLICKER_BUILDINGS, getBuildingTicketCost } from '@/data/clickerBuildings';
-import { CLICKER_UPGRADES } from '@/data/clickerUpgrades';
 import { mockPlayers } from '@/data/mockLeaderboard';
 import { POWER_LINES, getPowerCost, isPowerUnlocked, MAX_POWER_LEVEL } from '@/data/clickerPowers';
 import { pickRandomEvent, type ClickerGameEvent } from '@/data/clickerEvents';
-import { GameTutorial, TutorialButton } from '@/components/GameTutorial';
+import { GameTutorial } from '@/components/GameTutorial';
 
 import { useTruckHorn } from '@/hooks/useTruckHorn';
 
@@ -39,14 +33,13 @@ interface FloatingNumber {
   arcX: number;
 }
 
-interface Particle {
+interface ClickParticle {
   id: number;
   x: number;
   y: number;
-  emoji: string;
-  vx: number;
-  vy: number;
-  rotate: number;
+  type: 'spark' | 'coin' | 'star' | 'flash';
+  dx: number;
+  dy: number;
 }
 
 interface FlyItem {
@@ -61,10 +54,10 @@ interface FlyItem {
 interface FloatingCollectible {
   id: number;
   emoji: string;
-  x: number; // % 0-100 within arena
-  y: number; // % 0-100 within arena
-  vx: number; // % per second
-  vy: number; // % per second
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
   reward: number;
   expiresAt: number;
 }
@@ -87,6 +80,13 @@ function getRarity(index: number) {
   if (index < 8) return 'epic';
   return 'legendary';
 }
+
+const TIER_COLORS: Record<string, { main: string; light: string }> = {
+  common: { main: '#94A3B8', light: '#CBD5E1' },
+  rare: { main: '#3B82F6', light: '#60A5FA' },
+  epic: { main: '#A855F7', light: '#C084FC' },
+  legendary: { main: '#F59E0B', light: '#FBBF24' },
+};
 
 const RARITY_STYLES = {
   common: {
@@ -116,13 +116,12 @@ const RARITY_STYLES = {
 };
 
 export default function Game() {
-  const navigate = useNavigate();
   const { millas, addMillas } = useMillas();
   const store = useClickerStore();
 
   const [activeTab, setActiveTab] = useState<'buildings' | 'upgrades' | 'prestige'>('upgrades');
   const [floatingNumbers, setFloatingNumbers] = useState<FloatingNumber[]>([]);
-  const [particles, setParticles] = useState<Particle[]>([]);
+  const [particles, setParticles] = useState<ClickParticle[]>([]);
   const [truckBump, setTruckBump] = useState(false);
   const [truckHappy, setTruckHappy] = useState(false);
   const [shake, setShake] = useState(false);
@@ -140,6 +139,10 @@ export default function Game() {
   const [truckTilt, setTruckTilt] = useState({ rotateX: 0, rotateY: 0 });
   const [shockwaves, setShockwaves] = useState<{ id: number; x: number; y: number }[]>([]);
   const [exhaustPuffs, setExhaustPuffs] = useState<{ id: number; x: number; y: number; scale: number; opacity: number }[]>([]);
+  const [milestone, setMilestone] = useState(false);
+  const [counterBlur, setCounterBlur] = useState(false);
+  const [hapticOverlay, setHapticOverlay] = useState<{ type: 'flash' | 'shake' | 'vignette'; id: number } | null>(null);
+  const [notificationCount] = useState(3);
 
   const floatingIdRef = useRef(0);
   const particleIdRef = useRef(0);
@@ -157,6 +160,8 @@ export default function Game() {
   const discountMultiplierRef = useRef(1);
   const shockwaveIdRef = useRef(0);
   const exhaustIdRef = useRef(0);
+  const lastClickRef = useRef(0);
+  const prevMilestoneRef = useRef(0);
 
   const clickPower = useMemo(() => calculateClickPower(store), [store.upgrades, store.stars, store.buildings, store.powerLevels]);
 
@@ -313,33 +318,88 @@ export default function Game() {
     }, 700);
   };
 
-  const spawnParticles = (x: number, y: number) => {
-    const emojis = ['✨', '🪙', '⭐', '💥', '🔥'];
-    const newParticles: Particle[] = [];
-    for (let i = 0; i < 14; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 80 + Math.random() * 140;
-      newParticles.push({
-        id: ++particleIdRef.current,
+  // ───────────── HAPTIC VISUAL FEEDBACK ─────────────
+  const triggerHaptic = useCallback((type: 'flash' | 'shake' | 'vignette') => {
+    const id = Date.now();
+    setHapticOverlay({ type, id });
+    const duration = type === 'flash' ? 100 : type === 'shake' ? 300 : 500;
+    setTimeout(() => {
+      setHapticOverlay((prev) => (prev?.id === id ? null : prev));
+    }, duration);
+  }, []);
+
+  const spawnLayeredParticles = useCallback((x: number, y: number) => {
+    const now = Date.now();
+    if (now - lastClickRef.current < 50) return;
+    lastClickRef.current = now;
+
+    setParticles((prev) => {
+      const current = prev.length > 30 ? prev.slice(prev.length - 30) : prev;
+      const next: ClickParticle[] = [];
+      const idBase = ++particleIdRef.current;
+
+      // Layer 1: sparks
+      for (let i = 0; i < 7; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 60 + Math.random() * 80;
+        next.push({
+          id: idBase + i,
+          x,
+          y,
+          type: 'spark',
+          dx: Math.cos(angle) * dist,
+          dy: Math.sin(angle) * dist,
+        });
+      }
+      // Layer 2: coins
+      for (let i = 0; i < 5; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 40 + Math.random() * 70;
+        next.push({
+          id: idBase + 10 + i,
+          x,
+          y,
+          type: 'coin',
+          dx: Math.cos(angle) * dist,
+          dy: -40 - Math.random() * 40,
+        });
+      }
+      // Layer 3: stars
+      for (let i = 0; i < 4; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 80 + Math.random() * 90;
+        next.push({
+          id: idBase + 20 + i,
+          x,
+          y,
+          type: 'star',
+          dx: Math.cos(angle) * dist,
+          dy: Math.sin(angle) * dist,
+        });
+      }
+      // Layer 4: flash
+      next.push({
+        id: idBase + 30,
         x,
         y,
-        emoji: emojis[Math.floor(Math.random() * emojis.length)],
-        vx: Math.cos(angle) * speed,
-        vy: Math.sin(angle) * speed - 60,
-        rotate: Math.random() * 360,
+        type: 'flash',
+        dx: 0,
+        dy: 0,
       });
-    }
-    setParticles((prev) => [...prev, ...newParticles]);
-    setTimeout(() => {
-      setParticles((prev) => prev.filter((p) => !newParticles.find((np) => np.id === p.id)));
-    }, 900);
-  };
+
+      const combined = [...current, ...next];
+      setTimeout(() => {
+        setParticles((p) => p.filter((item) => !next.find((n) => n.id === item.id)));
+      }, 850);
+      return combined;
+    });
+  }, []);
 
   const spawnParticlesPercent = (pctX: number, pctY: number) => {
     const arena = clickAreaRef.current;
     if (!arena) return;
     const rect = arena.getBoundingClientRect();
-    spawnParticles((pctX / 100) * rect.width, (pctY / 100) * rect.height);
+    spawnLayeredParticles((pctX / 100) * rect.width, (pctY / 100) * rect.height);
   };
 
   const spawnShockwave = (x: number, y: number) => {
@@ -396,6 +456,15 @@ export default function Game() {
       const result = store.click();
       addMillas(Math.floor(result.millas * multiplier));
 
+      // Milestone detection
+      const currentPower = Math.floor(Math.log10(Math.max(1, millas + result.millas * multiplier)));
+      if (currentPower > prevMilestoneRef.current && currentPower >= 1) {
+        prevMilestoneRef.current = currentPower;
+        setMilestone(true);
+        triggerHaptic('shake');
+        setTimeout(() => setMilestone(false), 1000);
+      }
+
       // 3D punch + shockwave
       setTruckTilt({ rotateX: 6, rotateY: 0 });
       setTimeout(() => setTruckTilt({ rotateX: 0, rotateY: 0 }), 120);
@@ -405,9 +474,11 @@ export default function Game() {
       setTruckBump(true);
       setTruckHappy(true);
       setShake(true);
+      setCounterBlur(true);
       setTimeout(() => setTruckBump(false), 150);
       setTimeout(() => setTruckHappy(false), 400);
       setTimeout(() => setShake(false), 200);
+      setTimeout(() => setCounterBlur(false), 120);
 
       const id = ++floatingIdRef.current;
       setFloatingNumbers((prev) => [
@@ -418,9 +489,9 @@ export default function Game() {
         setFloatingNumbers((prev) => prev.filter((n) => n.id !== id));
       }, 1000);
 
-      spawnParticles(relX, relY);
+      spawnLayeredParticles(relX, relY);
     },
-    [clickPower, store, addMillas, activeClickMultiplier]
+    [clickPower, store, addMillas, activeClickMultiplier, millas, spawnLayeredParticles, triggerHaptic]
   );
 
   // Keep latest click handler accessible to autoclick loop without restarting it
@@ -448,7 +519,6 @@ export default function Game() {
       const rect = arena.getBoundingClientRect();
       const x = rect.left + rect.width / 2 + (Math.random() - 0.5) * 80;
       const y = rect.top + rect.height / 2 + (Math.random() - 0.5) * 80;
-      // trigger click as if user tapped the center
       const fakeEvent = { clientX: x, clientY: y, stopPropagation: () => {} } as React.PointerEvent;
       handleTruckClickRef.current(fakeEvent);
     }, 250);
@@ -461,6 +531,7 @@ export default function Game() {
       const building = CLICKER_BUILDINGS.find((b) => b.id === id);
       if (building) spawnFlyItem(building.emoji, el);
       showToast(`+1 ${building?.name ?? 'vehiculo'}`, '#3B82F6');
+      triggerHaptic('flash');
     }
   };
 
@@ -470,6 +541,7 @@ export default function Game() {
       addMillas(-result.cost);
       const power = POWER_LINES.find((p) => p.id === id);
       if (power) spawnFlyItem(power.emoji, el);
+      triggerHaptic('flash');
     }
   };
 
@@ -479,6 +551,7 @@ export default function Game() {
       addMillas(-result.cost);
       showToast('¡Autoclick activado!', '#A855F7');
       setAutoclickRemaining(result.duration);
+      triggerHaptic('vignette');
     }
   };
 
@@ -487,6 +560,7 @@ export default function Game() {
     setPrestigeResult(result);
     if (result.success) {
       showToast(`¡Ascendiste! +${result.starsGained} ⭐`, '#FACC15');
+      triggerHaptic('shake');
       setTimeout(() => setPrestigeResult(null), 3000);
     }
   };
@@ -533,6 +607,11 @@ export default function Game() {
     [store.buildings]
   );
 
+  const totalProduction = useMemo(
+    () => buildingsSorted.reduce((sum, b) => sum + b.baseClickBonus * b.owned, 0),
+    [buildingsSorted]
+  );
+
   const autoclickCost = useMemo(
     () => Math.floor(5000 * Math.pow(4, store.autoclickLevel)),
     [store.autoclickLevel]
@@ -540,7 +619,6 @@ export default function Game() {
   const canAffordAutoclick = millas >= autoclickCost;
 
   const effectiveClickPower = clickPower * activeClickMultiplier;
-  const level = Math.max(1, Math.floor(Math.log10(Math.max(1, store.totalEarned)) / 2 + 1));
 
   const rankPosition = useMemo(() => {
     const userScore = effectiveClickPower;
@@ -550,6 +628,27 @@ export default function Game() {
 
   return (
     <div className="relative min-h-[100dvh] bg-white text-slate-900 pb-28 overflow-x-hidden">
+      {/* Haptic overlays */}
+      <AnimatePresence>
+        {hapticOverlay?.type === 'flash' && (
+          <motion.div
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="screen-flash"
+          />
+        )}
+        {hapticOverlay?.type === 'vignette' && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="screen-vignette"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Game atmospheric background — confined to arena via absolute ancestor below */}
+
       {/* Floating Header */}
       <div className="absolute top-0 left-0 right-0 z-50 py-2 bg-white/30 backdrop-blur-sm">
         <div className="px-4">
@@ -603,7 +702,11 @@ export default function Game() {
                 className="relative p-2 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors border border-slate-200"
               >
                 <Bell size={16} />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-[#F59E0B] rounded-full" />
+                {notificationCount > 0 && (
+                  <span className="notification-badge">
+                    {notificationCount > 9 ? '9+' : notificationCount}
+                  </span>
+                )}
               </button>
             </div>
           </div>
@@ -617,295 +720,350 @@ export default function Game() {
           <motion.div
             animate={shake ? { x: [-4, 4, -4, 4, 0] } : { x: 0 }}
             transition={{ duration: 0.2 }}
-            className="relative aspect-[3/4] max-h-[85vh] rounded-b-[2rem] overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.2)] select-none"
+            className={cn(
+              'relative aspect-[3/4] max-h-[85vh] rounded-b-[2rem] overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.2)] select-none',
+              hapticOverlay?.type === 'shake' && 'screen-shake'
+            )}
             style={{ touchAction: 'none' }}
           >
-          {/* Sky */}
-          <div className="absolute inset-0 bg-gradient-to-b from-[#38BDF8] to-[#BAE6FD]" />
+            {/* Sky */}
+            <div className="absolute inset-0 bg-gradient-to-b from-[#38BDF8] to-[#BAE6FD] z-[1]" />
 
-          {/* Sun */}
-          <motion.div
-            animate={{ y: [0, -8, 0] }}
-            transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-            className="absolute top-36 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full bg-[#FDE047] shadow-[0_0_24px_rgba(253,224,71,0.6)]"
-          />
-
-          {/* Money counter */}
-          <div className="absolute top-44 left-0 right-0 z-20 flex justify-center pointer-events-none">
-            <motion.span
-              animate={{ scale: [1, 1.02, 1] }}
-              transition={{ duration: 1.2, repeat: Infinity }}
-              className="font-fredoka font-black text-5xl text-white"
-              style={{ textShadow: '0 3px 12px rgba(0,0,0,0.5), 0 0 24px rgba(0,0,0,0.3)' }}
-            >
-              {formatFull(millas)}
-            </motion.span>
-          </div>
-
-          {/* Clouds */}
-          <motion.div
-            animate={{ x: [-20, 20, -20] }}
-            transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
-            className="absolute top-44 left-6 w-20 h-7 bg-white/80 rounded-full blur-[1px]"
-          />
-          <motion.div
-            animate={{ x: [20, -20, 20] }}
-            transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
-            className="absolute top-52 right-16 w-24 h-8 bg-white/70 rounded-full blur-[1px]"
-          />
-
-          {/* Ground / Arena */}
-          <div className="absolute bottom-0 inset-x-0 h-28 bg-gradient-to-b from-[#84CC16] to-[#4D7C0F]">
-            <div className="absolute inset-x-0 top-0 h-3 bg-[#A3E635] opacity-60" />
-          </div>
-
-          {/* Road with moving dashed lines */}
-          <div className="absolute bottom-6 inset-x-4 h-14 bg-[#57534E] rounded-full shadow-inner overflow-hidden">
-            <div className="absolute inset-0 flex items-center">
-              <motion.div
-                className="flex gap-6"
-                animate={{ x: ['0%', '-50%'] }}
-                transition={{ duration: 1.2, repeat: Infinity, ease: 'linear' }}
-              >
-                {Array.from({ length: 16 }).map((_, i) => (
-                  <div key={i} className="w-8 h-1.5 bg-white/30 rounded-full flex-shrink-0" />
-                ))}
-              </motion.div>
+            {/* Atmospheric background layers */}
+            <div className="game-bg !absolute !inset-0 !z-[2]">
+              <div className="bg-glow" />
+              <div className="bg-bokeh bg-bokeh--gold" />
+              <div className="bg-bokeh bg-bokeh--blue" />
+              <div className="bg-bokeh bg-bokeh--orange" />
+              <div className="bg-noise" />
             </div>
-            <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-4 bg-black/40 rounded-full overflow-hidden border border-white/10">
-              <motion.div
-                className="h-full bg-gradient-to-r from-[#EF4444] to-[#DC2626]"
-                initial={{ width: '0%' }}
-                animate={{ width: `${Math.min(100, (cycleClicks / CPS_THRESHOLD) * 100)}%` }}
-                transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-              />
-            </div>
-          </div>
 
-          {/* Multiplicador label — centered to screen, not to road */}
-          {cycleClicks >= 30 && (
+            {/* Sun */}
             <motion.div
-              initial={{ opacity: 0, y: 5 }}
-              animate={{ opacity: [1, 0.35, 1], y: 0 }}
-              transition={{ duration: 0.9, repeat: Infinity }}
-              className="absolute bottom-[5.25rem] left-1/2 -translate-x-1/2 text-white font-fredoka font-black text-2xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)] pointer-events-none whitespace-nowrap"
-            >
-              Multiplicador
-            </motion.div>
-          )}
-
-          {/* Click target with 3D perspective */}
-          <div
-            ref={clickAreaRef}
-            className="absolute inset-0 flex items-center justify-center"
-            style={{ perspective: 900 }}
-            onPointerMove={handlePointerMove}
-            onPointerLeave={handlePointerLeave}
-          >
-            <motion.div
-              animate={{ scale: [1, 1.08, 1], opacity: [0.25, 0.45, 0.25] }}
-              transition={{ duration: 1.5, repeat: Infinity }}
-              className="absolute w-56 h-56 rounded-full bg-white/10 border-4 border-white/20 pointer-events-none"
-              style={{ transformStyle: 'preserve-3d' }}
+              animate={{ y: [0, -8, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute top-36 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full bg-[#FDE047] shadow-[0_0_24px_rgba(253,224,71,0.6)] z-[3]"
             />
 
-            {/* Shockwaves */}
-            <AnimatePresence>
-              {shockwaves.map((s) => (
-                <motion.div
-                  key={s.id}
-                  initial={{ opacity: 0.8, scale: 0.2 }}
-                  animate={{ opacity: 0, scale: 2.2 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.7, ease: 'easeOut' }}
-                  className="absolute w-32 h-32 rounded-full border-4 border-white/60 pointer-events-none z-0"
-                  style={{ left: s.x - 64, top: s.y - 64 }}
-                />
-              ))}
-            </AnimatePresence>
-
-            {/* Exhaust smoke puffs */}
-            <AnimatePresence>
-              {exhaustPuffs.map((p) => (
-                <motion.div
-                  key={p.id}
-                  initial={{ opacity: 0.7, scale: 0.4, y: 0, x: 0 }}
-                  animate={{ opacity: 0, scale: 1.4, y: -40, x: -30 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.9, ease: 'easeOut' }}
-                  className="absolute w-8 h-8 rounded-full bg-white/40 blur-sm pointer-events-none z-0"
-                  style={{ left: p.x, top: p.y }}
-                />
-              ))}
-            </AnimatePresence>
-
-            <motion.div
-              animate={{
-                scale: truckBump ? [1, 0.9, 1.06, 1] : 1,
-                y: truckHappy ? [0, -8, 0] : 0,
-                rotateX: truckTilt.rotateX,
-                rotateY: truckTilt.rotateY,
-              }}
-              transition={{ type: 'spring', stiffness: 320, damping: 18 }}
-              className="relative z-10 cursor-pointer select-none mt-12"
-              style={{ transformStyle: 'preserve-3d' }}
-              onPointerDown={handleTruckClick}
-            >
-              {/* Truck shadow */}
-              <div className="absolute -bottom-4 left-1/2 -translate-x-1/2 w-32 h-8 bg-black/25 rounded-full blur-md" />
-              <span className="text-[9rem] leading-none drop-shadow-[0_18px_32px_rgba(0,0,0,0.5)] filter block" style={{ transform: 'translateZ(24px)' }}>
-                {CLICKER_BUILDINGS.find((b) => b.id === activeVehicleId)?.emoji ?? '🚛'}
-              </span>
-            </motion.div>
-
-            {store.totalClicks < 5 && (
-              <motion.div
-                animate={{ y: [0, -8, 0], scale: [1, 1.05, 1] }}
-                transition={{ duration: 1, repeat: Infinity }}
-                className="absolute top-40 left-1/2 -translate-x-1/2 bg-[#F59E0B] text-[#0D0E14] px-4 py-1.5 rounded-full text-sm font-black shadow-lg border-2 border-white pointer-events-none"
+            {/* Money counter */}
+            <div className="absolute top-44 left-0 right-0 z-20 flex justify-center pointer-events-none">
+              <div
+                className={cn(
+                  'km-counter-display counter-glow flex flex-col items-center',
+                  milestone && 'counter-milestone',
+                  counterBlur && 'km-counter-blur'
+                )}
               >
-                ¡Toca para ganar dinero!
+                <span className="counter-number font-fredoka font-black text-5xl">
+                  {formatFull(millas)}
+                </span>
+                <span className="counter-label mt-1">km</span>
+              </div>
+            </div>
+
+            {/* Clouds */}
+            <motion.div
+              animate={{ x: [-20, 20, -20] }}
+              transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute top-44 left-6 w-20 h-7 bg-white/80 rounded-full blur-[1px] z-[3]"
+            />
+            <motion.div
+              animate={{ x: [20, -20, 20] }}
+              transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
+              className="absolute top-52 right-16 w-24 h-8 bg-white/70 rounded-full blur-[1px] z-[3]"
+            />
+
+            {/* Ground / Arena */}
+            <div className="absolute bottom-0 inset-x-0 h-28 bg-gradient-to-b from-[#84CC16] to-[#4D7C0F] z-[3]">
+              <div className="absolute inset-x-0 top-0 h-3 bg-[#A3E635] opacity-60" />
+            </div>
+
+            {/* Road with moving dashed lines */}
+            <div className="absolute bottom-6 inset-x-4 h-14 bg-[#57534E] rounded-full shadow-inner overflow-hidden z-[3]">
+              <div className="road-lines" />
+              <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-4 bg-black/40 rounded-full overflow-hidden border border-white/10">
+                <div
+                  className="progress-bar-v2 h-full rounded-full overflow-visible border-0"
+                  style={{ background: 'transparent' }}
+                >
+                  <motion.div
+                    className="progress-fill-v2 h-full"
+                    initial={{ width: '0%' }}
+                    animate={{ width: `${Math.min(100, (cycleClicks / CPS_THRESHOLD) * 100)}%` }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Multiplicador label — centered to screen, not to road */}
+            {cycleClicks >= 30 && (
+              <motion.div
+                initial={{ opacity: 0, y: 5 }}
+                animate={{ opacity: [1, 0.35, 1], y: 0 }}
+                transition={{ duration: 0.9, repeat: Infinity }}
+                className="absolute bottom-[5.25rem] left-1/2 -translate-x-1/2 text-white font-fredoka font-black text-2xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)] pointer-events-none whitespace-nowrap z-[3]"
+              >
+                Multiplicador
               </motion.div>
             )}
 
-            {/* Click multiplier badge */}
-            <AnimatePresence>
-              {clickMultiplierLevel > 1 && (
+            {/* Click target with 3D perspective */}
+            <div
+              ref={clickAreaRef}
+              className="absolute inset-0 flex items-center justify-center z-[5]"
+              style={{ perspective: 900 }}
+              onPointerMove={handlePointerMove}
+              onPointerLeave={handlePointerLeave}
+            >
+              <motion.div
+                animate={{ scale: [1, 1.08, 1], opacity: [0.25, 0.45, 0.25] }}
+                transition={{ duration: 1.5, repeat: Infinity }}
+                className="absolute w-56 h-56 rounded-full bg-white/10 border-4 border-white/20 pointer-events-none"
+                style={{ transformStyle: 'preserve-3d' }}
+              />
+
+              {/* Shockwaves */}
+              <AnimatePresence>
+                {shockwaves.map((s) => (
+                  <motion.div
+                    key={s.id}
+                    initial={{ opacity: 0.8, scale: 0.2 }}
+                    animate={{ opacity: 0, scale: 2.2 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.7, ease: 'easeOut' }}
+                    className="absolute w-32 h-32 rounded-full border-4 border-white/60 pointer-events-none z-0"
+                    style={{ left: s.x - 64, top: s.y - 64 }}
+                  />
+                ))}
+              </AnimatePresence>
+
+              {/* Exhaust smoke puffs */}
+              <AnimatePresence>
+                {exhaustPuffs.map((p) => (
+                  <motion.div
+                    key={p.id}
+                    initial={{ opacity: 0.7, scale: 0.4, y: 0, x: 0 }}
+                    animate={{ opacity: 0, scale: 1.4, y: -40, x: -30 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.9, ease: 'easeOut' }}
+                    className="absolute w-8 h-8 rounded-full bg-white/40 blur-sm pointer-events-none z-0"
+                    style={{ left: p.x, top: p.y }}
+                  />
+                ))}
+              </AnimatePresence>
+
+              <motion.div
+                animate={{
+                  scale: truckBump ? [1, 0.9, 1.06, 1] : 1,
+                  y: truckHappy ? [0, -8, 0] : 0,
+                  rotateX: truckTilt.rotateX,
+                  rotateY: truckTilt.rotateY,
+                }}
+                transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+                className={cn(
+                  'truck-container relative z-10 cursor-pointer select-none mt-12',
+                  truckBump && 'bouncing'
+                )}
+                style={{ transformStyle: 'preserve-3d' }}
+                onPointerDown={handleTruckClick}
+              >
+                {/* Truck shadow */}
+                <div className="truck-shadow" />
+                <span className="truck-emoji text-[9rem] leading-none">
+                  {CLICKER_BUILDINGS.find((b) => b.id === activeVehicleId)?.emoji ?? '🚛'}
+                </span>
+              </motion.div>
+
+              {store.totalClicks < 5 && (
                 <motion.div
-                  initial={{ opacity: 0, scale: 0, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0 }}
-                  className="absolute top-40 right-4 z-20 bg-gradient-to-r from-[#EF4444] to-[#DC2626] text-white px-5 py-2.5 rounded-full font-fredoka font-black text-xl shadow-lg border-2 border-white animate-pulse"
+                  animate={{ y: [0, -8, 0], scale: [1, 1.05, 1] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                  className="absolute top-40 left-1/2 -translate-x-1/2 bg-[#F59E0B] text-[#0D0E14] px-4 py-1.5 rounded-full text-sm font-black shadow-lg border-2 border-white pointer-events-none"
                 >
-                  x{clickMultiplierLevel}
+                  ¡Toca para ganar dinero!
                 </motion.div>
               )}
+
+              {/* Click multiplier badge */}
+              <AnimatePresence>
+                {clickMultiplierLevel > 1 && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0, y: 20 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0 }}
+                    className="absolute top-40 right-4 z-20 bg-gradient-to-r from-[#EF4444] to-[#DC2626] text-white px-5 py-2.5 rounded-full font-fredoka font-black text-xl shadow-lg border-2 border-white animate-pulse"
+                  >
+                    x{clickMultiplierLevel}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {/* Autoclick active indicator */}
+              <AnimatePresence>
+                {autoclickRemaining > 0 && (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0 }}
+                    className="absolute top-40 left-4 z-20 bg-gradient-to-r from-[#A855F7] to-[#7E22CE] text-white px-3 py-1.5 rounded-full font-fredoka font-black text-sm shadow-lg border-2 border-white flex items-center gap-1.5"
+                  >
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
+                    </span>
+                    AUTO {Math.ceil(autoclickRemaining / 1000)}s
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+            </div>
+
+            {/* Particles */}
+            <AnimatePresence>
+              {particles.map((p) => {
+                const style = {
+                  left: p.x,
+                  top: p.y,
+                  '--dx': `${p.dx}px`,
+                  '--dy': `${p.dy}px`,
+                } as React.CSSProperties;
+                if (p.type === 'flash') {
+                  return (
+                    <motion.div
+                      key={p.id}
+                      className="click-flash"
+                      style={{ left: p.x - 150, top: p.y - 150 }}
+                      initial={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    />
+                  );
+                }
+                if (p.type === 'coin') {
+                  return (
+                    <motion.div
+                      key={p.id}
+                      className="particle-coin"
+                      style={style}
+                      initial={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      $
+                    </motion.div>
+                  );
+                }
+                if (p.type === 'star') {
+                  return (
+                    <motion.div
+                      key={p.id}
+                      className="particle-star"
+                      style={style}
+                      initial={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                    >
+                      ⭐
+                    </motion.div>
+                  );
+                }
+                return (
+                  <motion.div
+                    key={p.id}
+                    className="particle-spark"
+                    style={style}
+                    initial={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                  />
+                );
+              })}
             </AnimatePresence>
 
-            {/* Autoclick active indicator */}
+            {/* Floating numbers with arc trajectory */}
             <AnimatePresence>
-              {autoclickRemaining > 0 && (
+              {floatingNumbers.map((n) => (
                 <motion.div
+                  key={n.id}
+                  initial={{ opacity: 1, y: 0, scale: 0.6, x: 0 }}
+                  animate={{
+                    opacity: 0,
+                    y: -120,
+                    scale: 1.3,
+                    x: n.arcX,
+                  }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 1, ease: [0.25, 0.46, 0.45, 0.94] }}
+                  className="absolute pointer-events-none font-fredoka font-black text-3xl flex items-center gap-1"
+                  style={{ left: n.x - 30, top: n.y - 40, color: n.color, textShadow: '0 3px 10px rgba(0,0,0,0.6)' }}
+                >
+                  <Coins size={22} className="fill-current" />
+                  {n.text}
+                </motion.div>
+              ))}
+            </AnimatePresence>
+
+            {/* Floating collectibles (golden tickets) */}
+            <AnimatePresence>
+              {collectibles.map((c) => (
+                <motion.button
+                  key={c.id}
                   initial={{ opacity: 0, scale: 0 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0 }}
-                  className="absolute top-40 left-4 z-20 bg-gradient-to-r from-[#A855F7] to-[#7E22CE] text-white px-3 py-1.5 rounded-full font-fredoka font-black text-sm shadow-lg border-2 border-white flex items-center gap-1.5"
+                  whileHover={{ scale: 1.2 }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    handleCollect(c.id);
+                  }}
+                  className="absolute z-30 text-4xl cursor-pointer drop-shadow-lg"
+                  style={{ left: `${c.x}%`, top: `${c.y}%`, transform: 'translate(-50%, -50%)' }}
+                  title={`Golden Ticket: +${formatNumber(c.reward)}`}
                 >
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-white" />
-                  </span>
-                  AUTO {Math.ceil(autoclickRemaining / 1000)}s
-                </motion.div>
-              )}
+                  {c.emoji}
+                </motion.button>
+              ))}
             </AnimatePresence>
+          </motion.div>
 
-          </div>
-
-          {/* Particles */}
-          <AnimatePresence>
-            {particles.map((p) => (
-              <motion.div
-                key={p.id}
-                initial={{ opacity: 1, x: p.x, y: p.y, scale: 0.6, rotate: p.rotate }}
-                animate={{ opacity: 0, x: p.x + p.vx, y: p.y + p.vy, scale: 1.2, rotate: p.rotate + 180 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.7, ease: 'easeOut' }}
-                className="absolute pointer-events-none text-2xl"
-                style={{ left: 0, top: 0 }}
-              >
-                {p.emoji}
-              </motion.div>
-            ))}
-          </AnimatePresence>
-
-          {/* Floating numbers with arc trajectory */}
-          <AnimatePresence>
-            {floatingNumbers.map((n) => (
-              <motion.div
-                key={n.id}
-                initial={{ opacity: 1, y: 0, scale: 0.6, x: 0 }}
-                animate={{
-                  opacity: 0,
-                  y: -120,
-                  scale: 1.3,
-                  x: n.arcX,
-                }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 1, ease: [0.25, 0.46, 0.45, 0.94] }}
-                className="absolute pointer-events-none font-fredoka font-black text-3xl flex items-center gap-1"
-                style={{ left: n.x - 30, top: n.y - 40, color: n.color, textShadow: '0 3px 10px rgba(0,0,0,0.6)' }}
-              >
-                <Coins size={22} className="fill-current" />
-                {n.text}
-              </motion.div>
-            ))}
-          </AnimatePresence>
-
-          {/* Floating collectibles (golden tickets) */}
-          <AnimatePresence>
-            {collectibles.map((c) => (
-              <motion.button
-                key={c.id}
-                initial={{ opacity: 0, scale: 0 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0 }}
-                whileHover={{ scale: 1.2 }}
-                onPointerDown={(e) => {
-                  e.stopPropagation();
-                  handleCollect(c.id);
-                }}
-                className="absolute z-20 text-4xl cursor-pointer drop-shadow-lg"
-                style={{ left: `${c.x}%`, top: `${c.y}%`, transform: 'translate(-50%, -50%)' }}
-                title={`Golden Ticket: +${formatNumber(c.reward)}`}
-              >
-                {c.emoji}
-              </motion.button>
-            ))}
-          </AnimatePresence>
-        </motion.div>
-
-        {/* Floating Superpoder Autoclick */}
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute top-[50px] left-0 right-0 z-40 rounded-b-2xl px-4 py-2 bg-white/90 backdrop-blur-sm border-2 border-t-0 border-slate-200/80 shadow-sm flex items-center gap-3"
-        >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#A855F7] to-[#7E22CE] flex items-center justify-center text-xl shadow-lg flex-shrink-0 animate-pulse">
-            <MousePointerClick size={20} className="text-white" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Superpoder Especial</p>
-            <p className="font-fredoka font-bold text-xl text-slate-900">Autoclick</p>
-          </div>
-          <motion.button
-            whileHover={{ scale: canAffordAutoclick || autoclickRemaining > 0 ? 1.03 : 1 }}
-            whileTap={{ scale: canAffordAutoclick || autoclickRemaining > 0 ? 0.97 : 1 }}
-            onClick={handleBuyAutoclick}
-            disabled={!canAffordAutoclick && autoclickRemaining <= 0}
-            className={cn(
-              'flex-shrink-0 h-10 px-4 rounded-xl font-bold text-xs tracking-wider shadow-md transition-colors flex items-center gap-1.5',
-              autoclickRemaining > 0
-                ? 'bg-gradient-to-r from-[#22C55E] to-[#16A34A] text-white'
-                : canAffordAutoclick
-                  ? 'bg-gradient-to-r from-[#A855F7] to-[#7E22CE] text-white'
-                  : 'bg-slate-200 text-slate-400 cursor-not-allowed'
-            )}
+          {/* Floating Superpoder Autoclick */}
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="absolute top-[50px] left-0 right-0 z-40 rounded-b-2xl px-4 py-2 bg-white/90 backdrop-blur-sm border-2 border-t-0 border-slate-200/80 shadow-sm flex items-center gap-3"
           >
-            {autoclickRemaining > 0 ? (
-              <>
-                <Clock size={14} />
-                <span>{Math.ceil(autoclickRemaining / 1000)}s</span>
-              </>
-            ) : (
-              <>
-                <Coins size={14} />
-                <span>{canAffordAutoclick ? `Comprar ${formatNumber(autoclickCost)}` : formatNumber(autoclickCost)}</span>
-              </>
-            )}
-          </motion.button>
-        </motion.div>
-      </div>
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#A855F7] to-[#7E22CE] flex items-center justify-center text-xl shadow-lg flex-shrink-0 animate-pulse">
+              <MousePointerClick size={20} className="text-white" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-slate-500 text-[10px] uppercase font-bold tracking-wider">Superpoder Especial</p>
+              <p className="font-fredoka font-bold text-xl text-slate-900">Autoclick</p>
+            </div>
+            <motion.button
+              whileHover={{ scale: canAffordAutoclick || autoclickRemaining > 0 ? 1.03 : 1 }}
+              whileTap={{ scale: canAffordAutoclick || autoclickRemaining > 0 ? 0.97 : 1 }}
+              onClick={handleBuyAutoclick}
+              disabled={!canAffordAutoclick && autoclickRemaining <= 0}
+              className={cn(
+                'game-btn-v2 flex-shrink-0 h-10 px-4 rounded-xl font-bold text-xs tracking-wider shadow-md transition-colors flex items-center gap-1.5',
+                autoclickRemaining > 0
+                  ? 'bg-gradient-to-r from-[#22C55E] to-[#16A34A] text-white'
+                  : canAffordAutoclick
+                    ? 'bg-gradient-to-r from-[#A855F7] to-[#7E22CE] text-white'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+              )}
+            >
+              {autoclickRemaining > 0 ? (
+                <>
+                  <Clock size={14} />
+                  <span>{Math.ceil(autoclickRemaining / 1000)}s</span>
+                </>
+              ) : (
+                <>
+                  <Coins size={14} />
+                  <span>{canAffordAutoclick ? `Comprar ${formatNumber(autoclickCost)}` : formatNumber(autoclickCost)}</span>
+                </>
+              )}
+            </motion.button>
+          </motion.div>
+        </div>
       </div>
 
       {/* Event Banner */}
@@ -948,7 +1106,7 @@ export default function Game() {
               key={tab.id}
               onClick={() => setActiveTab(tab.id as typeof activeTab)}
               className={cn(
-                'flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black transition-all border-b-4',
+                'game-btn-v2 flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black transition-all border-b-4',
                 activeTab === tab.id
                   ? 'bg-gradient-to-b from-[#F59E0B] to-[#D97706] text-slate-900 border-[#92400E] shadow-[0_4px_16px_rgba(245,158,11,0.35)] translate-y-[-2px]'
                   : 'bg-white text-slate-500 border-transparent hover:text-slate-800 shadow-sm'
@@ -962,14 +1120,17 @@ export default function Game() {
       </div>
 
       {/* Content */}
-      <div className="max-w-3xl mx-auto px-4 mt-4 space-y-3">
+      <div className="max-w-3xl mx-auto px-4 mt-4 space-y-3 custom-scrollbar scroll-fade-mask max-h-[60vh] overflow-y-auto pb-6">
         {activeTab === 'buildings' && (
           <>
-            {buildingsSorted.map((b) => {
+            {buildingsSorted.map((b, index) => {
               const canAfford = store.goldenTickets >= b.cost * discountMultiplierRef.current;
               const discountCost = Math.ceil(b.cost * discountMultiplierRef.current);
               const rarity = RARITY_STYLES[b.rarity as keyof typeof RARITY_STYLES];
               const isTop = activeVehicleId === b.id;
+              const tierColor = TIER_COLORS[b.rarity];
+              const isHighTier = index >= 6;
+              const prodShare = totalProduction > 0 ? (b.baseClickBonus * b.owned) / totalProduction : 0;
               return (
                 <motion.button
                   key={b.id}
@@ -977,28 +1138,35 @@ export default function Game() {
                   onClick={(e) => handleBuyBuilding(b.id, e.currentTarget as HTMLElement)}
                   disabled={!canAfford}
                   className={cn(
-                    'w-full flex items-center gap-3 p-3 rounded-2xl border-[3px] transition-all text-left relative overflow-hidden',
-                    canAfford
-                      ? 'opacity-100 shadow-[0_6px_20px_rgba(0,0,0,0.35)]'
-                      : 'opacity-55 grayscale-[0.3]'
+                    'building-card-v2 w-full flex items-center gap-3 p-3 rounded-2xl text-left relative overflow-hidden',
+                    canAfford && 'affordable-glow',
+                    isHighTier && 'tier-high'
                   )}
-                  style={{ backgroundColor: '#ffffff', borderColor: isTop ? '#EF4444' : canAfford ? '#22C55E' : '#e2e8f0' }}
+                  style={{
+                    '--tier-color': tierColor.main,
+                    '--tier-color-light': tierColor.light,
+                    '--drive-speed': `${4 + Math.random() * 4}s`,
+                    '--green': '#22C55E',
+                  } as React.CSSProperties}
                 >
+                  <span className="mini-vehicle">{b.emoji}</span>
                   {isTop && (
                     <div className="absolute top-2 right-2 z-10 bg-[#EF4444] text-white text-[9px] font-black px-2 py-0.5 rounded-full border border-white shadow-sm">
                       TOP
                     </div>
                   )}
-                  <div className={cn('absolute left-0 top-0 bottom-0 w-1.5', rarity.bg)} />
                   <div className={cn('w-14 h-14 rounded-xl flex items-center justify-center text-3xl flex-shrink-0 border-2 shadow-inner', isTop ? 'bg-[#EF4444] border-[#EF4444]' : rarity.bg, isTop ? 'border-[#EF4444]' : rarity.border)}>
                     {b.emoji}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-black text-sm text-slate-900 truncate">{b.name}</h3>
-                    <p className="text-slate-500 text-xs line-clamp-2">{b.description}</p>
+                    <h3 className="font-black text-sm text-white truncate">{b.name}</h3>
+                    <p className="text-slate-300 text-xs line-clamp-2">{b.description}</p>
                     <div className="inline-flex items-center gap-1.5 mt-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-[#FDE047] to-[#F59E0B] text-[#78350F] border border-[#B45309] shadow-sm">
                       <span className="text-base">🎫</span>
                       <span className="font-fredoka font-black text-sm">{Math.floor(discountCost).toLocaleString('es-CO')}</span>
+                    </div>
+                    <div className="prod-bar">
+                      <div className="prod-bar-fill" style={{ width: `${Math.min(100, prodShare * 100)}%` }} />
                     </div>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
@@ -1040,20 +1208,24 @@ export default function Game() {
                   onClick={(e) => handleBuyPower(p.id, e.currentTarget as HTMLElement)}
                   disabled={!p.canAfford || p.isMaxed}
                   className={cn(
-                    'w-full flex items-center gap-3 p-3 rounded-2xl border-[3px] transition-all text-left relative overflow-hidden',
-                    p.canAfford && !p.isMaxed
-                      ? 'opacity-100 shadow-[0_6px_20px_rgba(0,0,0,0.35)]'
-                      : 'opacity-55 grayscale-[0.3]'
+                    'building-card-v2 w-full flex items-center gap-3 p-3 rounded-2xl text-left relative overflow-hidden',
+                    p.canAfford && !p.isMaxed && 'affordable-glow'
                   )}
-                  style={{ backgroundColor: '#ffffff', borderColor: p.canAfford && !p.isMaxed ? '#22C55E' : '#e2e8f0' }}
+                  style={{
+                    '--tier-color': tierColor,
+                    '--tier-color-light': tierColor,
+                    '--green': '#22C55E',
+                  } as React.CSSProperties}
                 >
                   <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: tierColor }} />
                   <div className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl flex-shrink-0 border-2 shadow-inner" style={{ backgroundColor: `${tierColor}20`, borderColor: `${tierColor}40` }}>
                     {p.emoji}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-black text-sm text-slate-900 truncate">{p.name}</h3>
-                    <p className="text-slate-500 text-xs line-clamp-2">{p.description}</p>
+                    <h3 className="font-black text-sm text-white truncate">{p.name}</h3>
+                    <p className="text-slate-300 text-xs line-clamp-2">
+                      {p.vehicleName} — +{formatFull(p.baseClickBonus)}/click por nivel
+                    </p>
                     <div className="inline-flex items-center gap-1.5 mt-1.5 px-3 py-1.5 rounded-full bg-slate-100 text-slate-900">
                       <span className="text-base">💵</span>
                       <span className="font-fredoka font-black text-sm">{Math.floor(p.cost).toLocaleString('es-CO')}</span>
@@ -1106,7 +1278,7 @@ export default function Game() {
                 onClick={handlePrestige}
                 disabled={potentialStars <= 0}
                 className={cn(
-                  'w-full py-4 rounded-2xl font-black text-base transition-all flex items-center justify-center gap-2 border-b-4',
+                  'game-btn-v2 w-full py-4 rounded-2xl font-black text-base transition-all flex items-center justify-center gap-2 border-b-4',
                   potentialStars > 0
                     ? 'bg-gradient-to-b from-[#FACC15] to-[#D97706] text-[#451a03] border-[#92400E] shadow-[0_6px_20px_rgba(245,158,11,0.4)] active:translate-y-1 active:border-b-0'
                     : 'bg-slate-100 text-slate-500 border-transparent cursor-not-allowed'
@@ -1172,5 +1344,3 @@ export default function Game() {
     </div>
   );
 }
-
-

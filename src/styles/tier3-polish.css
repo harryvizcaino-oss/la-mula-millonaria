@@ -1,0 +1,466 @@
+/* ============================================================
+   TIER 3 — FINE POLISH
+   Scrollbar, nav, transitions, loading, haptics
+   ============================================================ */
+
+/* ---------- Custom Scrollbar ---------- */
+.custom-scrollbar {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #94A3B8 transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #34495E 0%, #2C3E50 100%);
+  border-radius: 3px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #3498DB 0%, #2980B9 100%);
+}
+
+.scroll-fade-mask {
+  position: relative;
+}
+
+.scroll-fade-mask::before,
+.scroll-fade-mask::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 24px;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.scroll-fade-mask::before {
+  top: 0;
+  background: linear-gradient(180deg, var(--mask-bg, #ffffff) 0%, transparent 100%);
+}
+
+.scroll-fade-mask::after {
+  bottom: 0;
+  background: linear-gradient(0deg, var(--mask-bg, #ffffff) 0%, transparent 100%);
+}
+
+/* ---------- Bottom Nav Active State ---------- */
+.nav-item {
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.nav-item__icon {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-item--active .nav-item__icon {
+  transform: scale(1.15) translateY(-4px);
+  filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.6));
+}
+
+.nav-item--active .nav-item__label {
+  color: #F59E0B;
+  transform: scale(1.05);
+}
+
+.nav-item:not(.nav-item--active) {
+  opacity: 0.5;
+}
+
+.nav-indicator-dot {
+  position: absolute;
+  top: -4px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #F59E0B;
+  animation: bounceIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes bounceIn {
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.nav-squish {
+  animation: squish 0.2s ease;
+}
+
+@keyframes squish {
+  0% {
+    transform: scaleY(1);
+  }
+  30% {
+    transform: scaleY(0.8);
+  }
+  60% {
+    transform: scaleY(1.1);
+  }
+  100% {
+    transform: scaleY(1);
+  }
+}
+
+/* ---------- Screen Transitions (handled in App.tsx with framer-motion) ---------- */
+.screen-transition {
+  will-change: transform, opacity;
+}
+
+/* ---------- Progress Bars v2 ---------- */
+.progress-bar-v2 {
+  position: relative;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.08);
+  border-radius: 999px;
+}
+
+.progress-bar-v2::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  background-size: 10% 100%;
+  pointer-events: none;
+}
+
+.progress-fill-v2 {
+  position: relative;
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.progress-fill-v2::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4));
+  border-radius: 999px;
+}
+
+.progress-fill-v2--complete {
+  animation: goldFlash 0.6s ease;
+}
+
+@keyframes goldFlash {
+  0% {
+    box-shadow: 0 0 0 rgba(255, 215, 0, 0);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 215, 0, 0.8);
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(255, 215, 0, 0);
+  }
+}
+
+/* ---------- Skeleton Shimmer ---------- */
+.skeleton-shimmer {
+  position: relative;
+  overflow: hidden;
+  background: #E2E8F0;
+  border-radius: 12px;
+}
+
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.6) 50%, rgba(255, 255, 255, 0) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* ---------- Haptic Visual Feedback ---------- */
+.screen-flash {
+  position: fixed;
+  inset: 0;
+  background: rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  z-index: 9999;
+  animation: flashOut 0.15s ease-out forwards;
+}
+
+@keyframes flashOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.screen-shake {
+  animation: screenShake 0.3s ease;
+}
+
+@keyframes screenShake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-3px);
+  }
+  40% {
+    transform: translateX(3px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+
+.vignette-focus {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle, transparent 40%, rgba(0, 0, 0, 0.35) 100%);
+  pointer-events: none;
+  z-index: 9998;
+  animation: vignetteFade 0.5s ease forwards;
+}
+
+@keyframes vignetteFade {
+  0% {
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* ---------- Notification Badges ---------- */
+.notification-badge {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #E74C3C 0%, #C0392B 100%);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  animation: badgePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes badgePop {
+  0% {
+    transform: scale(0);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.notification-badge--pulse {
+  animation: badgePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), badgePulse 0.2s ease 0.4s;
+}
+
+@keyframes badgePulse {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.3);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* ---------- Title Logo 3D ---------- */
+.logo-3d {
+  color: #F59E0B;
+  text-shadow:
+    0 1px 0 #B8440F,
+    0 2px 0 #B8440F,
+    0 3px 0 #B8440F,
+    0 4px 0 #B8440F,
+    0 5px 0 #B8440F,
+    0 6px 0 #B8440F,
+    0 7px 0 #B8440F,
+    0 8px 0 #B8440F,
+    0 9px 12px rgba(0, 0, 0, 0.3);
+  animation: logoFloat 3s ease-in-out infinite;
+}
+
+.logo-3d-glow {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 107, 26, 0.12) 0%, transparent 70%);
+  filter: blur(60px);
+  animation: bgPulse 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes logoFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+/* ---------- Staggered Content Fade ---------- */
+.stagger-fade-in > * {
+  opacity: 0;
+  animation: staggerFade 0.5s ease forwards;
+}
+
+.stagger-fade-in > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-fade-in > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger-fade-in > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-fade-in > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger-fade-in > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-fade-in > *:nth-child(6) { animation-delay: 0.3s; }
+.stagger-fade-in > *:nth-child(7) { animation-delay: 0.35s; }
+.stagger-fade-in > *:nth-child(8) { animation-delay: 0.4s; }
+.stagger-fade-in > *:nth-child(9) { animation-delay: 0.45s; }
+.stagger-fade-in > *:nth-child(10) { animation-delay: 0.5s; }
+
+@keyframes staggerFade {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ---------- Navbar aliases (used by Navbar.tsx) ---------- */
+.nav-item-active {
+  color: #F59E0B;
+}
+
+.nav-item-inactive {
+  color: #64748B;
+}
+
+.nav-icon {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.nav-item-active .nav-icon {
+  transform: scale(1.15) translateY(-4px);
+  filter: drop-shadow(0 0 8px rgba(255, 215, 0, 0.6));
+}
+
+.nav-item-active .nav-label {
+  color: #F59E0B;
+  transform: scale(1.05);
+}
+
+.nav-item-inactive {
+  opacity: 0.5;
+}
+
+.nav-item-tap {
+  animation: squish 0.2s ease;
+}
+
+.nav-dot {
+  position: absolute;
+  bottom: -2px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #F59E0B;
+  animation: bounceIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.nav-center-btn:active {
+  transform: scale(0.95);
+}
+
+/* ---------- Title 3D Extrusion ---------- */
+.title-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 107, 26, 0.12) 0%, transparent 70%);
+  filter: blur(60px);
+  transform: translate(-50%, -50%);
+  animation: bgPulse 8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.title-3d-extrusion {
+  color: #F59E0B;
+  text-shadow:
+    0 1px 0 #B8440F,
+    0 2px 0 #B8440F,
+    0 3px 0 #B8440F,
+    0 4px 0 #B8440F,
+    0 5px 0 #B8440F,
+    0 6px 0 #B8440F,
+    0 7px 0 #B8440F,
+    0 8px 0 #B8440F,
+    0 9px 12px rgba(0, 0, 0, 0.3);
+  animation: logoFloat 3s ease-in-out infinite;
+}
+
+/* ---------- Progress Label ---------- */
+.progress-label-v2 {
+  transition: all 0.3s ease;
+}
+
+.progress-label-v2.complete {
+  color: #F59E0B;
+  font-weight: 700;
+  animation: badgePop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.progress-fill-v2.complete {
+  background: linear-gradient(135deg, #F59E0B 0%, #F97316 100%);
+  animation: goldFlash 0.6s ease;
+}

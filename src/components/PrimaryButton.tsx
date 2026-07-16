@@ -49,7 +49,7 @@ export default function PrimaryButton({
   return (
     <button
       className={cn(
-        'inline-flex items-center justify-center gap-2 rounded-2xl',
+        'game-btn-v2 inline-flex items-center justify-center gap-2 rounded-2xl',
         'font-inter font-bold uppercase tracking-wider',
         'transition-all duration-150 select-none',
         'disabled:opacity-50 disabled:cursor-not-allowed',

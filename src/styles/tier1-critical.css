@@ -1,0 +1,228 @@
+/* ============================================================
+   TIER 1 — CRITICAL VISUAL UPGRADES
+   Truck depth, button gloss, counter glow, building cards
+   ============================================================ */
+
+/* ---------- Truck Depth ---------- */
+.truck-container {
+  position: relative;
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.4));
+}
+
+.truck-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 35%;
+  background: radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.25) 0%, transparent 70%);
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.truck-shadow {
+  position: absolute;
+  bottom: -20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 140px;
+  height: 20px;
+  background: radial-gradient(ellipse, rgba(0, 0, 0, 0.3) 0%, transparent 70%);
+  border-radius: 50%;
+  transition: all 0.15s ease;
+}
+
+.truck-container:hover .truck-shadow {
+  width: 120px;
+  opacity: 0.5;
+}
+
+.truck-shadow--up {
+  width: 110px;
+  opacity: 0.4;
+}
+
+.truck-shadow--down {
+  width: 160px;
+  opacity: 0.55;
+}
+
+/* ---------- Button Gloss v2 ---------- */
+.game-btn-v2 {
+  position: relative;
+  overflow: hidden;
+  border-radius: 16px;
+  transition: all 0.12s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.game-btn-v2::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.4) 0%, rgba(255, 255, 255, 0) 100%);
+  border-radius: 16px 16px 40% 40%;
+  pointer-events: none;
+}
+
+.game-btn-v2::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), inset 0 -3px 6px rgba(0, 0, 0, 0.2);
+  pointer-events: none;
+}
+
+.game-btn-v2:active {
+  transform: translateY(3px) scale(0.97);
+  filter: brightness(0.9);
+}
+
+.game-btn-v2:active::before {
+  opacity: 0.15;
+}
+
+/* ---------- Counter Glow ---------- */
+.counter-glow {
+  animation: counterBreath 3s ease-in-out infinite;
+}
+
+@keyframes counterBreath {
+  0%, 100% {
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.4), 0 0 20px rgba(255, 215, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    text-shadow: 0 0 20px rgba(255, 215, 0, 0.7), 0 0 40px rgba(255, 215, 0, 0.35), 0 2px 4px rgba(0, 0, 0, 0.5);
+  }
+}
+
+.counter-milestone {
+  animation: milestoneBurst 1s ease-out;
+}
+
+@keyframes milestoneBurst {
+  0% {
+    text-shadow: 0 0 10px rgba(255, 215, 0, 0.4);
+    transform: scale(1);
+  }
+  30% {
+    text-shadow: 0 0 60px rgba(255, 215, 0, 1), 0 0 100px rgba(255, 215, 0, 0.5);
+    transform: scale(1.08);
+  }
+  100% {
+    text-shadow: 0 0 15px rgba(255, 215, 0, 0.5);
+    transform: scale(1);
+  }
+}
+
+.counter-label-km {
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  opacity: 0.6;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.counter-decor-line {
+  width: 60px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 215, 0, 0.3), transparent);
+}
+
+/* ---------- Building Cards v2 ---------- */
+.building-card-v2 {
+  background: rgba(26, 58, 92, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  contain: layout style paint;
+}
+
+.building-card-v2::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: var(--tier-color);
+}
+
+.building-card-v2.tier-high::before {
+  background: linear-gradient(180deg, var(--tier-color) 0%, var(--tier-color-light) 100%);
+  box-shadow: 0 0 8px var(--tier-color);
+}
+
+.building-card-v2:hover {
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.prod-bar {
+  height: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 1px;
+  margin-top: 6px;
+  overflow: hidden;
+}
+
+.prod-bar-fill {
+  height: 100%;
+  background: var(--tier-color);
+  border-radius: 1px;
+  transition: width 0.5s ease;
+}
+
+/* ---------- KM Counter Display ---------- */
+.km-counter-display {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.counter-number {
+  color: #FFD700;
+  text-shadow:
+    0 0 20px rgba(255, 215, 0, 0.4),
+    0 -1px 0 rgba(0, 0, 0, 0.3),
+    0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.km-counter-number {
+  text-shadow:
+    0 -1px 0 rgba(0, 0, 0, 0.15),
+    0 1px 0 rgba(255, 255, 255, 0.15);
+}
+
+.counter-label {
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  opacity: 0.6;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.km-counter-blur {
+  filter: blur(0.5px);
+}
+
+/* ---------- Truck Emoji & Bounce ---------- */
+.truck-emoji {
+  display: block;
+  filter: drop-shadow(0 18px 32px rgba(0, 0, 0, 0.5));
+}
+
+.truck-container.bouncing .truck-shadow {
+  width: 110px;
+  opacity: 0.4;
+}

@@ -1,0 +1,398 @@
+/* ============================================================
+   TIER 2 — ATMOSPHERE UPGRADES
+   Background layers, particles, building animations, modals
+   ============================================================ */
+
+/* ---------- Ambient Background ---------- */
+.game-bg {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.game-bg--dark {
+  background: linear-gradient(180deg, #1A1A2E 0%, #16213E 50%, #1A1A2E 100%);
+}
+
+.bg-glow {
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 107, 26, 0.06) 0%, transparent 70%);
+  top: 20%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: bgPulse 8s ease-in-out infinite;
+}
+
+@keyframes bgPulse {
+  0%, 100% {
+    opacity: 0.5;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+}
+
+.bg-bokeh {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  opacity: 0.4;
+  animation: floatBokeh linear infinite;
+}
+
+.bg-bokeh--gold {
+  width: 60px;
+  height: 60px;
+  background: rgba(255, 215, 0, 0.15);
+  top: 10%;
+  left: 20%;
+  animation-duration: 25s;
+}
+
+.bg-bokeh--blue {
+  width: 40px;
+  height: 40px;
+  background: rgba(52, 152, 219, 0.12);
+  top: 60%;
+  left: 80%;
+  animation-duration: 35s;
+  animation-direction: reverse;
+}
+
+.bg-bokeh--orange {
+  width: 50px;
+  height: 50px;
+  background: rgba(255, 107, 26, 0.1);
+  top: 40%;
+  left: 60%;
+  animation-duration: 30s;
+}
+
+@keyframes floatBokeh {
+  0% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(30px, -20px);
+  }
+  50% {
+    transform: translate(-10px, 30px);
+  }
+  75% {
+    transform: translate(20px, 10px);
+  }
+  100% {
+    transform: translate(0, 0);
+  }
+}
+
+/* Noise texture overlay */
+.bg-noise {
+  position: absolute;
+  inset: 0;
+  opacity: 0.015;
+  background-image: repeating-radial-gradient(circle at 50% 50%, #ffffff 0, #ffffff 1px, transparent 1px, transparent 4px);
+  pointer-events: none;
+}
+
+/* ---------- Road Lines ---------- */
+.road-lines {
+  background: repeating-linear-gradient(0deg, transparent 0px, transparent 20px, rgba(255, 255, 255, 0.4) 20px, rgba(255, 255, 255, 0.4) 40px);
+  background-size: 100% 60px;
+  animation: roadScroll 1s linear infinite;
+  width: 4px;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 0;
+  bottom: 0;
+}
+
+@keyframes roadScroll {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 0 60px;
+  }
+}
+
+/* ---------- 4-Layer Particle System ---------- */
+.particle-spark {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  background: #FFD700;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: sparkBurst 0.3s ease-out forwards;
+}
+
+@keyframes sparkBurst {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(0);
+    opacity: 0;
+  }
+}
+
+.particle-coin {
+  position: absolute;
+  font-size: 12px;
+  pointer-events: none;
+  animation: coinArc 0.8s ease-out forwards;
+  color: #FFD700;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+@keyframes coinArc {
+  0% {
+    transform: translate(0, 0) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(calc(var(--dx) * 0.5), -40px) rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), 20px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.particle-star {
+  position: absolute;
+  font-size: 16px;
+  pointer-events: none;
+  animation: starBurst 0.6s ease-out forwards;
+  color: #FFD700;
+}
+
+@keyframes starBurst {
+  0% {
+    transform: translate(0, 0) scale(0) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(calc(var(--dx) * 0.7), calc(var(--dy) * 0.7)) scale(1.3) rotate(180deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx), var(--dy)) scale(0.3) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+.click-flash {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 215, 0, 0.4) 0%, transparent 70%);
+  pointer-events: none;
+  animation: flashExpand 0.25s ease-out forwards;
+}
+
+@keyframes flashExpand {
+  from {
+    width: 0;
+    height: 0;
+    opacity: 1;
+  }
+  to {
+    width: 300px;
+    height: 300px;
+    opacity: 0;
+  }
+}
+
+/* ---------- Building Mini Animations ---------- */
+.building-card-v2 .mini-vehicle {
+  position: absolute;
+  bottom: 4px;
+  font-size: 14px;
+  opacity: 0.08;
+  animation: driveAcross var(--drive-speed, 5s) linear infinite;
+  pointer-events: none;
+}
+
+@keyframes driveAcross {
+  from {
+    transform: translateX(-30px);
+  }
+  to {
+    transform: translateX(calc(100% + 30px));
+  }
+}
+
+.prod-number.tick {
+  animation: prodTick 0.15s ease;
+}
+
+@keyframes prodTick {
+  0% {
+    transform: scale(1);
+    color: var(--green, #22C55E);
+  }
+  50% {
+    transform: scale(1.1);
+    color: #4ADE80;
+  }
+  100% {
+    transform: scale(1);
+    color: var(--green, #22C55E);
+  }
+}
+
+.affordable-glow {
+  animation: affordPulse 2s ease-in-out infinite;
+}
+
+@keyframes affordPulse {
+  0%, 100% {
+    box-shadow: inset 0 0 0 1px rgba(46, 204, 113, 0.1), 0 0 0 0 rgba(46, 204, 113, 0);
+  }
+  50% {
+    box-shadow: inset 0 0 0 1px rgba(46, 204, 113, 0.3), 0 0 12px rgba(46, 204, 113, 0.15);
+  }
+}
+
+/* ---------- Premium Modals ---------- */
+.modal-overlay-v2 {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.modal-box-v2 {
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.98) 0%, rgba(248, 250, 252, 0.98) 100%);
+  border: 2px solid rgba(212, 160, 23, 0.6);
+  border-radius: 24px;
+  padding: 28px;
+  width: 90%;
+  max-width: 380px;
+  position: relative;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.05);
+  animation: modalSpring 0.5s cubic-bezier(0.34, 1.8, 0.64, 1);
+}
+
+.modal-box-v2--dark {
+  background: linear-gradient(160deg, rgba(26, 58, 92, 0.95) 0%, rgba(13, 27, 42, 0.98) 100%);
+  border-color: rgba(212, 160, 23, 0.6);
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+@keyframes modalSpring {
+  0% {
+    transform: scale(0.6) translateY(40px);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.04) translateY(-4px);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.modal-corner {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: #D4A017;
+  transform: rotate(45deg);
+}
+
+.modal-corner.tl { top: 10px; left: 10px; }
+.modal-corner.tr { top: 10px; right: 10px; }
+.modal-corner.bl { bottom: 10px; left: 10px; }
+.modal-corner.br { bottom: 10px; right: 10px; }
+
+.modal-title-v2 {
+  font-family: 'Baloo 2', cursive;
+  font-weight: 800;
+  font-size: 26px;
+  background: linear-gradient(180deg, #FFD700 0%, #FF6B1A 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  text-align: center;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.15));
+}
+
+.modal-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.06);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  color: #475569;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.modal-close:hover {
+  background: rgba(231, 76, 60, 0.9);
+  border-color: rgba(231, 76, 60, 1);
+  color: white;
+  transform: rotate(90deg);
+}
+
+/* ---------- Bottom Sheet v2 ---------- */
+.bottom-sheet-overlay-v2 {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(6px);
+}
+
+.bottom-sheet-v2 {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  border-top: 1px solid rgba(212, 160, 23, 0.3);
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.25);
+  border-radius: 24px 24px 0 0;
+}
+
+/* ---------- Vignette Focus ---------- */
+.screen-vignette {
+  position: fixed;
+  inset: 0;
+  background: radial-gradient(circle, transparent 40%, rgba(0, 0, 0, 0.35) 100%);
+  pointer-events: none;
+  z-index: 9998;
+  animation: vignetteFade 0.5s ease forwards;
+}

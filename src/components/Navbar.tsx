@@ -13,7 +13,12 @@ const navItems = [
 ];
 
 export default function Navbar() {
-  const [, setActiveTab] = useState('/');
+  const [tappedItem, setTappedItem] = useState<string | null>(null);
+
+  const handleTap = (path: string) => {
+    setTappedItem(path);
+    setTimeout(() => setTappedItem(null), 200);
+  };
 
   return (
     <nav
@@ -25,7 +30,7 @@ export default function Navbar() {
       )}
     >
       {navItems.map((item, index) => {
-        const isCenter = index === 2; // Marketplace is center
+        const isCenter = index === 2;
         const Icon = item.icon;
 
         if (isCenter) {
@@ -33,13 +38,13 @@ export default function Navbar() {
             <div key={item.path} className="relative -mt-6">
               <NavLink
                 to="/game"
-                onClick={() => setActiveTab('/game')}
+                onClick={() => handleTap('/game')}
                 className={cn(
-                  'flex items-center justify-center',
+                  'nav-center-btn flex items-center justify-center',
                   'w-14 h-14 rounded-full',
                   'bg-gradient-to-r from-[#F59E0B] to-[#FBBF24]',
                   'shadow-glow-primary',
-                  'transition-transform duration-200 active:scale-95'
+                  'transition-transform duration-200'
                 )}
               >
                 <Gamepad2 size={24} className="text-slate-900" strokeWidth={2.5} />
@@ -55,32 +60,29 @@ export default function Navbar() {
           <NavLink
             key={item.path}
             to={item.path}
-            onClick={() => setActiveTab(item.path)}
+            onClick={() => handleTap(item.path)}
             className={({ isActive }) =>
               cn(
-                'flex flex-col items-center justify-center gap-0.5',
+                'nav-item flex flex-col items-center justify-center gap-0.5',
                 'w-16 h-full relative',
                 'transition-colors duration-200',
-                isActive ? 'text-[#F59E0B]' : 'text-slate-500 hover:text-slate-800'
+                isActive ? 'nav-item-active' : 'nav-item-inactive hover:text-slate-800'
               )
             }
           >
             {({ isActive }) => (
               <>
-                <motion.div
-                  animate={isActive ? { scale: [0.8, 1.1, 1] } : { scale: 1 }}
-                  transition={{ duration: 0.3 }}
-                >
+                <div className={cn('nav-icon', tappedItem === item.path && 'nav-item-tap')}>
                   <Icon
                     size={22}
                     strokeWidth={isActive ? 2.5 : 1.5}
                   />
-                </motion.div>
-                <span className="text-[10px] font-medium">{item.label}</span>
+                </div>
+                <span className="nav-label text-[10px] font-medium">{item.label}</span>
                 {isActive && (
                   <motion.div
                     layoutId="nav-indicator"
-                    className="absolute -bottom-0.5 w-1 h-1 rounded-full bg-[#F59E0B]"
+                    className="nav-dot"
                     transition={{ type: 'spring', duration: 0.3 }}
                   />
                 )}

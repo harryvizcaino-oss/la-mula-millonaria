@@ -120,7 +120,11 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
         <div className="flex items-center justify-center gap-3">
           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#F59E0B] to-[#F97316] shadow-lg">
             <Coins size={16} className="text-slate-900" />
-            <span className="font-fredoka font-bold text-slate-900">{millas.toLocaleString('es-CO')}</span>
+            <div className="km-counter-display">
+              <span className="km-counter-number font-fredoka font-bold text-slate-900">
+                {millas.toLocaleString('es-CO')}
+              </span>
+            </div>
           </div>
           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm">
             <TrendingUp size={16} className="text-[#22C55E]" />
@@ -148,14 +152,17 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
         </motion.div>
 
         {/* Title */}
-        <motion.h1
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-          className="font-fredoka font-black text-4xl text-slate-900 mb-2 leading-tight"
-        >
-          La Mula<br />Millonaria
-        </motion.h1>
+        <div className="relative mb-2">
+          <div className="title-glow" />
+          <motion.h1
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+            className="title-3d-extrusion font-fredoka font-black text-4xl mb-2 leading-tight relative z-10"
+          >
+            La Mula<br />Millonaria
+          </motion.h1>
+        </div>
 
         {/* Tagline */}
         <motion.p
@@ -508,7 +515,7 @@ function MarketplacePreviewSection() {
         variants={staggerContainer}
         initial="hidden"
         animate={isInView ? 'visible' : 'hidden'}
-        className="flex gap-3 overflow-x-auto snap-x snap-mandatory px-4 pb-2"
+        className="flex gap-3 overflow-x-auto snap-x snap-mandatory px-4 pb-2 custom-scrollbar"
       >
         {products.map((product) => (
           <motion.div
@@ -677,16 +684,21 @@ function DailyChallengesSection() {
 
             {/* Progress Bar */}
             <div className="relative">
-              <div className="h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-100">
+              <div className="progress-bar-v2">
                 <motion.div
                   initial={{ width: 0 }}
                   animate={isInView ? { width: `${(challenge.progress / challenge.total) * 100}%` } : {}}
                   transition={{ delay: index * 0.1 + 0.3, duration: 0.8, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-                  className="h-full rounded-full"
-                  style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #F97316 100%)' }}
+                  className={cn(
+                    'progress-fill-v2',
+                    challenge.progress >= challenge.total && 'complete'
+                  )}
                 />
               </div>
-              <p className="text-[10px] text-slate-500 mt-1 text-right">
+              <p className={cn(
+                'text-[10px] text-slate-500 mt-1 text-right progress-label-v2',
+                challenge.progress >= challenge.total && 'complete'
+              )}>
                 {challenge.progress}{challenge.unit || ''} / {challenge.total}{challenge.unit || ''}
               </p>
             </div>

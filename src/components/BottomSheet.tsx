@@ -54,7 +54,7 @@ export default function BottomSheet({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            className="bottom-sheet-overlay-v2"
             onClick={onClose}
           />
 
@@ -63,15 +63,19 @@ export default function BottomSheet({
             initial={{ y: '100%' }}
             animate={{ y: 0 }}
             exit={{ y: '100%' }}
-            transition={{ type: 'tween', duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
+            transition={{
+              type: 'tween',
+              duration: 0.45,
+              ease: [0.34, 1.8, 0.64, 1],
+            }}
             drag="y"
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={0.2}
             onDragEnd={handleDragEnd}
             style={{ y: dragY }}
             className={cn(
+              'bottom-sheet-v2',
               'fixed bottom-0 left-0 right-0 z-50',
-              'bg-slate-100 rounded-t-3xl',
               'max-h-[85vh] overflow-y-auto',
               'pb-safe',
               className
@@ -80,7 +84,7 @@ export default function BottomSheet({
             {/* Handle */}
             {showHandle && (
               <div className="flex justify-center pt-3 pb-1">
-                <div className="w-10 h-1 rounded-full bg-white/20" />
+                <div className="w-10 h-1 rounded-full bg-slate-300/60" />
               </div>
             )}
 
@@ -90,7 +94,7 @@ export default function BottomSheet({
                 <h3 className="font-fredoka font-bold text-lg text-slate-900">{title}</h3>
                 <button
                   onClick={onClose}
-                  className="p-1 rounded-full hover:bg-slate-100 transition-colors"
+                  className="p-1 rounded-full hover:bg-slate-200 transition-colors"
                 >
                   <X size={20} className="text-slate-500" />
                 </button>

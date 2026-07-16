@@ -90,16 +90,25 @@ export function GameTutorial({ forceOpen, onClose }: GameTutorialProps) {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-md flex items-center justify-center p-6"
+          className="modal-overlay-v2"
         >
           <motion.div
-            initial={{ scale: 0.9, y: 20 }}
-            animate={{ scale: 1, y: 0 }}
-            className="bg-white rounded-3xl p-6 max-w-sm w-full border border-white/10 relative"
+            initial={{ scale: 0.6, y: 40, opacity: 0 }}
+            animate={{ scale: 1, y: 0, opacity: 1 }}
+            exit={{ scale: 0.9, y: 20, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 25 }}
+            className="modal-box-v2"
           >
+            {/* Corner ornaments */}
+            <span className="modal-corner tl" />
+            <span className="modal-corner tr" />
+            <span className="modal-corner bl" />
+            <span className="modal-corner br" />
+
             <button
               onClick={handleClose}
-              className="absolute top-3 right-3 p-2 rounded-full hover:bg-slate-100 text-slate-500"
+              className="modal-close"
+              aria-label="Cerrar"
             >
               <X size={18} />
             </button>
@@ -107,12 +116,12 @@ export function GameTutorial({ forceOpen, onClose }: GameTutorialProps) {
             <div className="text-center pt-2">
               <div
                 className="w-20 h-20 rounded-2xl mx-auto mb-4 flex items-center justify-center"
-                style={{ backgroundColor: `${current.color}15` }}
+                style={{ backgroundColor: `${current.color}20` }}
               >
                 <Icon size={40} style={{ color: current.color }} />
               </div>
-              <h3 className="font-fredoka font-bold text-xl text-slate-900 mb-2">{current.title}</h3>
-              <p className="text-slate-500 text-sm leading-relaxed min-h-[72px]">{current.text}</p>
+              <h3 className="modal-title-v2">{current.title}</h3>
+              <p className="text-[#CBD5E1] text-sm leading-relaxed min-h-[72px]">{current.text}</p>
             </div>
 
             {/* Dots */}
@@ -133,7 +142,7 @@ export function GameTutorial({ forceOpen, onClose }: GameTutorialProps) {
               <button
                 onClick={() => setStep((s) => Math.max(0, s - 1))}
                 disabled={step === 0}
-                className="p-2 rounded-xl text-slate-500 disabled:opacity-30 hover:bg-slate-100"
+                className="game-btn-v2 p-2 rounded-xl text-[#CBD5E1] disabled:opacity-30 hover:bg-white/10"
               >
                 <ChevronLeft size={20} />
               </button>
@@ -141,21 +150,21 @@ export function GameTutorial({ forceOpen, onClose }: GameTutorialProps) {
               {isLast ? (
                 <button
                   onClick={handleClose}
-                  className="px-6 py-2.5 rounded-xl bg-[#F59E0B] text-[#0D0E14] font-bold text-sm"
+                  className="game-btn-v2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#F59E0B] to-[#F97316] text-[#0D0E14] font-bold text-sm"
                 >
                   ¡A jugar!
                 </button>
               ) : (
                 <button
                   onClick={() => setStep((s) => Math.min(steps.length - 1, s + 1))}
-                  className="flex items-center gap-1 px-5 py-2.5 rounded-xl bg-[#F59E0B] text-[#0D0E14] font-bold text-sm"
+                  className="game-btn-v2 flex items-center gap-1 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#F59E0B] to-[#F97316] text-[#0D0E14] font-bold text-sm"
                 >
                   Siguiente <ChevronRight size={16} />
                 </button>
               )}
             </div>
 
-            <label className="flex items-center gap-2 mt-4 text-slate-500 text-xs cursor-pointer select-none">
+            <label className="flex items-center gap-2 mt-4 text-[#94A3B8] text-xs cursor-pointer select-none">
               <input
                 type="checkbox"
                 checked={dontShowAgain}
@@ -176,7 +185,7 @@ export function TutorialButton({ onClick, light }: { onClick?: () => void; light
     <button
       onClick={onClick}
       className={cn(
-        'p-2 rounded-full transition-colors',
+        'game-btn-v2 p-2 rounded-full transition-colors',
         light
           ? 'bg-slate-100 text-[#F59E0B] hover:bg-slate-200'
           : 'bg-slate-100 text-[#F59E0B] hover:bg-slate-100'
