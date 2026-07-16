@@ -21,6 +21,17 @@ import { mockPlayers } from '@/data/mockLeaderboard';
 import { POWER_LINES, getPowerCost, isPowerUnlocked, MAX_POWER_LEVEL } from '@/data/clickerPowers';
 import { pickRandomEvent, type ClickerGameEvent } from '@/data/clickerEvents';
 import { GameTutorial } from '@/components/GameTutorial';
+import { useComboStore } from '@/store/comboStore';
+import { usePowerupStore, type PowerupId } from '@/store/powerupStore';
+import { useUnlockStore } from '@/store/unlockStore';
+import { useEventStore } from '@/store/eventStore';
+import { ComboDisplay } from '@/components/game/ComboDisplay';
+import { CriticalHit, type CritState } from '@/components/game/CriticalHit';
+import { AscensionCinematic } from '@/components/game/AscensionCinematic';
+import { GlobalEventBanner } from '@/components/game/GlobalEventBanner';
+import { UnlockCinematic } from '@/components/game/UnlockCinematic';
+import { DailyStreak } from '@/components/game/DailyStreak';
+import { PowerupMenu } from '@/components/game/PowerupMenu';
 
 import { useTruckHorn } from '@/hooks/useTruckHorn';
 
@@ -143,6 +154,18 @@ export default function Game() {
   const [counterBlur, setCounterBlur] = useState(false);
   const [hapticOverlay, setHapticOverlay] = useState<{ type: 'flash' | 'shake' | 'vignette'; id: number } | null>(null);
   const [notificationCount] = useState(3);
+  const [crit, setCrit] = useState<CritState | null>(null);
+  const [showAscension, setShowAscension] = useState(false);
+  const [timeWarpFx, setTimeWarpFx] = useState<{ id: number; amount: number } | null>(null);
+  const [goldCoins, setGoldCoins] = useState<{ id: number; x: number; reward: number }[]>([]);
+  const [nowMs, setNowMs] = useState(Date.now());
+
+  const comboTier = useComboStore((s) => s.comboTier);
+  const comboActive = useComboStore((s) => s.comboActive);
+  const activePowerupEffects = usePowerupStore((s) => s.activeEffects);
+  const activeGlobalEvent = useEventStore((s) => s.activeEvent);
+  const lastEventResult = useEventStore((s) => s.lastResult);
+  const legendaryUnlocked = useUnlockStore((s) => s.unlockedMilestones.includes('ascension-10'));
 
   const floatingIdRef = useRef(0);
   const particleIdRef = useRef(0);
@@ -162,8 +185,124 @@ export default function Game() {
   const exhaustIdRef = useRef(0);
   const lastClickRef = useRef(0);
   const prevMilestoneRef = useRef(0);
+  const critIdRef = useRef(0);
+  const goldCoinIdRef = useRef(0);
+  const nitroWasActiveRef = useRef(false);
 
   const clickPower = useMemo(() => calculateClickPower(store), [store.upgrades, store.stars, store.buildings, store.powerLevels]);
+
+  // Ticker para expirar efectos de power-ups aunque no haya clicks
+  useEffect(() => {
+    const iv = setInterval(() => setNowMs(Date.now()), 500);
+    return () => clearInterval(iv);
+  }, []);
+
+  const nitroActive = (activePowerupEffects.nitro ?? 0) > nowMs;
+  const convoyActive = (activePowerupEffects.convoy ?? 0) > nowMs;
+  const goldRainActive = (activePowerupEffects.gold_rain ?? 0) > nowMs;
+  const caravanaActive = activeGlobalEvent?.id === 'caravana';
+
+  // El combo se rompe si pasan 2s sin clicks
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const s = useComboStore.getState();
+      if (s.comboActive && Date.now() - s.lastClickAt > 2000) s.breakCombo();
+    }, 250);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Eventos globales simulados: arranque + progreso comunitario pasivo
+  useEffect(() => {
+    const iv = setInterval(() => {
+      const s = useEventStore.getState();
+      const now = Date.now();
+      if (!s.activeEvent) {
+        if (now >= s.nextEventAt) s.startEvent();
+        return;
+      }
+      if (now >= s.activeEvent.endsAt) {
+        s.endEvent();
+        return;
+      }
+      // La "comunidad" aporta progreso de forma pasiva
+      s.updateProgress(Math.max(1, Math.round(s.activeEvent.goal / s.activeEvent.durationSec / 3)));
+    }, 1000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Recompensas al terminar un evento global
+  useEffect(() => {
+    if (!lastEventResult) return;
+    addMillas(lastEventResult.rewardMillas);
+    if (lastEventResult.rewardTickets > 0) store.addGoldenTickets(lastEventResult.rewardTickets);
+    showToast(
+      lastEventResult.success
+        ? `¡Evento completado! +${formatNumber(lastEventResult.rewardMillas)} km`
+        : 'Evento finalizado: recompensa de participación',
+      lastEventResult.success ? '#F59E0B' : '#94A3B8'
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastEventResult?.id]);
+
+  // Desbloqueos épicos por hitos
+  useEffect(() => {
+    const u = useUnlockStore.getState();
+    if (store.totalKm >= 1000) {
+      u.triggerUnlock('km-1k', {
+        type: 'small',
+        title: 'Primeros 1.000 km',
+        reward: 'Desbloquea segundo tipo de vehículo',
+      });
+    }
+    if (store.totalKm >= 1_000_000) {
+      u.triggerUnlock('km-1m', {
+        type: 'medium',
+        title: '¡Primer millón de km!',
+        reward: 'Desbloquea el sistema de Ascensión',
+      });
+    }
+    const ownedTypes = CLICKER_BUILDINGS.filter((b) => (store.buildings[b.id] || 0) > 0).length;
+    if (ownedTypes >= CLICKER_BUILDINGS.length) {
+      u.triggerUnlock('fleet-10', {
+        type: 'large',
+        title: '¡Los 10 vehículos!',
+        reward: 'Skin camión dorado + título "Magnate"',
+      });
+    }
+    if (store.ascensions >= 10) {
+      u.triggerUnlock('ascension-10', {
+        type: 'epic',
+        title: '10ma Ascensión',
+        reward: 'Estado Legendario + aura exclusiva',
+      });
+    }
+  }, [store.totalKm, store.buildings, store.ascensions]);
+
+  // Aviso cuando se agota el nitro
+  useEffect(() => {
+    if (nitroWasActiveRef.current && !nitroActive) showToast('NITRO AGOTADO', '#EF4444');
+    nitroWasActiveRef.current = nitroActive;
+  }, [nitroActive]);
+
+  // Lluvia de oro: spawnea monedas clickeables mientras dura el efecto
+  useEffect(() => {
+    if (!goldRainActive) {
+      setGoldCoins([]);
+      return;
+    }
+    const iv = setInterval(() => {
+      const id = ++goldCoinIdRef.current;
+      const coin = {
+        id,
+        x: 8 + Math.random() * 84,
+        reward: Math.max(1, Math.floor(clickPower * 5)),
+      };
+      setGoldCoins((prev) => (prev.length >= 10 ? prev : [...prev, coin]));
+      // La moneda desaparece al terminar su caída (3s)
+      setTimeout(() => setGoldCoins((prev) => prev.filter((c) => c.id !== id)), 3100);
+    }, 450);
+    return () => clearInterval(iv);
+  }, [goldRainActive, clickPower]);
 
   // Click multiplier: every 5s window, +1 level per 40 clicks; -1 level if under 40
   const CPS_CYCLE_MS = 5000;
@@ -336,7 +475,8 @@ export default function Game() {
     setParticles((prev) => {
       const current = prev.length > 30 ? prev.slice(prev.length - 30) : prev;
       const next: ClickParticle[] = [];
-      const idBase = ++particleIdRef.current;
+      const idBase = particleIdRef.current;
+      particleIdRef.current += 40;
 
       // Layer 1: sparks
       for (let i = 0; i < 7; i++) {
@@ -450,11 +590,33 @@ export default function Game() {
         clicksSinceTicketRef.current = 0;
       }
 
-      const multiplier = activeClickMultiplier;
+      // Combo: cada click alimenta la racha (ventana de 2s)
+      useComboStore.getState().incrementCombo();
+      const comboMult = useComboStore.getState().comboMultiplier;
+
+      // Evento global: cada click aporta al progreso comunitario
+      useEventStore.getState().updateProgress(1);
+
+      // Crítico: 5% base + bonus por 'precision' (tope 25%)
+      const isCrit = Math.random() < store.getCriticalChance();
+
+      let multiplier = activeClickMultiplier * comboMult;
+      if (nitroActive) multiplier *= 50;
+      if (convoyActive) multiplier *= 10;
+      if (caravanaActive) multiplier *= 3;
+      if (isCrit) multiplier *= 10;
+
       const amount = clickPower * multiplier;
       playHorn();
       const result = store.click();
       addMillas(Math.floor(result.millas * multiplier));
+
+      if (isCrit) {
+        const cId = ++critIdRef.current;
+        setCrit({ id: cId, x: relX, y: relY });
+        triggerHaptic('shake');
+        setTimeout(() => setCrit((prev) => (prev?.id === cId ? null : prev)), 900);
+      }
 
       // Milestone detection
       const currentPower = Math.floor(Math.log10(Math.max(1, millas + result.millas * multiplier)));
@@ -483,7 +645,7 @@ export default function Game() {
       const id = ++floatingIdRef.current;
       setFloatingNumbers((prev) => [
         ...prev,
-        { id, x: relX + (Math.random() - 0.5) * 30, y: relY, text: `+${formatNumber(amount)}`, color: multiplier > 1 ? '#FACC15' : '#FBBF24', arcX: (Math.random() - 0.5) * 80 },
+        { id, x: relX + (Math.random() - 0.5) * 30, y: relY, text: `+${formatNumber(amount)}`, color: isCrit ? '#EF4444' : multiplier > 1 ? '#FACC15' : '#FBBF24', arcX: (Math.random() - 0.5) * 80 },
       ]);
       setTimeout(() => {
         setFloatingNumbers((prev) => prev.filter((n) => n.id !== id));
@@ -491,7 +653,7 @@ export default function Game() {
 
       spawnLayeredParticles(relX, relY);
     },
-    [clickPower, store, addMillas, activeClickMultiplier, millas, spawnLayeredParticles, triggerHaptic]
+    [clickPower, store, addMillas, activeClickMultiplier, millas, spawnLayeredParticles, triggerHaptic, nitroActive, convoyActive, caravanaActive]
   );
 
   // Keep latest click handler accessible to autoclick loop without restarting it
@@ -555,20 +717,60 @@ export default function Game() {
     }
   };
 
-  const handlePrestige = () => {
+  // Ascensión: el botón abre la cinemática; el reset se aplica a mitad de la cinemática
+  const handleAscensionApply = () => {
     const result = store.prestige();
     setPrestigeResult(result);
     if (result.success) {
+      store.addAscension();
       showToast(`¡Ascendiste! +${result.starsGained} ⭐`, '#FACC15');
       triggerHaptic('shake');
       setTimeout(() => setPrestigeResult(null), 3000);
     }
   };
 
+  const handlePowerupActivate = (powerupId: PowerupId) => {
+    if (powerupId === 'time_warp') {
+      // 4 horas de producción instantánea (economía por click: 1 click/segundo equivalente)
+      const gain = Math.max(1, Math.floor(clickPower * 4 * 3600));
+      addMillas(gain);
+      store.addEarnings(gain);
+      setTimeWarpFx({ id: Date.now(), amount: gain });
+      setTimeout(() => setTimeWarpFx(null), 2600);
+      return;
+    }
+    if (powerupId === 'nitro') {
+      showToast('🚀 ¡NITRO x50!', '#EF4444');
+      triggerHaptic('vignette');
+    }
+    if (powerupId === 'convoy') showToast('🚛 ¡Convoy x10!', '#22C55E');
+    if (powerupId === 'gold_rain') showToast('🌧️ ¡Lluvia de Oro!', '#FACC15');
+  };
+
+  const handleGoldCoinCollect = (coinId: number) => {
+    setGoldCoins((prev) => {
+      const coin = prev.find((c) => c.id === coinId);
+      if (!coin) return prev;
+      addMillas(coin.reward);
+      showToast(`+${formatNumber(coin.reward)} km`, '#FACC15');
+      spawnParticlesPercent(coin.x, 50);
+      return prev.filter((c) => c.id !== coinId);
+    });
+  };
+
   const potentialStars = useMemo(() => {
     const threshold = 1_000_000;
     return Math.max(0, Math.floor(Math.sqrt(store.totalEarned / threshold)) - store.stars);
   }, [store.totalEarned, store.stars]);
+
+  // Ascensión: umbral 1M * 10^ascensiones de ganancia total (máx 50 ascensiones)
+  const ascensionThreshold = useMemo(
+    () => 1_000_000 * Math.pow(10, store.ascensions),
+    [store.ascensions]
+  );
+  const canAscend =
+    store.ascensions < 50 && store.totalEarned >= ascensionThreshold && potentialStars > 0;
+  const ascensionProgress = Math.min(1, store.totalEarned / ascensionThreshold);
 
   const buildingsSorted = useMemo(() => {
     return CLICKER_BUILDINGS.map((b, i) => ({
@@ -693,6 +895,11 @@ export default function Game() {
             </div>
 
             <div className="flex items-center gap-2">
+              {store.ascensions > 0 && (
+                <div className="ascension-badge" title={`Ascensión ${store.ascensions}`}>
+                  ⭐x{store.ascensions}
+                </div>
+              )}
               <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-slate-100 border border-[#FACC15]/40">
                 <Crown size={14} className="text-[#F59E0B]" />
                 <span className="font-fredoka font-bold text-[#F59E0B]">#{rankPosition}</span>
@@ -722,7 +929,9 @@ export default function Game() {
             transition={{ duration: 0.2 }}
             className={cn(
               'relative aspect-[3/4] max-h-[85vh] rounded-b-[2rem] overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.2)] select-none',
-              hapticOverlay?.type === 'shake' && 'screen-shake'
+              hapticOverlay?.type === 'shake' && 'screen-shake',
+              crit && 'crit-shake',
+              comboActive && comboTier >= 4 && 'combo-max-shake'
             )}
             style={{ touchAction: 'none' }}
           >
@@ -738,6 +947,41 @@ export default function Game() {
               <div className="bg-noise" />
             </div>
 
+            {/* Nitro: líneas de viento horizontales */}
+            {nitroActive && (
+              <div className="nitro-wind">
+                {[12, 26, 40, 55, 70, 84].map((top, i) => (
+                  <span
+                    key={i}
+                    className="wind-streak"
+                    style={{ top: `${top}%`, animationDelay: `${i * 0.09}s` }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Lluvia de oro: fondo oscurecido */}
+            {goldRainActive && <div className="gold-rain-dim" />}
+
+            {/* Convoy: mini camiones subiendo */}
+            {convoyActive && (
+              <div className="convoy-overlay">
+                {[6, 20, 36, 52, 68, 84].map((left, i) => (
+                  <span
+                    key={i}
+                    className="convoy-truck"
+                    style={{
+                      left: `${left}%`,
+                      animationDelay: `${i * 0.7}s`,
+                      ['--cv-dur' as string]: `${3.2 + (i % 3) * 0.9}s`,
+                    }}
+                  >
+                    🚛
+                  </span>
+                ))}
+              </div>
+            )}
+
             {/* Sun */}
             <motion.div
               animate={{ y: [0, -8, 0] }}
@@ -751,7 +995,8 @@ export default function Game() {
                 className={cn(
                   'km-counter-display counter-glow flex flex-col items-center',
                   milestone && 'counter-milestone',
-                  counterBlur && 'km-counter-blur'
+                  counterBlur && 'km-counter-blur',
+                  nitroActive && 'nitro-counter'
                 )}
               >
                 <span className="counter-number font-fredoka font-black text-5xl">
@@ -863,7 +1108,10 @@ export default function Game() {
                 transition={{ type: 'spring', stiffness: 320, damping: 18 }}
                 className={cn(
                   'truck-container relative z-10 cursor-pointer select-none mt-12',
-                  truckBump && 'bouncing'
+                  truckBump && 'bouncing',
+                  nitroActive && 'nitro-flames',
+                  store.ascensions > 0 && 'golden-aura',
+                  legendaryUnlocked && 'legendary-aura'
                 )}
                 style={{ transformStyle: 'preserve-3d' }}
                 onPointerDown={handleTruckClick}
@@ -916,6 +1164,12 @@ export default function Game() {
                   </motion.div>
                 )}
               </AnimatePresence>
+
+              {/* Combo display (top-center del área del camión) */}
+              <ComboDisplay />
+
+              {/* Efecto de golpe crítico */}
+              <CriticalHit crit={crit} />
 
             </div>
 
@@ -1021,6 +1275,26 @@ export default function Game() {
                 </motion.button>
               ))}
             </AnimatePresence>
+
+            {/* Lluvia de oro: monedas clickeables */}
+            <AnimatePresence>
+              {goldCoins.map((c) => (
+                <motion.button
+                  key={c.id}
+                  initial={{ opacity: 0, scale: 0.5 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 1.6 }}
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    handleGoldCoinCollect(c.id);
+                  }}
+                  className="gold-coin"
+                  style={{ left: `${c.x}%` }}
+                >
+                  🪙
+                </motion.button>
+              ))}
+            </AnimatePresence>
           </motion.div>
 
           {/* Floating Superpoder Autoclick */}
@@ -1094,13 +1368,25 @@ export default function Game() {
         )}
       </AnimatePresence>
 
+      {/* Racha diaria */}
+      <div className="max-w-3xl mx-auto px-4 mt-4">
+        <DailyStreak
+          onClaim={(reward, day) => {
+            addMillas(reward);
+            if (day === 5) store.addGoldenTickets(5); // caja especial
+            if (day === 7) store.addGoldenTickets(20); // item legendario
+            triggerHaptic('flash');
+          }}
+        />
+      </div>
+
       {/* Tabs */}
       <div className="max-w-3xl mx-auto px-4 mt-5">
         <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border-2 border-slate-200">
           {[
             { id: 'upgrades', label: 'Poderes', icon: Zap },
             { id: 'buildings', label: 'Flota', icon: Truck },
-            { id: 'prestige', label: 'Prestigio', icon: Star },
+            { id: 'prestige', label: 'Ascensión', icon: Star },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1120,7 +1406,7 @@ export default function Game() {
       </div>
 
       {/* Content */}
-      <div className="max-w-3xl mx-auto px-4 mt-4 space-y-3 custom-scrollbar scroll-fade-mask max-h-[60vh] overflow-y-auto pb-6">
+      <div className={cn('max-w-3xl mx-auto px-4 mt-4 space-y-3 custom-scrollbar scroll-fade-mask max-h-[60vh] overflow-y-auto pb-6', convoyActive && 'convoy-glow')}>
         {activeTab === 'buildings' && (
           <>
             {buildingsSorted.map((b, index) => {
@@ -1260,32 +1546,54 @@ export default function Game() {
               </motion.div>
               <h3 className="font-fredoka font-black text-2xl text-slate-900 mb-2">¡Ascender!</h3>
               <p className="text-[#FDE68A] text-sm mb-5">
-                Reinicia tu flota a cambio de Estrellas de Carretera permanentes. Cada estrella da +1% de produccion.
+                ¡De cero a leyenda! Reinicia tu flota a cambio de Estrellas de Carretera permanentes. Cada ascensión requiere 10x más km.
               </p>
 
-              <div className="grid grid-cols-2 gap-3 mb-5">
+              <div className="grid grid-cols-3 gap-3 mb-5">
                 <div className="bg-slate-100/80 rounded-2xl p-3 border border-[#FACC15]/20">
-                  <p className="text-[#FDE68A] text-xs">Estrellas actuales</p>
+                  <p className="text-[#78350F] text-xs">Ascensiones</p>
+                  <p className="font-fredoka font-black text-2xl text-[#B45309]">{store.ascensions}/50</p>
+                </div>
+                <div className="bg-slate-100/80 rounded-2xl p-3 border border-[#FACC15]/20">
+                  <p className="text-[#78350F] text-xs">Estrellas</p>
                   <p className="font-fredoka font-black text-2xl text-[#FACC15]">{store.stars}</p>
                 </div>
                 <div className="bg-slate-100/80 rounded-2xl p-3 border border-[#FACC15]/20">
-                  <p className="text-[#FDE68A] text-xs">Disponibles</p>
+                  <p className="text-[#78350F] text-xs">Disponibles</p>
                   <p className="font-fredoka font-black text-2xl text-[#22C55E]">{potentialStars}</p>
                 </div>
               </div>
 
+              {/* Progreso hacia la próxima ascensión */}
+              <div className="mb-5">
+                <div className="flex justify-between text-[11px] font-bold text-[#FDE68A] mb-1">
+                  <span>Total: {formatNumber(store.totalEarned)}</span>
+                  <span>Meta: {formatNumber(ascensionThreshold)}</span>
+                </div>
+                <div className="h-3 rounded-full bg-black/30 overflow-hidden border border-[#FACC15]/30">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-[#F59E0B] to-[#FDE047] transition-all duration-500"
+                    style={{ width: `${ascensionProgress * 100}%` }}
+                  />
+                </div>
+              </div>
+
               <button
-                onClick={handlePrestige}
-                disabled={potentialStars <= 0}
+                onClick={() => canAscend && setShowAscension(true)}
+                disabled={!canAscend}
                 className={cn(
                   'game-btn-v2 w-full py-4 rounded-2xl font-black text-base transition-all flex items-center justify-center gap-2 border-b-4',
-                  potentialStars > 0
-                    ? 'bg-gradient-to-b from-[#FACC15] to-[#D97706] text-[#451a03] border-[#92400E] shadow-[0_6px_20px_rgba(245,158,11,0.4)] active:translate-y-1 active:border-b-0'
+                  canAscend
+                    ? 'ascend-btn-ready bg-gradient-to-b from-[#FACC15] to-[#D97706] text-[#451a03] border-[#92400E] active:translate-y-1 active:border-b-0'
                     : 'bg-slate-100 text-slate-500 border-transparent cursor-not-allowed'
                 )}
               >
                 <Sparkles size={20} />
-                {potentialStars > 0 ? `Ascender y ganar ${potentialStars} ⭐` : 'Necesitas mas dinero total'}
+                {canAscend
+                  ? `ASCENDER y ganar ${potentialStars} ⭐`
+                  : store.ascensions >= 50
+                    ? 'Ascensión máxima alcanzada'
+                    : `Necesitas ${formatNumber(ascensionThreshold)} km totales`}
               </button>
             </div>
           </div>
@@ -1338,6 +1646,35 @@ export default function Game() {
             {item.emoji}
           </motion.div>
         ))}
+      </AnimatePresence>
+
+      {/* Eventos globales */}
+      <GlobalEventBanner />
+
+      {/* Cinemáticas de desbloqueo épico */}
+      <UnlockCinematic />
+
+      {/* Menú radial de power-ups */}
+      <PowerupMenu onActivate={handlePowerupActivate} />
+
+      {/* Cinemática de ascensión */}
+      {showAscension && (
+        <AscensionCinematic
+          ascension={store.ascensions + 1}
+          onAscend={handleAscensionApply}
+          onComplete={() => setShowAscension(false)}
+        />
+      )}
+
+      {/* Salto temporal: flashes + reloj + monto gigante */}
+      <AnimatePresence>
+        {timeWarpFx && (
+          <motion.div key={timeWarpFx.id} className="time-warp-overlay" exit={{ opacity: 0 }}>
+            <div className="time-warp-flash" />
+            <span className="time-warp-clock">⏰</span>
+            <span className="time-warp-amount">¡+{formatNumber(timeWarpFx.amount)} KM!</span>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       <GameTutorial forceOpen={showTutorial} onClose={() => setShowTutorial(false)} />

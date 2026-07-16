@@ -175,3 +175,15 @@ Items in order:
 - Marketplace colors must stay within red/white/gray/black only.
 - Cash redemption rate is `100_000_000 millas = 10_000 COP`.
 - Always run `npx tsc --noEmit && npm run build` before declaring done.
+
+## Epic Features (`src/store/` + `src/components/game/` + `src/styles/epic-features.css`)
+
+- **Combos** (`comboStore.ts`): ventana de 2s entre clicks. Tiers x1 (1-5), x2 (6-15), x3 (16-30), x5 (31-50), x10 (51+). `ComboDisplay` muestra multiplicador + barra de 2s; burst de 20 partículas cada 10 de combo; shake continuo en x10.
+- **Críticos**: `store.getCriticalChance()` = 5% base + 0.5%/nivel del upgrade `precision` (aún no existe en el catálogo; se soporta por id). Crítico = x10 + `CriticalHit` (vignette, starburst de 30, texto 48px).
+- **Ascensión**: pestaña Ascensión reemplaza Prestigio. Botón habilitado si `totalEarned >= 1M * 10^ascensions` (máx 50). `AscensionCinematic` (~10.6s) llama `onAscend` a mitad (aplica `prestige()` + `addAscension()`). Badge `⭐xN` en header y aura dorada permanente en el camión (`golden-aura`); aura legendaria con el hito `ascension-10`.
+- **Eventos globales** (`eventStore.ts`): simulados; primer evento ~90s, luego cada 4-8h. Duración 5 min (diseño original 1h, acortado para sesiones). Cada click suma progreso + avance comunitario pasivo. `caravana` da x3 al click. Recompensas se entregan en `Game.tsx` al cerrar.
+- **Desbloqueos** (`unlockStore.ts`): hitos `km-1k` (small), `km-1m` (medium), `fleet-10` (large), `ascension-10` (epic). `UnlockCinematic` auto-cierra (3/5/8/12s) o al tocar.
+- **Racha diaria** (`dailyStore.ts`): recompensas [100, 250, 500, 1000, 2500, 5000, 10000]; día 5 = +5 🎟️, día 7 = +20 🎟️. Falta 1 día = racha rota. UI en `DailyStreak` dentro de `Game.tsx`.
+- **Power-ups** (`powerupStore.ts`): inventario persistido (`truckSurfers_powerups_v1`). nitro x50 click 10s, convoy x10 click 30s, gold_rain monedas clickeables 15s (máx 10 simultáneas), time_warp = `clickPower * 14400` instantáneo (4h a 1 click/s). Menú radial FAB bottom-left (`PowerupMenu`).
+- `clickerStore` añade `ascensions`, `addAscension()`, `getCriticalChance()`, `addEarnings()`. Nuevas claves de storage: `truckSurfers_daily_v1`, `truckSurfers_unlocks_v1`, `truckSurfers_powerups_v1`.
+- Animaciones épicas usan solo `transform`/`opacity`; tope de ~30 partículas simultáneas por efecto.

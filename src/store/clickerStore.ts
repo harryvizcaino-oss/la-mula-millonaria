@@ -15,6 +15,7 @@ export interface ClickerState {
   totalKm: number;
   totalEarned: number; // lifetime TicaMillas produced by clicker
   stars: number; // prestige points
+  ascensions: number; // number of completed ascensions (max 50)
   goldenTickets: number;
   lastTickAt: number;
   offlineEarnings: number;
@@ -32,16 +33,19 @@ export interface ClickerState {
   prestige: () => { success: boolean; starsGained: number };
   clearOfflineEarnings: () => void;
   buyAutoclick: (currentMillas: number) => { success: boolean; cost: number; duration: number };
-  hydrate: (saved: Partial<Omit<ClickerState, keyof Pick<ClickerState, 'tick' | 'click' | 'buyBuilding' | 'buyUpgrade' | 'buyPower' | 'addGoldenTickets' | 'redeemGoldenTickets' | 'prestige' | 'clearOfflineEarnings' | 'buyAutoclick' | 'hydrate'>>>) => void;
+  addAscension: () => void;
+  getCriticalChance: () => number;
+  addEarnings: (amount: number) => void;
+  hydrate: (saved: Partial<Omit<ClickerState, keyof Pick<ClickerState, 'tick' | 'click' | 'buyBuilding' | 'buyUpgrade' | 'buyPower' | 'addGoldenTickets' | 'redeemGoldenTickets' | 'prestige' | 'clearOfflineEarnings' | 'buyAutoclick' | 'addAscension' | 'getCriticalChance' | 'addEarnings' | 'hydrate'>>>) => void;
 }
 
-function calculateProduction(state: Omit<ClickerState, keyof Pick<ClickerState, 'tick' | 'click' | 'buyBuilding' | 'buyUpgrade' | 'buyPower' | 'addGoldenTickets' | 'redeemGoldenTickets' | 'prestige' | 'clearOfflineEarnings' | 'buyAutoclick'>>): number {
+function calculateProduction(state: Omit<ClickerState, keyof Pick<ClickerState, 'tick' | 'click' | 'buyBuilding' | 'buyUpgrade' | 'buyPower' | 'addGoldenTickets' | 'redeemGoldenTickets' | 'prestige' | 'clearOfflineEarnings' | 'buyAutoclick' | 'addAscension' | 'getCriticalChance' | 'addEarnings'>>): number {
   // Production per second is no longer used; all bonuses are per-click.
   // Kept for compatibility with legacy callers (offline earnings, events).
   return 0;
 }
 
-function calculateClickPower(state: Omit<ClickerState, keyof Pick<ClickerState, 'tick' | 'click' | 'buyBuilding' | 'buyUpgrade' | 'buyPower' | 'addGoldenTickets' | 'redeemGoldenTickets' | 'prestige' | 'clearOfflineEarnings' | 'buyAutoclick'>>): number {
+function calculateClickPower(state: Omit<ClickerState, keyof Pick<ClickerState, 'tick' | 'click' | 'buyBuilding' | 'buyUpgrade' | 'buyPower' | 'addGoldenTickets' | 'redeemGoldenTickets' | 'prestige' | 'clearOfflineEarnings' | 'buyAutoclick' | 'addAscension' | 'getCriticalChance' | 'addEarnings'>>): number {
   let power = 1;
 
   // Click upgrade multipliers
@@ -88,6 +92,7 @@ export const useClickerStore = create<ClickerState>()(
       totalKm: 0,
       totalEarned: 0,
       stars: 0,
+      ascensions: 0,
       goldenTickets: 0,
       lastTickAt: Date.now(),
       offlineEarnings: 0,
@@ -187,6 +192,27 @@ export const useClickerStore = create<ClickerState>()(
 
       clearOfflineEarnings: () => set({ offlineEarnings: 0 }),
 
+      addAscension: () => {
+        set((state) => ({ ascensions: Math.min(50, state.ascensions + 1) }));
+      },
+
+      getCriticalChance: () => {
+        const state = get();
+        // Base 5% + 0.5% por nivel del upgrade 'precision' (Precisión del Conductor).
+        // El upgrade aún no existe en el catálogo; se soporta por id para futuro.
+        const precisionLevel =
+          (state.powerLevels['precision'] || 0) + (state.upgrades['precision'] ? 1 : 0);
+        return Math.min(0.25, 0.05 + 0.005 * precisionLevel);
+      },
+
+      addEarnings: (amount: number) => {
+        if (amount <= 0) return;
+        set((state) => ({
+          totalEarned: state.totalEarned + amount,
+          totalKm: state.totalKm + amount * 0.1,
+        }));
+      },
+
       buyAutoclick: (currentMillas: number) => {
         const state = get();
         const nextLevel = state.autoclickLevel + 1;
@@ -209,6 +235,7 @@ export const useClickerStore = create<ClickerState>()(
         if (saved.totalKm !== undefined) next.totalKm = saved.totalKm;
         if (saved.totalEarned !== undefined) next.totalEarned = saved.totalEarned;
         if (saved.stars !== undefined) next.stars = saved.stars;
+        if (saved.ascensions !== undefined) next.ascensions = saved.ascensions;
         if (saved.goldenTickets !== undefined) next.goldenTickets = saved.goldenTickets;
         if (saved.autoclickLevel !== undefined) next.autoclickLevel = saved.autoclickLevel;
         if (saved.lastTickAt !== undefined) next.lastTickAt = saved.lastTickAt;
@@ -225,6 +252,7 @@ export const useClickerStore = create<ClickerState>()(
         totalKm: state.totalKm,
         totalEarned: state.totalEarned,
         stars: state.stars,
+        ascensions: state.ascensions,
         goldenTickets: state.goldenTickets,
         lastTickAt: state.lastTickAt,
         offlineEarnings: state.offlineEarnings,
