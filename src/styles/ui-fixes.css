@@ -39,17 +39,17 @@
   }
 }
 
-/* ---------- FIX 7: Professional truck assets ---------- */
+/* ---------- FIX 7: Professional truck assets (PNG) ---------- */
 .truck-image {
-  height: 160px;
+  height: 180px;
   width: auto;
   object-fit: contain;
-  filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.3));
-  transition: transform 0.1s ease;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.4));
+  animation: truckIdle 3s ease-in-out infinite;
   cursor: pointer;
+  transition: transform 0.1s ease;
   user-select: none;
   -webkit-user-drag: none;
-  animation: truckIdle 3s ease-in-out infinite;
 }
 
 .truck-image.truck-shake {
@@ -82,6 +82,102 @@
   100% {
     transform: translateX(0);
   }
+}
+
+/* ---------- Contador CPS grande sobre el camión ---------- */
+.truck-section {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.cps-counter-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: -15px; /* solapa levemente con el camión */
+  pointer-events: none;
+  z-index: 11;
+}
+
+.cps-counter-value {
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: clamp(28px, 7vw, 44px);
+  color: #ffd700;
+  text-shadow:
+    0 0 10px rgba(255, 215, 0, 0.6),
+    0 0 30px rgba(255, 215, 0, 0.3),
+    0 2px 4px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  line-height: 1;
+  animation: cpsGlow 3s ease-in-out infinite;
+}
+
+.cps-counter-label {
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.75);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+  margin-top: 2px;
+}
+
+@keyframes cpsGlow {
+  0%,
+  100% {
+    text-shadow:
+      0 0 10px rgba(255, 215, 0, 0.6),
+      0 0 30px rgba(255, 215, 0, 0.3),
+      0 2px 4px rgba(0, 0, 0, 0.5);
+  }
+  50% {
+    text-shadow:
+      0 0 18px rgba(255, 215, 0, 0.9),
+      0 0 48px rgba(255, 215, 0, 0.45),
+      0 2px 4px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@keyframes cpsBounce {
+  0% {
+    transform: scale(1);
+  }
+  30% {
+    transform: scale(1.12);
+  }
+  60% {
+    transform: scale(0.96);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.cps-counter-overlay.cps-bounce .cps-counter-value {
+  animation:
+    cpsGlow 3s ease-in-out infinite,
+    cpsBounce 0.25s ease-out;
+}
+
+/* Nitro: el contador grande tiembla en rojo (antes aplicaba al header) */
+.nitro-counter .cps-counter-value {
+  color: #dc2626 !important;
+  animation:
+    cpsGlow 3s ease-in-out infinite,
+    nitroCounterShake 0.25s linear infinite;
+}
+
+/* Convoy: mini camiones PNG subiendo (reemplaza el emoji 🚛) */
+.convoy-truck img {
+  display: block;
+  width: 56px;
+  height: auto;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
 }
 
 /* ---------- FIX 1: Sponsor power card redesign ---------- */
@@ -312,4 +408,263 @@
 /* Capas bokeh/glow más sutiles sobre el fondo de carretera andina */
 .game-bg--subtle {
   opacity: 0.45;
+}
+
+/* ---------- Badge de producto (spritesheet) + badge verde +baseCPS ---------- */
+.product-badge {
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.45));
+}
+
+.power-cps-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
+  border: 1px solid #15803d;
+  color: #052e16;
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  flex-shrink: 0;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.35),
+    0 2px 6px rgba(34, 197, 94, 0.35);
+}
+
+/* ============================================================
+   HOME CINEMATOGRÁFICO — sunset, nubes, sol, partículas,
+   camión PNG, título 3D gold, botón JUGAR, panel glass
+   ============================================================ */
+
+.home-hero {
+  background: linear-gradient(
+    180deg,
+    #2c3e50 0%,
+    #8e44ad 32%,
+    #e67e22 58%,
+    #f39c12 78%,
+    #27ae60 100%
+  );
+}
+
+/* Nubes orgánicas blancas con float 40-60s */
+.home-cloud {
+  position: absolute;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  filter: blur(2px);
+  opacity: 0.75;
+  animation: homeCloudDrift linear infinite;
+}
+
+.home-cloud::before,
+.home-cloud::after {
+  content: '';
+  position: absolute;
+  background: inherit;
+  border-radius: 50%;
+}
+
+.home-cloud::before {
+  width: 55%;
+  height: 160%;
+  left: 12%;
+  top: -70%;
+}
+
+.home-cloud::after {
+  width: 40%;
+  height: 120%;
+  right: 14%;
+  top: -45%;
+}
+
+@keyframes homeCloudDrift {
+  0% {
+    transform: translateX(-30vw);
+  }
+  100% {
+    transform: translateX(115vw);
+  }
+}
+
+/* Sol dorado con glow pulsante (top-right, 60px) */
+.home-sun {
+  position: absolute;
+  top: 64px;
+  right: 40px;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fff7cc 0%, #ffd700 55%, #f39c12 100%);
+  box-shadow:
+    0 0 24px rgba(255, 215, 0, 0.85),
+    0 0 70px rgba(255, 165, 0, 0.5);
+  animation: homeSunPulse 4s ease-in-out infinite;
+}
+
+@keyframes homeSunPulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 24px rgba(255, 215, 0, 0.85),
+      0 0 70px rgba(255, 165, 0, 0.5);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow:
+      0 0 36px rgba(255, 215, 0, 1),
+      0 0 110px rgba(255, 165, 0, 0.7);
+    transform: scale(1.06);
+  }
+}
+
+/* Partículas doradas flotando hacia arriba */
+.home-particle {
+  position: absolute;
+  bottom: -12px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fff3b0 0%, #ffd700 70%);
+  box-shadow: 0 0 8px rgba(255, 215, 0, 0.8);
+  opacity: 0;
+  animation: homeParticleRise linear infinite;
+  pointer-events: none;
+}
+
+@keyframes homeParticleRise {
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.95;
+  }
+  85% {
+    opacity: 0.6;
+  }
+  100% {
+    transform: translateY(-88vh) scale(1.05);
+    opacity: 0;
+  }
+}
+
+/* Camión PNG centrado con idle bounce */
+.home-truck {
+  height: 180px;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.4));
+  animation: truckIdle 3s ease-in-out infinite;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Título 3D gold metallic (múltiples text-shadow) */
+.home-title-3d {
+  color: #ffd700;
+  text-shadow:
+    0 1px 0 #d4a017,
+    0 2px 0 #c79412,
+    0 3px 0 #b8860b,
+    0 4px 0 #9a7109,
+    0 5px 0 #7d5b07,
+    0 6px 0 #5f4505,
+    0 7px 10px rgba(0, 0, 0, 0.45),
+    0 10px 28px rgba(0, 0, 0, 0.5),
+    0 0 34px rgba(255, 215, 0, 0.35);
+  animation: logoFloat 3s ease-in-out infinite;
+}
+
+/* Botón JUGAR 280x64 gold gradient glossy con pulse */
+.home-play-btn {
+  position: relative;
+  width: 280px;
+  height: 64px;
+  border-radius: 999px;
+  border: 2px solid #b8860b;
+  background: linear-gradient(180deg, #ffe066 0%, #ffd700 45%, #f5a623 100%);
+  color: #4a3000;
+  font-family: 'Fredoka', 'Baloo 2', sans-serif;
+  font-weight: 900;
+  font-size: 22px;
+  letter-spacing: 3px;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.7),
+    inset 0 -4px 8px rgba(180, 120, 0, 0.45),
+    0 6px 20px rgba(0, 0, 0, 0.35);
+  animation: homePlayPulse 2s ease-in-out infinite;
+  transition: transform 0.1s ease;
+}
+
+.home-play-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 8%;
+  right: 8%;
+  height: 46%;
+  border-radius: 999px 999px 40% 40%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.75) 0%, rgba(255, 255, 255, 0) 100%);
+  pointer-events: none;
+}
+
+.home-play-btn:active {
+  transform: translateY(2px) scale(0.98);
+}
+
+@keyframes homePlayPulse {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 2px 3px rgba(255, 255, 255, 0.7),
+      inset 0 -4px 8px rgba(180, 120, 0, 0.45),
+      0 6px 20px rgba(0, 0, 0, 0.35),
+      0 0 0 0 rgba(255, 215, 0, 0.55);
+  }
+  50% {
+    box-shadow:
+      inset 0 2px 3px rgba(255, 255, 255, 0.7),
+      inset 0 -4px 8px rgba(180, 120, 0, 0.45),
+      0 6px 20px rgba(0, 0, 0, 0.35),
+      0 0 34px 8px rgba(255, 215, 0, 0.55);
+  }
+}
+
+/* Links secundarios gold */
+.home-link-gold {
+  color: #ffd700;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+  font-weight: 600;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.home-link-gold:hover {
+  opacity: 0.85;
+  transform: translateY(-1px);
+}
+
+/* Panel de stats glassmorphism */
+.home-stats-panel {
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 20px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.3);
+}
+
+/* Secciones inferiores sobre fondo oscuro (sin blanco/kinder) */
+.home-section-card {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 }

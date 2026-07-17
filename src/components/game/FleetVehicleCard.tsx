@@ -1,5 +1,6 @@
 import { cn } from '@/lib/utils';
 import type { FleetVehicle } from '@/data/fleetVehicles';
+import { getTruckAsset } from '@/data/truckAssets';
 
 interface FleetVehicleCardProps {
   vehicle: FleetVehicle;
@@ -41,12 +42,17 @@ export function FleetVehicleCard({
       <div className="flex items-center gap-3">
         <div
           className={cn(
-            'w-14 h-14 rounded-xl flex items-center justify-center text-3xl flex-shrink-0 border-2 shadow-inner transition-colors duration-500',
+            'w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 border-2 shadow-inner transition-colors duration-500',
             selected && 'border-white/70'
           )}
           style={{ backgroundColor: `${vehicle.color}25`, borderColor: `${vehicle.color}70` }}
         >
-          {vehicle.emoji}
+          <img
+            src={getTruckAsset(vehicle.id)}
+            alt={`${vehicle.brand} ${vehicle.model}`}
+            className="w-12 h-12 object-contain"
+            draggable={false}
+          />
         </div>
 
         <div className="flex-1 min-w-0">

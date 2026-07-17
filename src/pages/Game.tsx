@@ -39,6 +39,7 @@ import { FleetVehicleCard } from '@/components/game/FleetVehicleCard';
 import { FloatingNumber } from '@/components/game/FloatingNumber';
 
 import { useTruckHorn } from '@/hooks/useTruckHorn';
+import { getTruckAsset } from '@/data/truckAssets';
 
 interface FloatingNumberEntry {
   id: number;
@@ -59,6 +60,7 @@ interface ClickParticle {
 interface FlyItem {
   id: number;
   emoji: string;
+  img?: string;
   startX: number;
   startY: number;
   endX: number;
@@ -88,14 +90,8 @@ function formatFull(n: number): string {
   return Math.floor(n).toLocaleString('es-CO');
 }
 
-// ───────────── FIX 7: assets profesionales de camión ─────────────
-// Índice de flota 1 (chevrolet) → mula base, 3 (kenworth) → T800,
-// 4 (volvo) → FH; el resto cae a la mula base.
-const TRUCK_ASSETS: Record<string, string> = {
-  kenworth: '/assets/asset_kenworth_t800.svg',
-  volvo: '/assets/asset_volvo_fh.svg',
-};
-const DEFAULT_TRUCK_ASSET = '/assets/asset_camion_mula_base.svg';
+// ───────────── Assets profesionales de camión (PNG) ─────────────
+// El mapeo flota → PNG vive en @/data/truckAssets (getTruckAsset).
 
 // ───────────── FIX 5: milestones de CPS por click ─────────────
 const CPS_MILESTONES = [
@@ -500,13 +496,14 @@ export default function Game() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 2000);
   };
 
-  const spawnFlyItem = (emoji: string, startEl: HTMLElement) => {
+  const spawnFlyItem = (emoji: string, startEl: HTMLElement, img?: string) => {
     const arena = clickAreaRef.current?.getBoundingClientRect();
     if (!arena) return;
     const start = startEl.getBoundingClientRect();
     const newItem: FlyItem = {
       id: ++flyIdRef.current,
       emoji,
+      img,
       startX: start.left + start.width / 2,
       startY: start.top + start.height / 2,
       endX: arena.left + arena.width / 2,
@@ -754,7 +751,7 @@ export default function Game() {
     const result = store.buyFleet(id, discountMultiplierRef.current);
     if (result.success) {
       const vehicle = getFleetVehicle(id);
-      if (vehicle) spawnFlyItem(vehicle.emoji, el);
+      if (vehicle) spawnFlyItem(vehicle.emoji, el, getTruckAsset(vehicle.id));
       showToast(
         result.cost > 0
           ? `¡${vehicle?.brand ?? 'Vehículo'} en tu flota! x${vehicle?.multiplier} CPS`
@@ -949,28 +946,15 @@ export default function Game() {
             </AnimatePresence>
           </div>
 
-          {/* 💵 CPS balance (contador principal) */}
-          <div className="flex items-baseline gap-1.5 min-w-0 flex-1 justify-center">
-            <span className="text-base">💵</span>
-            <span
-              className={cn(
-                'game-header-cps cps-counter-number counter-glow truncate',
-                milestone && 'counter-milestone',
-                counterBlur && 'cps-counter-blur'
-              )}
+          {/* ⚡ CPS por click (centrado; el contador CPS grande va sobre el camión) */}
+          <div className="flex-1 min-w-0 flex justify-center">
+            <div
+              className="game-header-pill bg-[#22C55E]/15 border border-[#22C55E]/50 text-[#4ADE80]"
+              title={`CPS por click · Player Level ${playerLevel}`}
             >
-              {formatFull(store.cpsBalance)}
-            </span>
-            <span className="text-[10px] font-bold text-white/60 tracking-[0.2em]">CPS</span>
-          </div>
-
-          {/* ⚡ CPS por click */}
-          <div
-            className="game-header-pill bg-[#22C55E]/15 border border-[#22C55E]/50 text-[#4ADE80]"
-            title={`CPS por click · Player Level ${playerLevel}`}
-          >
-            <span>⚡</span>
-            <span>+{formatFull(clickPower * activeClickMultiplier)}/click</span>
+              <span>⚡</span>
+              <span>+{formatFull(clickPower * activeClickMultiplier)}/click</span>
+            </div>
           </div>
 
           {/* 👑 Rank */}
@@ -1006,7 +990,7 @@ export default function Game() {
             <div
               className="absolute inset-0 z-[1] bg-cover"
               style={{
-                backgroundImage: "url('/assets/fondo_carretera_andina.svg')",
+                backgroundImage: "url('/assets/fondo_carretera_andina.jpg')",
                 backgroundPosition: 'center bottom',
               }}
             />
@@ -1049,7 +1033,7 @@ export default function Game() {
                       ['--cv-dur' as string]: `${3.2 + (i % 3) * 0.9}s`,
                     }}
                   >
-                    🚛
+                    <img src="/assets/camion_base_orange_front.png" alt="" draggable={false} />
                   </span>
                 ))}
               </div>
@@ -1112,34 +1096,56 @@ export default function Game() {
                 ))}
               </AnimatePresence>
 
-              <motion.div
-                animate={{
-                  scale: truckBump ? [1, 0.9, 1.06, 1] : 1,
-                  y: truckHappy ? [0, -8, 0] : 0,
-                  rotateX: truckTilt.rotateX,
-                  rotateY: truckTilt.rotateY,
-                }}
-                transition={{ type: 'spring', stiffness: 320, damping: 18 }}
-                className={cn(
-                  'truck-container relative z-10 cursor-pointer select-none',
-                  truckBump && 'bouncing',
-                  nitroActive && 'nitro-flames',
-                  store.ascensions > 0 && 'golden-aura',
-                  legendaryUnlocked && 'legendary-aura'
-                )}
-                style={{ transformStyle: 'preserve-3d' }}
-                onPointerDown={handleTruckClick}
-              >
-                {/* Truck shadow */}
-                <div className="truck-shadow" />
-                <img
-                  src={TRUCK_ASSETS[store.selectedFleet] ?? DEFAULT_TRUCK_ASSET}
-                  alt={`${activeVehicle.brand} ${activeVehicle.model}`}
-                  title={`${activeVehicle.brand} ${activeVehicle.model} · x${activeVehicle.multiplier} CPS`}
-                  className={cn('truck-image', shake && 'truck-shake')}
-                  draggable={false}
-                />
-              </motion.div>
+              <div className="truck-section">
+                {/* Contador CPS grande directamente arriba del camión (solapado -15px) */}
+                <div
+                  className={cn(
+                    'cps-counter-overlay',
+                    truckBump && 'cps-bounce',
+                    nitroActive && 'nitro-counter'
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'cps-counter-value',
+                      milestone && 'counter-milestone',
+                      counterBlur && 'cps-counter-blur'
+                    )}
+                  >
+                    {formatFull(store.cpsBalance)}
+                  </span>
+                  <span className="cps-counter-label">CPS</span>
+                </div>
+
+                <motion.div
+                  animate={{
+                    scale: truckBump ? [1, 0.9, 1.06, 1] : 1,
+                    y: truckHappy ? [0, -8, 0] : 0,
+                    rotateX: truckTilt.rotateX,
+                    rotateY: truckTilt.rotateY,
+                  }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 18 }}
+                  className={cn(
+                    'truck-clickable truck-container relative z-10 cursor-pointer select-none',
+                    truckBump && 'bouncing',
+                    nitroActive && 'nitro-flames',
+                    store.ascensions > 0 && 'golden-aura',
+                    legendaryUnlocked && 'legendary-aura'
+                  )}
+                  style={{ transformStyle: 'preserve-3d' }}
+                  onPointerDown={handleTruckClick}
+                >
+                  {/* Truck shadow */}
+                  <div className="truck-shadow" />
+                  <img
+                    src={getTruckAsset(store.selectedFleet)}
+                    alt={`${activeVehicle.brand} ${activeVehicle.model}`}
+                    title={`${activeVehicle.brand} ${activeVehicle.model} · x${activeVehicle.multiplier} CPS`}
+                    className={cn('truck-image', shake && 'truck-shake')}
+                    draggable={false}
+                  />
+                </motion.div>
+              </div>
 
               {store.totalClicks < 5 && (
                 <motion.div
@@ -1476,10 +1482,11 @@ export default function Game() {
               Cada nivel suma CPS según la <span className="font-black text-slate-700">marca patrocinadora</span> actual.
               Sube 10 niveles para desbloquear la siguiente marca. Player Level: {playerLevel}.
             </p>
-            {powersView.map((p) => (
+            {powersView.map((p, idx) => (
               <SponsorPowerCard
                 key={p.power.id}
                 power={p.power}
+                badgeIndex={idx + 1}
                 level={p.level}
                 cost={p.cost}
                 canAfford={p.canAfford}
@@ -1601,7 +1608,16 @@ export default function Game() {
             className="fixed top-0 left-0 z-[55] pointer-events-none text-4xl"
             style={{ marginLeft: -16, marginTop: -16 }}
           >
-            {item.emoji}
+            {item.img ? (
+              <img
+                src={item.img}
+                alt=""
+                draggable={false}
+                style={{ width: 40, height: 40, objectFit: 'contain' }}
+              />
+            ) : (
+              item.emoji
+            )}
           </motion.div>
         ))}
       </AnimatePresence>

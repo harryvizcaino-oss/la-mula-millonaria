@@ -119,7 +119,12 @@ export function AscensionCinematic({ ascension, onAscend, onComplete }: Ascensio
       {phase === 'launch' && (
         <div className="relative z-10 flex items-center justify-center h-full">
           <div className="ascend-truck-launch relative">
-            <span className="text-[8rem] leading-none">🚛</span>
+            <img
+              src="/assets/camion_base_orange_front.png"
+              alt="Tractomula"
+              draggable={false}
+              style={{ height: '8rem', width: 'auto' }}
+            />
             <div className="ascend-fire-trail" />
           </div>
         </div>
@@ -129,7 +134,13 @@ export function AscensionCinematic({ ascension, onAscend, onComplete }: Ascensio
         <div className="relative z-10 flex flex-col items-center justify-center h-full">
           <div className="golden-truck-descend flex flex-col items-center">
             <span className="text-5xl">🪂</span>
-            <span className="golden-truck text-[8rem] leading-none">🚛</span>
+            <img
+              src="/assets/camion_base_orange_front.png"
+              alt="Tractomula dorada"
+              draggable={false}
+              className="golden-truck"
+              style={{ height: '8rem', width: 'auto' }}
+            />
           </div>
         </div>
       )}
@@ -148,7 +159,13 @@ export function AscensionCinematic({ ascension, onAscend, onComplete }: Ascensio
               }}
             />
           ))}
-          <span className="golden-truck text-[7rem] leading-none">🚛</span>
+          <img
+            src="/assets/camion_base_orange_front.png"
+            alt="Tractomula dorada"
+            draggable={false}
+            className="golden-truck"
+            style={{ height: '7rem', width: 'auto' }}
+          />
           <h2 className="font-baloo font-extrabold text-4xl text-[#FDE047] drop-shadow-[0_0_18px_rgba(250,204,21,0.8)] text-center px-6">
             ¡ASCENSIÓN COMPLETA!
           </h2>

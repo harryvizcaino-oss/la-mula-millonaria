@@ -9,6 +9,7 @@ import {
   LEVELS_PER_TIER,
   type SponsorPower,
 } from '@/data/sponsorPowers';
+import { ProductBadge } from '@/components/game/ProductBadge';
 
 function formatFull(n: number): string {
   return Math.floor(n).toLocaleString('es-CO');
@@ -29,6 +30,7 @@ function readableBrandColor(hex: string): string {
 
 interface SponsorPowerCardProps {
   power: SponsorPower;
+  badgeIndex: number; // 1..10 → badge único del spritesheet de productos
   level: number;
   cost: number;
   canAfford: boolean;
@@ -49,6 +51,7 @@ interface SponsorPowerCardProps {
  */
 export function SponsorPowerCard({
   power,
+  badgeIndex,
   level,
   cost,
   canAfford,
@@ -176,15 +179,20 @@ export function SponsorPowerCard({
 
       <div className="flex items-center gap-3">
         <div
-          className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 border-2 shadow-inner transition-colors duration-500"
+          className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 border-2 shadow-inner transition-colors duration-500"
           style={{ backgroundColor: `${tier.color}25`, borderColor: `${tier.color}70` }}
         >
-          {power.emoji}
+          <ProductBadge index={badgeIndex} size={40} />
         </div>
 
         <div className="flex-1 min-w-0 pr-20">
-          {/* POWER TYPE como título principal */}
-          <h3 className="sponsor-card-title truncate leading-tight">{power.name}</h3>
+          {/* POWER TYPE como título principal + badge verde +baseCPS */}
+          <div className="flex items-center gap-2">
+            <h3 className="sponsor-card-title truncate leading-tight">{power.name}</h3>
+            <span className="power-cps-badge" title="CPS base por nivel">
+              +{formatFull(power.baseCPS)}
+            </span>
+          </div>
           <p className="text-slate-300 text-[11px] mt-0.5 truncate">
             +{perLevelText} CPS/nivel · Nivel {level}
             {isMaxed ? ' MAX' : ''}

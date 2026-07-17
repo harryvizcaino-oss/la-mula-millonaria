@@ -131,9 +131,13 @@ export function UnlockCinematic() {
           <div className="relative z-10 flex flex-col items-center justify-center h-full gap-4 px-6 text-center">
             <div className="unlock-descend flex flex-col items-center">
               <span className="text-4xl">🪂</span>
-              <span className="text-[7rem] leading-none drop-shadow-[0_0_36px_rgba(250,204,21,0.95)]">
-                🚛
-              </span>
+              <img
+                src="/assets/camion_base_orange_front.png"
+                alt="Tractomula"
+                draggable={false}
+                className="drop-shadow-[0_0_36px_rgba(250,204,21,0.95)]"
+                style={{ height: '7rem', width: 'auto' }}
+              />
             </div>
             <h3 className="font-baloo font-extrabold text-4xl text-[#FDE047]">
               <Letters text="LOGRO ÉPICO" startDelay={1800} />

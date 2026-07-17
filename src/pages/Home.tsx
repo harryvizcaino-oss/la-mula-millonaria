@@ -1,9 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { motion, useInView } from 'framer-motion';
 import {
-  Truck,
   HelpCircle,
   ShoppingBag,
   ChevronDown,
@@ -20,12 +19,12 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import PrimaryButton from '@/components/PrimaryButton';
 import Footer from '@/components/Footer';
 import { useMillas } from '@/providers/MillasProvider';
 import { useClickerStore, calculateClickPower } from '@/store/clickerStore';
-import { GameTutorial, TutorialButton } from '@/components/GameTutorial';
-import { SmilingTruck } from '@/components/SmilingTruck';
+import { GameTutorial } from '@/components/GameTutorial';
+import { getTruckAsset } from '@/data/truckAssets';
+import { FLEET_VEHICLES } from '@/data/fleetVehicles';
 
 /* ─────────────────────── Animation Variants ─────────────────────── */
 
@@ -42,20 +41,6 @@ const staggerItem = {
     opacity: 1,
     y: 0,
     transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
-  },
-};
-
-const scaleIn = {
-  hidden: { opacity: 0, scale: 0 },
-  visible: {
-    opacity: 1,
-    scale: 1,
-    transition: {
-      type: 'spring' as const,
-      stiffness: 260,
-      damping: 20,
-      delay: 0.2,
-    },
   },
 };
 
@@ -102,13 +87,70 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
   const clickPower = calculateClickPower(clicker);
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
+  // Nubes orgánicas (float 40-60s, delays negativos para distribuirlas)
+  const clouds = [
+    { top: '10%', width: 150, height: 46, dur: 48, delay: -14 },
+    { top: '20%', width: 110, height: 36, dur: 60, delay: -38 },
+    { top: '6%', width: 190, height: 54, dur: 55, delay: -50 },
+    { top: '28%', width: 120, height: 38, dur: 42, delay: -6 },
+    { top: '16%', width: 90, height: 30, dur: 44, delay: -26 },
+  ];
+
+  // Partículas doradas flotando hacia arriba (deterministas)
+  const particles = useMemo(
+    () =>
+      Array.from({ length: 16 }, (_, i) => ({
+        left: (i * 61 + 7) % 96,
+        delay: -((i * 1.37) % 10),
+        dur: 8 + (i % 5) * 1.7,
+        size: 3 + (i % 3) * 2,
+      })),
+    []
+  );
+
+  const initials =
+    user?.name
+      ?.split(' ')
+      .map((n) => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'TU';
+
   return (
-    <section className="relative min-h-[100dvh] flex flex-col items-center justify-center px-6 overflow-hidden bg-white">
-      {/* Soft background decoration */}
-      <div className="absolute inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-20%] w-[80%] aspect-square rounded-full bg-[#F59E0B]/5 blur-3xl" />
-        <div className="absolute bottom-[10%] right-[-10%] w-[60%] aspect-square rounded-full bg-[#3B82F6]/5 blur-3xl" />
-      </div>
+    <section className="home-hero relative min-h-[100dvh] flex flex-col items-center px-6 overflow-hidden">
+      {/* Sol dorado con glow pulse (top-right, 60px) */}
+      <div className="home-sun" />
+
+      {/* Nubes orgánicas blancas */}
+      {clouds.map((c, i) => (
+        <div
+          key={i}
+          className="home-cloud"
+          style={{
+            top: c.top,
+            left: 0,
+            width: c.width,
+            height: c.height,
+            animationDuration: `${c.dur}s`,
+            animationDelay: `${c.delay}s`,
+          }}
+        />
+      ))}
+
+      {/* Partículas doradas */}
+      {particles.map((p, i) => (
+        <span
+          key={i}
+          className="home-particle"
+          style={{
+            left: `${p.left}%`,
+            width: p.size,
+            height: p.size,
+            animationDuration: `${p.dur}s`,
+            animationDelay: `${p.delay}s`,
+          }}
+        />
+      ))}
 
       {/* Top counters */}
       <motion.div
@@ -126,132 +168,118 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
               </span>
             </div>
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-slate-200 shadow-sm">
-            <TrendingUp size={16} className="text-[#22C55E]" />
-            <span className="font-fredoka font-bold text-slate-700">+{formatNumber(clickPower)}/click</span>
+          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/25 backdrop-blur-md shadow-sm">
+            <TrendingUp size={16} className="text-[#4ADE80]" />
+            <span className="font-fredoka font-bold text-white">+{formatNumber(clickPower)}/click</span>
           </div>
         </div>
       </motion.div>
 
       {/* Content */}
-      <div className="relative z-10 flex flex-col items-center text-center w-full max-w-sm mt-16">
-        {/* Logo */}
+      <div className="relative z-10 flex flex-col items-center text-center w-full max-w-sm flex-1 justify-center py-10 mt-10">
+        {/* Contador CPS grande arriba del camión (28-44px gold glow) */}
         <motion.div
-          variants={scaleIn}
-          initial="hidden"
-          animate="visible"
-          className="mb-2"
+          initial={{ opacity: 0, scale: 0.8 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.35, duration: 0.4 }}
+          className="cps-counter-overlay"
         >
-          <motion.div
-            animate={{ y: [0, -8, 0] }}
-            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
-            className="drop-shadow-[0_12px_30px_rgba(245,158,11,0.25)]"
-          >
-            <SmilingTruck size={160} />
-          </motion.div>
+          <span className="cps-counter-value">{formatNumber(clicker.cpsBalance)}</span>
+          <span className="cps-counter-label">CPS</span>
         </motion.div>
 
-        {/* Title */}
-        <div className="relative mb-2">
-          <div className="title-glow" />
-          <motion.h1
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-            className="title-3d-extrusion font-fredoka font-black text-4xl mb-2 leading-tight relative z-10"
-          >
-            La Mula<br />Millonaria
-          </motion.h1>
-        </div>
+        {/* Camión PNG centrado (180px) con idle bounce */}
+        <motion.div
+          initial={{ opacity: 0, scale: 0 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.2 }}
+        >
+          <img
+            src={getTruckAsset(clicker.selectedFleet)}
+            alt="Tractomula"
+            className="home-truck"
+            draggable={false}
+          />
+        </motion.div>
 
-        {/* Tagline */}
+        {/* Título 3D gold metallic */}
+        <motion.h1
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.6, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+          className="home-title-3d font-fredoka font-black uppercase text-[clamp(38px,11vw,60px)] leading-[0.95] tracking-wide mt-4 mb-3"
+        >
+          La Mula
+          <br />
+          Millonaria
+        </motion.h1>
+
+        {/* Subtítulo */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 0.8, duration: 0.3 }}
-          className="text-slate-500 text-base font-inter mb-8 max-w-[280px]"
+          className="text-white/85 text-base font-inter mb-7 max-w-[280px]"
+          style={{ textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}
         >
-          Toca la tractomula, arma tu flota y convierte cada click en CPS.
+          Toca la tractomula, arma tu flota
         </motion.p>
 
-        {/* Play Button */}
+        {/* Botón JUGAR 280x64 gold glossy con pulse */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 1.0, duration: 0.4, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-          className="w-full max-w-md mb-4"
+          className="mb-5"
         >
-          <motion.div
-            animate={{ boxShadow: [
-              '0 8px 32px rgba(245, 158, 11, 0.25)',
-              '0 8px 32px rgba(245, 158, 11, 0.45)',
-              '0 8px 32px rgba(245, 158, 11, 0.25)',
-            ]}}
-            transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-            className="rounded-2xl"
-          >
-            <PrimaryButton
-              icon={<Truck size={20} />}
-              onClick={() => navigate('/game')}
-              className="h-14 text-sm tracking-widest w-full"
-            >
-              JUGAR AHORA
-            </PrimaryButton>
-          </motion.div>
+          <button className="home-play-btn" onClick={() => navigate('/game')}>
+            JUGAR
+          </button>
         </motion.div>
 
-        {/* Secondary Actions */}
+        {/* Links secundarios gold */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.2, duration: 0.3 }}
-          className="flex items-center gap-4"
+          className="flex items-center gap-5"
         >
           <button
             onClick={onOpenTutorial}
-            className="flex items-center gap-1.5 text-[#F59E0B] text-sm font-medium hover:opacity-80 transition-opacity"
+            className="home-link-gold flex items-center gap-1.5 text-sm"
           >
             <HelpCircle size={16} />
             <span>Como Jugar?</span>
           </button>
           <button
             onClick={() => navigate('/marketplace')}
-            className="flex items-center gap-1.5 text-[#F59E0B] text-sm font-medium hover:opacity-80 transition-opacity"
+            className="home-link-gold flex items-center gap-1.5 text-sm"
           >
             <ShoppingBag size={16} />
             <span>Ver Tienda</span>
           </button>
         </motion.div>
 
-        {/* Auth actions */}
+        {/* Auth actions (compactas, glass) */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 1.4, duration: 0.3 }}
-          className="mt-6 w-full max-w-md flex flex-col gap-2.5"
+          className="mt-5 w-full max-w-[280px] flex gap-2.5"
         >
           {!isLoading && isAuthenticated ? (
             <>
-              <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-white border border-slate-200 shadow-sm">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#F97316] flex items-center justify-center text-slate-900 font-fredoka font-bold text-sm">
-                  {user?.name?.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase() || 'TU'}
-                </div>
-                <div className="flex-1 min-w-0 text-left">
-                  <p className="text-slate-900 text-sm font-bold truncate">{user?.name || 'Jugador'}</p>
-                  <p className="text-slate-500 text-xs truncate">{user?.email || ''}</p>
-                </div>
-              </div>
               <button
                 type="button"
                 onClick={() => navigate('/profile')}
-                className="h-11 w-full rounded-2xl bg-white border-2 border-slate-200 text-slate-900 font-fredoka font-black text-sm shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                className="home-section-card flex-1 h-10 rounded-xl text-white font-fredoka font-bold text-xs hover:bg-white/10 transition-colors"
               >
                 Mi perfil
               </button>
               <button
                 type="button"
                 onClick={() => logout()}
-                className="h-11 w-full rounded-2xl bg-slate-100 text-slate-600 font-fredoka font-black text-sm hover:bg-slate-200 transition-colors flex items-center justify-center gap-2"
+                className="flex-1 h-10 rounded-xl bg-black/25 border border-white/15 text-white/70 font-fredoka font-bold text-xs hover:bg-black/35 transition-colors"
               >
                 Cerrar sesión
               </button>
@@ -265,7 +293,7 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
                   e.stopPropagation();
                   navigate('/login');
                 }}
-                className="h-11 w-full rounded-2xl bg-gradient-to-r from-[#F59E0B] to-[#F97316] text-white font-fredoka font-black text-sm shadow-md hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+                className="flex-1 h-10 rounded-xl bg-gradient-to-r from-[#F59E0B] to-[#F97316] text-white font-fredoka font-black text-xs shadow-md hover:opacity-90 transition-opacity"
               >
                 Iniciar sesión
               </button>
@@ -276,7 +304,7 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
                   e.stopPropagation();
                   navigate('/register');
                 }}
-                className="h-11 w-full rounded-2xl bg-white border-2 border-slate-200 text-slate-900 font-fredoka font-black text-sm shadow-sm hover:bg-slate-50 transition-colors flex items-center justify-center gap-2"
+                className="home-section-card flex-1 h-10 rounded-xl text-white font-fredoka font-black text-xs hover:bg-white/10 transition-colors"
               >
                 Crear cuenta
               </button>
@@ -285,18 +313,47 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
         </motion.div>
       </div>
 
+      {/* Stats panel glassmorphism: avatar, nombre, CPS total, camiones */}
+      <motion.div
+        initial={{ opacity: 0, y: 24 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.5, duration: 0.45, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+        className="home-stats-panel relative z-10 w-full max-w-sm mb-16 px-4 py-3 flex items-center gap-3"
+      >
+        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#FFD700] to-[#F59E0B] flex items-center justify-center text-[#4A3000] font-fredoka font-black text-sm flex-shrink-0 border-2 border-white/50 shadow-lg">
+          {initials}
+        </div>
+        <div className="flex-1 min-w-0 text-left">
+          <p className="text-white text-sm font-bold truncate">{user?.name || 'Invitado'}</p>
+          <p className="text-white/60 text-[11px] truncate">Conductor de la flota</p>
+        </div>
+        <div className="text-right flex-shrink-0">
+          <p className="font-fredoka font-black text-[#FFD700] text-base leading-tight">
+            {formatNumber(clicker.cpsTotal)}
+          </p>
+          <p className="text-white/60 text-[9px] uppercase tracking-wider">CPS Total</p>
+        </div>
+        <div className="w-px h-8 bg-white/20 flex-shrink-0" />
+        <div className="text-right flex-shrink-0">
+          <p className="font-fredoka font-black text-[#FFD700] text-base leading-tight">
+            {clicker.fleetOwned.length}/{FLEET_VEHICLES.length}
+          </p>
+          <p className="text-white/60 text-[9px] uppercase tracking-wider">Camiones</p>
+        </div>
+      </motion.div>
+
       {/* Scroll Indicator */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1.5, duration: 0.5 }}
-        className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10"
+        transition={{ delay: 1.7, duration: 0.5 }}
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10"
       >
         <motion.div
           animate={{ y: [0, 8, 0] }}
           transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
         >
-          <ChevronDown size={24} className="text-slate-400" />
+          <ChevronDown size={24} className="text-white/70" />
         </motion.div>
       </motion.div>
     </section>
@@ -313,7 +370,7 @@ function MillasStrip() {
   return (
     <section
       ref={ref}
-      className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-y border-slate-200"
+      className="sticky top-0 z-30 bg-[#121C26]/90 backdrop-blur-md border-y border-white/10"
     >
       <div className="flex items-center justify-between h-14 px-4">
         <div className="flex items-center gap-2">
@@ -331,10 +388,10 @@ function MillasStrip() {
             </div>
           </motion.div>
           <div>
-            <span className="font-fredoka font-bold text-lg text-slate-900">
+            <span className="font-fredoka font-bold text-lg text-white">
               {animatedMillas.toLocaleString('es-CO')}
             </span>
-            <p className="text-[10px] text-slate-500 -mt-0.5">TicaMillas</p>
+            <p className="text-[10px] text-slate-400 -mt-0.5">TicaMillas</p>
           </div>
         </div>
         <button
@@ -359,44 +416,44 @@ function GameModesSection() {
       desc: 'Toca la tractomula sin parar y haz crecer tu flota.',
       icon: InfinityIcon,
       color: '#F59E0B',
-      borderColor: 'rgba(245,158,11,0.2)',
-      gradient: 'linear-gradient(135deg, rgba(245,158,11,0.1) 0%, rgba(245,158,11,0.05) 100%)',
+      borderColor: 'rgba(245,158,11,0.35)',
+      gradient: 'linear-gradient(135deg, rgba(245,158,11,0.16) 0%, rgba(245,158,11,0.06) 100%)',
     },
     {
       title: 'Eventos',
       desc: 'Bonus aleatorios que multiplican tus ganancias.',
       icon: Timer,
       color: '#EF4444',
-      borderColor: 'rgba(239,68,68,0.2)',
-      gradient: 'linear-gradient(135deg, rgba(239,68,68,0.1) 0%, rgba(239,68,68,0.05) 100%)',
+      borderColor: 'rgba(239,68,68,0.35)',
+      gradient: 'linear-gradient(135deg, rgba(239,68,68,0.16) 0%, rgba(239,68,68,0.06) 100%)',
     },
     {
       title: 'Prestigio',
       desc: 'Reinicia tu flota para ganar Estrellas de Carretera permanentes.',
       icon: Target,
       color: '#3B82F6',
-      borderColor: 'rgba(59,130,246,0.2)',
-      gradient: 'linear-gradient(135deg, rgba(59,130,246,0.1) 0%, rgba(59,130,246,0.05) 100%)',
+      borderColor: 'rgba(59,130,246,0.35)',
+      gradient: 'linear-gradient(135deg, rgba(59,130,246,0.16) 0%, rgba(59,130,246,0.06) 100%)',
     },
     {
       title: 'Vs Amigos',
       desc: 'Compite por quien genera mas TicaMillas. Proximamente!',
       icon: Users,
       color: '#10B981',
-      borderColor: 'rgba(16,185,129,0.2)',
-      gradient: 'linear-gradient(135deg, rgba(16,185,129,0.1) 0%, rgba(16,185,129,0.05) 100%)',
+      borderColor: 'rgba(16,185,129,0.35)',
+      gradient: 'linear-gradient(135deg, rgba(16,185,129,0.16) 0%, rgba(16,185,129,0.06) 100%)',
       badge: 'PRONTO',
       disabled: true,
     },
   ];
 
   return (
-    <section ref={ref} className="bg-white py-6 px-4">
+    <section ref={ref} className="py-6 px-4">
       <motion.h2
         initial={{ opacity: 0, y: 20 }}
         animate={isInView ? { opacity: 1, y: 0 } : {}}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-        className="font-fredoka font-bold text-xl text-slate-900 mb-4"
+        className="font-fredoka font-bold text-xl text-white mb-4"
       >
         Modos de Juego
       </motion.h2>
@@ -414,7 +471,7 @@ function GameModesSection() {
             onClick={() => !mode.disabled && navigate('/game')}
             className={cn(
               'relative rounded-2xl p-4 cursor-pointer transition-all duration-200',
-              'border active:scale-[0.98]',
+              'border active:scale-[0.98] backdrop-blur-sm',
               mode.disabled && 'opacity-60 cursor-not-allowed'
             )}
             style={{
@@ -423,13 +480,13 @@ function GameModesSection() {
             }}
           >
             {mode.badge && (
-              <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-white text-[9px] font-bold text-slate-700 shadow-sm">
+              <span className="absolute top-2 right-2 px-2 py-0.5 rounded-full bg-white/90 text-[9px] font-bold text-slate-700 shadow-sm">
                 {mode.badge}
               </span>
             )}
             <mode.icon size={32} color={mode.color} strokeWidth={2} className="mb-2" />
-            <h3 className="font-inter font-semibold text-slate-900 text-sm mb-1">{mode.title}</h3>
-            <p className="text-slate-500 text-[11px] leading-tight">{mode.desc}</p>
+            <h3 className="font-inter font-semibold text-white text-sm mb-1">{mode.title}</h3>
+            <p className="text-slate-300 text-[11px] leading-tight">{mode.desc}</p>
           </motion.div>
         ))}
       </motion.div>
@@ -454,23 +511,23 @@ function QuickStatsSection() {
   ];
 
   return (
-    <section ref={ref} className="px-4 py-2 bg-white">
+    <section ref={ref} className="px-4 py-2">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={isInView ? { opacity: 1, y: 0 } : {}}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-        className="bg-white rounded-2xl p-4 border border-slate-200 shadow-sm"
+        className="home-section-card rounded-2xl p-4"
       >
         <div className="flex items-center justify-around">
           {stats.map((stat) => (
             <button
               key={stat.label}
               onClick={() => navigate(stat.path)}
-              className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-slate-50 transition-colors"
+              className="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-white/5 transition-colors"
             >
               <stat.icon size={22} color={stat.color} strokeWidth={2} />
-              <span className="font-fredoka font-bold text-slate-900 text-base">{stat.value}</span>
-              <span className="text-[10px] text-slate-500">{stat.label}</span>
+              <span className="font-fredoka font-bold text-white text-base">{stat.value}</span>
+              <span className="text-[10px] text-slate-400">{stat.label}</span>
             </button>
           ))}
         </div>
@@ -492,7 +549,7 @@ function MarketplacePreviewSection() {
   ];
 
   return (
-    <section ref={ref} className="py-6 bg-white">
+    <section ref={ref} className="py-6">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0 }}
@@ -500,7 +557,7 @@ function MarketplacePreviewSection() {
         transition={{ duration: 0.5 }}
         className="flex items-center justify-between px-4 mb-4"
       >
-        <h2 className="font-fredoka font-bold text-xl text-slate-900">Redime tus TicaMillas</h2>
+        <h2 className="font-fredoka font-bold text-xl text-white">Redime tus TicaMillas</h2>
         <button
           onClick={() => navigate('/marketplace')}
           className="text-[#F59E0B] text-sm font-medium flex items-center gap-0.5 hover:opacity-80"
@@ -524,7 +581,7 @@ function MarketplacePreviewSection() {
             onClick={() => navigate('/marketplace')}
             className="flex-shrink-0 w-40 cursor-pointer active:scale-95 transition-transform"
           >
-            <div className="relative rounded-2xl overflow-hidden bg-white border border-slate-200 shadow-sm">
+            <div className="home-section-card relative rounded-2xl overflow-hidden">
               <div className="relative">
                 <img
                   src={product.image}
@@ -541,7 +598,7 @@ function MarketplacePreviewSection() {
                 </div>
               </div>
               <div className="p-3">
-                <h3 className="font-inter font-semibold text-slate-900 text-sm leading-tight line-clamp-2">
+                <h3 className="font-inter font-semibold text-white text-sm leading-tight line-clamp-2">
                   {product.name}
                 </h3>
                 <p className="text-[#F59E0B] text-xs font-bold mt-1">
@@ -573,12 +630,12 @@ function BrandPartnersSection() {
   const allBrands = [...brands, ...brands];
 
   return (
-    <section ref={ref} className="bg-slate-50 py-5 overflow-hidden">
+    <section ref={ref} className="bg-black/20 py-5 overflow-hidden">
       <motion.p
         initial={{ opacity: 0 }}
         animate={isInView ? { opacity: 1 } : {}}
         transition={{ duration: 0.5 }}
-        className="text-center text-[10px] uppercase tracking-widest text-slate-500 mb-3 px-4"
+        className="text-center text-[10px] uppercase tracking-widest text-slate-400 mb-3 px-4"
       >
         Patrocinadores Oficiales
       </motion.p>
@@ -644,12 +701,12 @@ function DailyChallengesSection() {
   ];
 
   return (
-    <section ref={ref} className="py-6 px-4 bg-white">
+    <section ref={ref} className="py-6 px-4">
       <motion.h2
         initial={{ opacity: 0, y: 20 }}
         animate={isInView ? { opacity: 1, y: 0 } : {}}
         transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-        className="font-fredoka font-bold text-xl text-slate-900 mb-4"
+        className="font-fredoka font-bold text-xl text-white mb-4"
       >
         Desafios de Hoy
       </motion.h2>
@@ -662,7 +719,7 @@ function DailyChallengesSection() {
             animate={isInView ? { opacity: 1, y: 0 } : {}}
             transition={{ delay: index * 0.1, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
             onClick={() => navigate('/game')}
-            className="bg-white rounded-2xl p-4 cursor-pointer active:scale-[0.98] transition-transform border border-slate-200 shadow-sm"
+            className="home-section-card rounded-2xl p-4 cursor-pointer active:scale-[0.98] transition-transform"
           >
             <div className="flex items-center gap-3 mb-3">
               <div
@@ -672,7 +729,7 @@ function DailyChallengesSection() {
                 <challenge.icon size={20} color={challenge.color} strokeWidth={2} />
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-inter font-semibold text-slate-900 text-sm">{challenge.title}</h3>
+                <h3 className="font-inter font-semibold text-white text-sm">{challenge.title}</h3>
               </div>
               <span
                 className="px-2 py-0.5 rounded-full text-[10px] font-bold text-slate-900 flex-shrink-0"
@@ -696,7 +753,7 @@ function DailyChallengesSection() {
                 />
               </div>
               <p className={cn(
-                'text-[10px] text-slate-500 mt-1 text-right progress-label-v2',
+                'text-[10px] text-slate-400 mt-1 text-right progress-label-v2',
                 challenge.progress >= challenge.total && 'complete'
               )}>
                 {challenge.progress}{challenge.unit || ''} / {challenge.total}{challenge.unit || ''}
@@ -723,7 +780,7 @@ function LeaderboardSneakPeekSection() {
   return (
     <section
       ref={ref}
-      className="bg-slate-50 rounded-t-3xl pt-6 pb-8 px-4"
+      className="bg-black/20 rounded-t-3xl pt-6 pb-8 px-4"
     >
       {/* Header */}
       <motion.div
@@ -734,8 +791,8 @@ function LeaderboardSneakPeekSection() {
       >
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="font-fredoka font-bold text-xl text-slate-900">Tabla de Lideres</h2>
-            <p className="text-slate-500 text-xs mt-0.5">
+            <h2 className="font-fredoka font-bold text-xl text-white">Tabla de Lideres</h2>
+            <p className="text-slate-400 text-xs mt-0.5">
               Los mejores conductores esta semana
             </p>
           </div>
@@ -771,7 +828,7 @@ function LeaderboardSneakPeekSection() {
             <div className="relative mb-2">
               <div
                 className={cn(
-                  'rounded-full overflow-hidden flex items-center justify-center bg-white',
+                  'rounded-full overflow-hidden flex items-center justify-center bg-white/90',
                   player.size === 'lg' ? 'w-16 h-16 border-[3px]' : 'w-12 h-12 border-2'
                 )}
                 style={{ borderColor: player.borderColor }}
@@ -785,7 +842,7 @@ function LeaderboardSneakPeekSection() {
             </div>
 
             {/* Name */}
-            <p className={cn('font-bold text-slate-900', player.size === 'lg' ? 'text-sm' : 'text-xs')}>
+            <p className={cn('font-bold text-white', player.size === 'lg' ? 'text-sm' : 'text-xs')}>
               {player.name}
             </p>
 
@@ -805,7 +862,7 @@ function LeaderboardSneakPeekSection() {
 export default function Home() {
   const [showTutorial, setShowTutorial] = useState(false);
   return (
-    <div className="bg-white min-h-[100dvh]">
+    <div className="min-h-[100dvh]" style={{ background: 'linear-gradient(180deg, #27AE60 0%, #1E6A45 4%, #16202B 14%, #101820 100%)' }}>
       <HeroSection onOpenTutorial={() => setShowTutorial(true)} />
       <MillasStrip />
       <GameModesSection />
