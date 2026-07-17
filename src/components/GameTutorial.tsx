@@ -9,31 +9,31 @@ const steps = [
   {
     icon: MousePointerClick,
     title: 'Toca la tractomula',
-    text: 'Cada click genera TicaMillas. A mas poder de click, mas ganas por toque.',
+    text: 'Cada click genera CPS. A mas poder de click, mas ganas por toque.',
     color: '#F59E0B',
   },
   {
     icon: Truck,
-    title: 'Compra vehiculos',
-    text: 'En la pestana Flota adquieres motonetas, camiones, tractomulas... Cada uno produce TicaMillas automaticamente cada segundo.',
+    title: 'Compra tu flota',
+    text: 'En la pestana Flota adquieres camiones reales (Chevrolet, Volvo, Scania, Tesla Semi...) con Golden Tickets. Cada uno MULTIPLICA tu CPS.',
     color: '#3B82F6',
   },
   {
     icon: Zap,
-    title: 'Mejora tu flota',
-    text: 'Desbloquea mejoras para multiplicar la produccion de un vehiculo, de todos, o el poder de tus clicks.',
+    title: 'Poderes de marca',
+    text: 'Compra niveles de autopartes con CPS. Cada 10 niveles desbloqueas una nueva marca patrocinadora que multiplica su aporte.',
     color: '#22C55E',
   },
   {
     icon: Star,
     title: 'Ascender (Prestigio)',
-    text: 'Cuando tengas millones de TicaMillas totales, reinicia tu flota a cambio de Estrellas de Carretera. Cada estrella da +1% de produccion permanente.',
+    text: 'Cuando tengas millones de CPS totales, reinicia tu flota a cambio de Estrellas de Carretera. Cada estrella da +1% permanente.',
     color: '#FACC15',
   },
   {
     icon: ShoppingBag,
     title: 'Redime en la Tienda',
-    text: 'Tus TicaMillas son la moneda del juego. Usalas para canjear productos reales en el Marketplace.',
+    text: 'Tus CPS se canjean por Gift Cards VTEX de redpostventa.com. Redimir no afecta tu ranking.',
     color: '#F97316',
   },
 ];

@@ -2,7 +2,6 @@ import { z } from "zod";
 import { eq, and, desc, sql } from "drizzle-orm";
 import { createRouter, publicQuery, authedQuery } from "../../middleware";
 import { getDb } from "../../queries/connection";
-import { calculateClickPower } from "../../lib/clicker";
 import {
   userPoints,
   gameRuns,
@@ -697,12 +696,19 @@ const challengesRouter = createRouter({
 
 // ─── Clicker sub-router ──────────────────────────────────────────────
 
+// Fleet snapshot stored inside the legacy `buildings` JSON column (no migration needed).
+const fleetSnapshotInput = z.object({
+  fleetOwned: z.array(z.string()),
+  selectedFleet: z.string(),
+  cpsBalance: z.number().min(0),
+});
+
 const clickerStateInput = z.object({
-  buildings: z.record(z.string(), z.number().int().min(0)),
+  fleet: fleetSnapshotInput,
   upgrades: z.record(z.string(), z.boolean()),
   powerLevels: z.record(z.string(), z.number().int().min(0)),
   totalClicks: z.number().int().min(0),
-  totalKm: z.number().min(0),
+  cpsTotal: z.number().min(0), // histórico, nunca baja — alimenta el ranking
   totalEarned: z.number().min(0),
   stars: z.number().int().min(0),
   goldenTickets: z.number().int().min(0),
@@ -727,12 +733,29 @@ const clickerRouter = createRouter({
       return null;
     }
 
+    // El snapshot de flota vive en la columna JSON `buildings`. Si la fila
+    // todavía tiene el formato legacy (Record<string, number>), se devuelve
+    // fleet: null y el cliente conserva su estado local.
+    const fleetRaw = row.buildings as {
+      fleetOwned?: string[];
+      selectedFleet?: string;
+      cpsBalance?: number;
+    };
+    const fleet =
+      fleetRaw && Array.isArray(fleetRaw.fleetOwned)
+        ? {
+            fleetOwned: fleetRaw.fleetOwned,
+            selectedFleet: fleetRaw.selectedFleet ?? "chevrolet",
+            cpsBalance: Number(fleetRaw.cpsBalance ?? 0),
+          }
+        : null;
+
     return {
-      buildings: row.buildings as Record<string, number>,
+      fleet,
       upgrades: row.upgrades as Record<string, boolean>,
       powerLevels: row.powerLevels as Record<string, number>,
       totalClicks: Number(row.totalClicks),
-      totalKm: Number(row.totalKm),
+      cpsTotal: Number(row.totalKm), // la columna total_km ahora transporta cpsTotal
       totalEarned: Number(row.totalEarned),
       stars: row.stars,
       goldenTickets: row.goldenTickets,
@@ -759,11 +782,11 @@ const clickerRouter = createRouter({
         await db
           .update(userClickerState)
           .set({
-            buildings: input.buildings,
+            buildings: input.fleet,
             upgrades: input.upgrades,
             powerLevels: input.powerLevels,
             totalClicks: input.totalClicks,
-            totalKm: String(input.totalKm),
+            totalKm: String(input.cpsTotal),
             totalEarned: String(input.totalEarned),
             stars: input.stars,
             goldenTickets: input.goldenTickets,
@@ -775,11 +798,11 @@ const clickerRouter = createRouter({
       } else {
         await db.insert(userClickerState).values({
           userId,
-          buildings: input.buildings,
+          buildings: input.fleet,
           upgrades: input.upgrades,
           powerLevels: input.powerLevels,
           totalClicks: input.totalClicks,
-          totalKm: String(input.totalKm),
+          totalKm: String(input.cpsTotal),
           totalEarned: String(input.totalEarned),
           stars: input.stars,
           goldenTickets: input.goldenTickets,
@@ -789,13 +812,8 @@ const clickerRouter = createRouter({
         });
       }
 
-      // Update weekly leaderboard with current clicker power (CPS)
-      const clickPower = calculateClickPower({
-        buildings: input.buildings,
-        upgrades: input.upgrades,
-        powerLevels: input.powerLevels,
-        stars: input.stars,
-      });
+      // Update weekly leaderboard with TOTAL CPS ACCUMULATED (histórico, nunca baja).
+      const cpsScore = Math.floor(input.cpsTotal);
       const weekKey = getWeekKey(now);
       const displayName = ctx.user.name ?? "Jugador";
       const avatarUrl = ctx.user.avatar ?? null;
@@ -816,8 +834,9 @@ const clickerRouter = createRouter({
         await db
           .update(leaderboard)
           .set({
-            score: Math.floor(clickPower),
-            distance: Math.floor(input.totalKm),
+            // El ranking nunca baja: conservamos el mejor puntaje registrado
+            score: Math.max(existingEntry[0].score, cpsScore),
+            distance: Math.floor(input.cpsTotal),
             millasEarned: Math.floor(input.totalEarned),
             displayName,
             avatarUrl,
@@ -828,15 +847,15 @@ const clickerRouter = createRouter({
           userId,
           displayName,
           avatarUrl,
-          score: Math.floor(clickPower),
-          distance: Math.floor(input.totalKm),
+          score: cpsScore,
+          distance: Math.floor(input.cpsTotal),
           millasEarned: Math.floor(input.totalEarned),
           weekKey,
           isGlobal: true,
         });
       }
 
-      return { success: true, clickPower: Math.floor(clickPower) };
+      return { success: true, cpsTotal: cpsScore };
     }),
 });
 

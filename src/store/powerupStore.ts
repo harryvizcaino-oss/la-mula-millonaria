@@ -16,7 +16,7 @@ export const POWERUP_DEFS: Record<PowerupId, PowerupDef> = {
     id: 'nitro',
     name: 'Nitro Boost',
     icon: '🚀',
-    description: 'x50 km por clic durante 10 segundos',
+    description: 'x50 CPS por clic durante 10 segundos',
     durationMs: 10_000,
   },
   convoy: {

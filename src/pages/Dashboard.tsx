@@ -212,7 +212,7 @@ export default function Dashboard() {
 
   const dashboardStats: StatItem[] = [
     { label: 'Clicks', value: clicker.totalClicks, icon: Gamepad2, iconColor: 'text-[#F59E0B]', iconBg: 'bg-[#F59E0B]/10' },
-    { label: 'Kilometros', value: Math.floor(clicker.totalKm), suffix: '', icon: Route, iconColor: 'text-[#3B82F6]', iconBg: 'bg-[#3B82F6]/10' },
+    { label: 'CPS Totales', value: Math.floor(clicker.cpsTotal), suffix: '', icon: Route, iconColor: 'text-[#3B82F6]', iconBg: 'bg-[#3B82F6]/10' },
     { label: 'Poder Click', value: Math.floor(clickPower), suffix: '/click', icon: Zap, iconColor: 'text-[#10B981]', iconBg: 'bg-[#10B981]/10' },
     { label: 'Estrellas', value: clicker.stars, icon: Star, iconColor: 'text-[#FACC15]', iconBg: 'bg-[#FACC15]/10' },
   ];

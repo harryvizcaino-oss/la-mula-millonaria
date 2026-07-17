@@ -7,11 +7,15 @@ const SYNC_INTERVAL_MS = 15000;
 
 function serializeClickerState(state: ReturnType<typeof useClickerStore.getState>) {
   return {
-    buildings: state.buildings,
+    fleet: {
+      fleetOwned: state.fleetOwned,
+      selectedFleet: state.selectedFleet,
+      cpsBalance: state.cpsBalance,
+    },
     upgrades: state.upgrades,
     powerLevels: state.powerLevels,
     totalClicks: state.totalClicks,
-    totalKm: state.totalKm,
+    cpsTotal: state.cpsTotal,
     totalEarned: state.totalEarned,
     stars: state.stars,
     goldenTickets: state.goldenTickets,
@@ -38,13 +42,14 @@ export function useClickerSync() {
     utils.game.clicker.getState
       .fetch()
       .then((serverState) => {
-        if (serverState) {
+        // fleet === null → backup legacy (v4): conservar el estado local nuevo
+        if (serverState && serverState.fleet) {
           useClickerStore.getState().hydrate({
-            buildings: serverState.buildings,
+            fleet: serverState.fleet,
             upgrades: serverState.upgrades,
             powerLevels: serverState.powerLevels,
             totalClicks: serverState.totalClicks,
-            totalKm: serverState.totalKm,
+            cpsTotal: serverState.cpsTotal,
             totalEarned: serverState.totalEarned,
             stars: serverState.stars,
             goldenTickets: serverState.goldenTickets,
@@ -73,13 +78,13 @@ export function useClickerSync() {
       if (
         last &&
         last.totalClicks === current.totalClicks &&
-        last.totalKm === current.totalKm &&
+        last.cpsTotal === current.cpsTotal &&
         last.totalEarned === current.totalEarned &&
         last.stars === current.stars &&
         last.goldenTickets === current.goldenTickets &&
         last.autoclickLevel === current.autoclickLevel &&
         last.lastTickAt === current.lastTickAt &&
-        JSON.stringify(last.buildings) === JSON.stringify(current.buildings) &&
+        JSON.stringify(last.fleet) === JSON.stringify(current.fleet) &&
         JSON.stringify(last.upgrades) === JSON.stringify(current.upgrades) &&
         JSON.stringify(last.powerLevels) === JSON.stringify(current.powerLevels)
       ) {

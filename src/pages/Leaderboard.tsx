@@ -18,6 +18,7 @@ import { mockPlayers, mockCurrentUser, mockFriends, weeklyPrizes } from '@/data/
 import type { Player } from '@/data/mockLeaderboard';
 import { trpc } from '@/providers/trpc';
 import { useAuth } from '@/hooks/useAuth';
+import { useClickerStore } from '@/store/clickerStore';
 
 type TimeFilter = 'Semanal' | 'Mensual' | 'Global';
 type CategoryFilter = 'Puntaje' | 'TicaMillas' | 'Distancia';
@@ -171,7 +172,16 @@ function Podium({ players }: { players: Player[] }) {
 /*  Your Rank Card                                                     */
 /* ------------------------------------------------------------------ */
 function YourRankCard({ category }: { category: CategoryFilter }) {
-  const progressPercent = 65;
+  // El ranking mide el CPS TOTAL acumulado (histórico, nunca baja).
+  const cpsTotal = useClickerStore((s) => s.cpsTotal);
+  const { rank, nextGap, progressPercent } = useMemo(() => {
+    const all = [...mockPlayers.map((p) => p.score), cpsTotal].sort((a, b) => b - a);
+    const r = all.indexOf(cpsTotal) + 1;
+    const above = r > 1 ? all[r - 2] : null;
+    const gap = above !== null ? Math.max(0, Math.floor(above - cpsTotal)) : 0;
+    const pct = above !== null && above > 0 ? Math.min(99, Math.round((cpsTotal / above) * 100)) : 100;
+    return { rank: r, nextGap: gap, progressPercent: pct };
+  }, [cpsTotal]);
 
   return (
     <motion.div
@@ -191,9 +201,9 @@ function YourRankCard({ category }: { category: CategoryFilter }) {
             animate={{ opacity: 1 }}
             className="font-fredoka font-bold text-2xl text-[#F59E0B]"
           >
-            #{mockCurrentUser.rank}
+            #{rank}
           </motion.span>
-          <span className="text-[10px] text-slate-500">de 12,847</span>
+          <span className="text-[10px] text-slate-500">de {mockPlayers.length + 1}</span>
         </div>
 
         {/* Avatar */}
@@ -205,7 +215,9 @@ function YourRankCard({ category }: { category: CategoryFilter }) {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-slate-900">Tu</p>
           <p className="text-xs text-slate-500">
-            {formatNumber(getCategoryValue(mockCurrentUser, category))} {category.toLowerCase()}
+            {category === 'Puntaje'
+              ? `${formatNumber(Math.floor(cpsTotal))} cps totales`
+              : `${formatNumber(getCategoryValue(mockCurrentUser, category))} ${category.toLowerCase()}`}
           </p>
         </div>
 
@@ -233,7 +245,7 @@ function YourRankCard({ category }: { category: CategoryFilter }) {
       {/* Progress bar */}
       <div className="mt-3">
         <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-          <span>2,100 pts para #{mockCurrentUser.rank - 1}</span>
+          <span>{rank > 1 ? `${formatNumber(nextGap)} CPS para #${rank - 1}` : '¡Eres el #1!'}</span>
           <span>{progressPercent}%</span>
         </div>
         <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">

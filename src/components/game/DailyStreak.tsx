@@ -158,7 +158,7 @@ export function DailyStreak({ onClaim }: DailyStreakProps) {
 
       {claimFx && (
         <p className="text-center font-baloo font-extrabold text-[#16A34A] text-lg mt-2">
-          +{claimFx.reward.toLocaleString('es-CO')} km
+          +{claimFx.reward.toLocaleString('es-CO')} CPS
         </p>
       )}
     </div>

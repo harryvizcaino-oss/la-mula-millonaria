@@ -8,17 +8,21 @@ import {
   TrendingUp,
   Sparkles,
   MousePointerClick,
-  HelpCircle,
   Crown,
   Clock,
   Bell,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useMillas } from '@/providers/MillasProvider';
-import { useClickerStore, calculateClickPower } from '@/store/clickerStore';
-import { CLICKER_BUILDINGS, getBuildingTicketCost } from '@/data/clickerBuildings';
+import { useClickerStore, calculateClickPower, calculatePlayerLevel } from '@/store/clickerStore';
+import { FLEET_VEHICLES, getFleetVehicle } from '@/data/fleetVehicles';
 import { mockPlayers } from '@/data/mockLeaderboard';
-import { POWER_LINES, getPowerCost, isPowerUnlocked, MAX_POWER_LEVEL } from '@/data/clickerPowers';
+import {
+  SPONSOR_POWERS,
+  MAX_SPONSOR_LEVEL,
+  getSponsorPowerCost,
+  type SponsorPower,
+} from '@/data/sponsorPowers';
 import { pickRandomEvent, type ClickerGameEvent } from '@/data/clickerEvents';
 import { GameTutorial } from '@/components/GameTutorial';
 import { useComboStore } from '@/store/comboStore';
@@ -32,6 +36,8 @@ import { GlobalEventBanner } from '@/components/game/GlobalEventBanner';
 import { UnlockCinematic } from '@/components/game/UnlockCinematic';
 import { DailyStreak } from '@/components/game/DailyStreak';
 import { PowerupMenu } from '@/components/game/PowerupMenu';
+import { SponsorPowerCard } from '@/components/game/SponsorPowerCard';
+import { FleetVehicleCard } from '@/components/game/FleetVehicleCard';
 
 import { useTruckHorn } from '@/hooks/useTruckHorn';
 
@@ -85,49 +91,8 @@ function formatFull(n: number): string {
   return Math.floor(n).toLocaleString('es-CO');
 }
 
-function getRarity(index: number) {
-  if (index < 3) return 'common';
-  if (index < 6) return 'rare';
-  if (index < 8) return 'epic';
-  return 'legendary';
-}
-
-const TIER_COLORS: Record<string, { main: string; light: string }> = {
-  common: { main: '#94A3B8', light: '#CBD5E1' },
-  rare: { main: '#3B82F6', light: '#60A5FA' },
-  epic: { main: '#A855F7', light: '#C084FC' },
-  legendary: { main: '#F59E0B', light: '#FBBF24' },
-};
-
-const RARITY_STYLES = {
-  common: {
-    bg: 'bg-gradient-to-br from-[#94A3B8] to-[#64748B]',
-    border: 'border-[#CBD5E1]',
-    text: 'text-[#E2E8F0]',
-    cost: 'bg-[#22C55E]',
-  },
-  rare: {
-    bg: 'bg-gradient-to-br from-[#3B82F6] to-[#1D4ED8]',
-    border: 'border-[#60A5FA]',
-    text: 'text-[#BFDBFE]',
-    cost: 'bg-[#3B82F6]',
-  },
-  epic: {
-    bg: 'bg-gradient-to-br from-[#A855F7] to-[#7E22CE]',
-    border: 'border-[#C084FC]',
-    text: 'text-[#E9D5FF]',
-    cost: 'bg-[#A855F7]',
-  },
-  legendary: {
-    bg: 'bg-gradient-to-br from-[#F59E0B] to-[#B45309]',
-    border: 'border-[#FBBF24]',
-    text: 'text-[#FEF3C7]',
-    cost: 'bg-[#F59E0B]',
-  },
-};
-
 export default function Game() {
-  const { millas, addMillas } = useMillas();
+  const { addMillas } = useMillas();
   const store = useClickerStore();
 
   const [activeTab, setActiveTab] = useState<'buildings' | 'upgrades' | 'prestige'>('upgrades');
@@ -189,7 +154,11 @@ export default function Game() {
   const goldCoinIdRef = useRef(0);
   const nitroWasActiveRef = useRef(false);
 
-  const clickPower = useMemo(() => calculateClickPower(store), [store.upgrades, store.stars, store.buildings, store.powerLevels]);
+  const clickPower = useMemo(
+    () => calculateClickPower(store),
+    [store.upgrades, store.stars, store.powerLevels, store.selectedFleet]
+  );
+  const playerLevel = useMemo(() => calculatePlayerLevel(store), [store.powerLevels]);
 
   // Ticker para expirar efectos de power-ups aunque no haya clicks
   useEffect(() => {
@@ -234,10 +203,11 @@ export default function Game() {
   useEffect(() => {
     if (!lastEventResult) return;
     addMillas(lastEventResult.rewardMillas);
+    store.addEarnings(lastEventResult.rewardMillas);
     if (lastEventResult.rewardTickets > 0) store.addGoldenTickets(lastEventResult.rewardTickets);
     showToast(
       lastEventResult.success
-        ? `¡Evento completado! +${formatNumber(lastEventResult.rewardMillas)} km`
+        ? `¡Evento completado! +${formatNumber(lastEventResult.rewardMillas)} CPS`
         : 'Evento finalizado: recompensa de participación',
       lastEventResult.success ? '#F59E0B' : '#94A3B8'
     );
@@ -247,22 +217,21 @@ export default function Game() {
   // Desbloqueos épicos por hitos
   useEffect(() => {
     const u = useUnlockStore.getState();
-    if (store.totalKm >= 1000) {
+    if (store.cpsTotal >= 1000) {
       u.triggerUnlock('km-1k', {
         type: 'small',
-        title: 'Primeros 1.000 km',
-        reward: 'Desbloquea segundo tipo de vehículo',
+        title: 'Primeros 1.000 CPS',
+        reward: 'Desbloquea segundo vehículo de flota',
       });
     }
-    if (store.totalKm >= 1_000_000) {
+    if (store.cpsTotal >= 1_000_000) {
       u.triggerUnlock('km-1m', {
         type: 'medium',
-        title: '¡Primer millón de km!',
+        title: '¡Primer millón de CPS!',
         reward: 'Desbloquea el sistema de Ascensión',
       });
     }
-    const ownedTypes = CLICKER_BUILDINGS.filter((b) => (store.buildings[b.id] || 0) > 0).length;
-    if (ownedTypes >= CLICKER_BUILDINGS.length) {
+    if (store.fleetOwned.length >= FLEET_VEHICLES.length) {
       u.triggerUnlock('fleet-10', {
         type: 'large',
         title: '¡Los 10 vehículos!',
@@ -276,7 +245,7 @@ export default function Game() {
         reward: 'Estado Legendario + aura exclusiva',
       });
     }
-  }, [store.totalKm, store.buildings, store.ascensions]);
+  }, [store.cpsTotal, store.fleetOwned, store.ascensions]);
 
   // Aviso cuando se agota el nitro
   useEffect(() => {
@@ -337,9 +306,9 @@ export default function Game() {
         if (next.type === 'discount') discountMultiplierRef.current = next.multiplier;
 
         if (next.type === 'instantProduction') {
-          const instant = clickPower * 15 * 60;
-          addMillas(Math.floor(instant));
-          store.tick(0);
+          const instant = Math.floor(clickPower * 15 * 60);
+          addMillas(instant);
+          store.addEarnings(instant);
           setTimeout(() => setEvent(null), 3000);
         }
       }, delay);
@@ -610,6 +579,9 @@ export default function Game() {
       playHorn();
       const result = store.click();
       addMillas(Math.floor(result.millas * multiplier));
+      // Los multiplicadores (combo, nitro, crítico...) también suman al balance CPS
+      const extraCps = Math.floor(result.cps * (multiplier - 1));
+      if (extraCps > 0) store.addEarnings(extraCps);
 
       if (isCrit) {
         const cId = ++critIdRef.current;
@@ -619,7 +591,9 @@ export default function Game() {
       }
 
       // Milestone detection
-      const currentPower = Math.floor(Math.log10(Math.max(1, millas + result.millas * multiplier)));
+      const currentPower = Math.floor(
+        Math.log10(Math.max(1, useClickerStore.getState().cpsBalance))
+      );
       if (currentPower > prevMilestoneRef.current && currentPower >= 1) {
         prevMilestoneRef.current = currentPower;
         setMilestone(true);
@@ -653,7 +627,7 @@ export default function Game() {
 
       spawnLayeredParticles(relX, relY);
     },
-    [clickPower, store, addMillas, activeClickMultiplier, millas, spawnLayeredParticles, triggerHaptic, nitroActive, convoyActive, caravanaActive]
+    [clickPower, store, addMillas, activeClickMultiplier, spawnLayeredParticles, triggerHaptic, nitroActive, convoyActive, caravanaActive]
   );
 
   // Keep latest click handler accessible to autoclick loop without restarting it
@@ -687,30 +661,38 @@ export default function Game() {
     return () => clearInterval(interval);
   }, [store.autoclickUntil]);
 
-  const handleBuyBuilding = (id: string, el: HTMLElement) => {
-    const result = store.buyBuilding(id);
+  const handleBuyFleet = (id: string, el: HTMLElement) => {
+    const result = store.buyFleet(id, discountMultiplierRef.current);
     if (result.success) {
-      const building = CLICKER_BUILDINGS.find((b) => b.id === id);
-      if (building) spawnFlyItem(building.emoji, el);
-      showToast(`+1 ${building?.name ?? 'vehiculo'}`, '#3B82F6');
+      const vehicle = getFleetVehicle(id);
+      if (vehicle) spawnFlyItem(vehicle.emoji, el);
+      showToast(
+        result.cost > 0
+          ? `¡${vehicle?.brand ?? 'Vehículo'} en tu flota! x${vehicle?.multiplier} CPS`
+          : `${vehicle?.brand ?? 'Vehículo'} seleccionado`,
+        '#3B82F6'
+      );
       triggerHaptic('flash');
     }
   };
 
   const handleBuyPower = (id: string, el: HTMLElement) => {
-    const result = store.buyPower(id, millas);
+    const result = store.buyPower(id);
     if (result.success) {
-      addMillas(-result.cost);
-      const power = POWER_LINES.find((p) => p.id === id);
+      const power = SPONSOR_POWERS.find((p) => p.id === id);
       if (power) spawnFlyItem(power.emoji, el);
       triggerHaptic('flash');
     }
   };
 
+  // Toast + celebración cuando un poder cambia de marca (tier)
+  const handleTierUp = (_power: SponsorPower, brand: string, pctGain: number) => {
+    showToast(`New brand unlocked: ${brand}! +${pctGain}% CPS`, '#FFD700');
+  };
+
   const handleBuyAutoclick = () => {
-    const result = store.buyAutoclick(millas);
+    const result = store.buyAutoclick();
     if (result.success) {
-      addMillas(-result.cost);
       showToast('¡Autoclick activado!', '#A855F7');
       setAutoclickRemaining(result.duration);
       triggerHaptic('vignette');
@@ -752,7 +734,8 @@ export default function Game() {
       const coin = prev.find((c) => c.id === coinId);
       if (!coin) return prev;
       addMillas(coin.reward);
-      showToast(`+${formatNumber(coin.reward)} km`, '#FACC15');
+      store.addEarnings(coin.reward);
+      showToast(`+${formatNumber(coin.reward)} CPS`, '#FACC15');
       spawnParticlesPercent(coin.x, 50);
       return prev.filter((c) => c.id !== coinId);
     });
@@ -772,61 +755,54 @@ export default function Game() {
     store.ascensions < 50 && store.totalEarned >= ascensionThreshold && potentialStars > 0;
   const ascensionProgress = Math.min(1, store.totalEarned / ascensionThreshold);
 
-  const buildingsSorted = useMemo(() => {
-    return CLICKER_BUILDINGS.map((b, i) => ({
-      ...b,
-      owned: store.buildings[b.id] || 0,
-      cost: getBuildingTicketCost(b, store.buildings[b.id] || 0),
-      rarity: getRarity(i),
-    }));
-  }, [store.buildings]);
-
-  const powersAvailable = useMemo(() => {
-    return POWER_LINES.filter((p) => isPowerUnlocked(store.powerLevels, p)).map((p) => {
-      const currentLevel = store.powerLevels[p.id] || 0;
-      const cost = getPowerCost(p, currentLevel);
+  // Poderes de marca: costo ×1.15 por nivel, pagados con CPS (balance)
+  const powersView = useMemo(() => {
+    return SPONSOR_POWERS.map((p) => {
+      const level = store.powerLevels[p.id] || 0;
+      const cost = getSponsorPowerCost(p, level);
       return {
-        ...p,
-        currentLevel,
+        power: p,
+        level,
         cost,
-        canAfford: millas >= cost,
-        isMaxed: currentLevel >= MAX_POWER_LEVEL,
+        canAfford: store.cpsBalance >= cost,
+        isMaxed: level >= MAX_SPONSOR_LEVEL,
       };
     });
-  }, [store.powerLevels, store.totalEarned, millas]);
+  }, [store.powerLevels, store.cpsBalance]);
 
-  const activeVehicleId = useMemo(() => {
-    for (let i = CLICKER_BUILDINGS.length - 1; i >= 0; i--) {
-      if ((store.buildings[CLICKER_BUILDINGS[i].id] || 0) > 0) {
-        return CLICKER_BUILDINGS[i].id;
-      }
-    }
-    return 'motoneta';
-  }, [store.buildings]);
+  // Flota: multiplicadores comprados con Golden Tickets
+  const fleetView = useMemo(() => {
+    return FLEET_VEHICLES.map((v) => {
+      const owned = store.fleetOwned.includes(v.id);
+      const selected = store.selectedFleet === v.id;
+      const cost = Math.max(0, Math.ceil(v.tickets * discountMultiplierRef.current));
+      return {
+        vehicle: v,
+        owned,
+        selected,
+        cost,
+        canAfford: owned || store.goldenTickets >= cost,
+      };
+    });
+  }, [store.fleetOwned, store.selectedFleet, store.goldenTickets]);
 
-  const fleetTotal = useMemo(
-    () => Object.values(store.buildings).reduce((a, b) => a + b, 0),
-    [store.buildings]
-  );
-
-  const totalProduction = useMemo(
-    () => buildingsSorted.reduce((sum, b) => sum + b.baseClickBonus * b.owned, 0),
-    [buildingsSorted]
+  const activeVehicle = useMemo(
+    () => getFleetVehicle(store.selectedFleet) ?? FLEET_VEHICLES[0],
+    [store.selectedFleet]
   );
 
   const autoclickCost = useMemo(
     () => Math.floor(5000 * Math.pow(4, store.autoclickLevel)),
     [store.autoclickLevel]
   );
-  const canAffordAutoclick = millas >= autoclickCost;
+  const canAffordAutoclick = store.cpsBalance >= autoclickCost;
 
-  const effectiveClickPower = clickPower * activeClickMultiplier;
-
+  // El ranking mide el CPS TOTAL acumulado (histórico, nunca baja)
   const rankPosition = useMemo(() => {
-    const userScore = effectiveClickPower;
+    const userScore = store.cpsTotal;
     const allScores = [...mockPlayers.map((p) => p.score), userScore].sort((a, b) => b - a);
     return allScores.indexOf(userScore) + 1;
-  }, [effectiveClickPower]);
+  }, [store.cpsTotal]);
 
   return (
     <div className="relative min-h-[100dvh] bg-white text-slate-900 pb-28 overflow-x-hidden">
@@ -890,7 +866,14 @@ export default function Game() {
               </div>
               <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#3B82F6] text-white shadow-sm border-2 border-white">
                 <Truck size={14} />
-                <span className="font-fredoka font-black text-sm">{fleetTotal}</span>
+                <span className="font-fredoka font-black text-sm">{store.fleetOwned.length}</span>
+              </div>
+              <div
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#A855F7] text-white shadow-sm border-2 border-white"
+                title={`Player Level = suma de niveles de poder (${playerLevel})`}
+              >
+                <Zap size={14} />
+                <span className="font-fredoka font-black text-sm">Nv {playerLevel}</span>
               </div>
             </div>
 
@@ -989,20 +972,20 @@ export default function Game() {
               className="absolute top-36 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full bg-[#FDE047] shadow-[0_0_24px_rgba(253,224,71,0.6)] z-[3]"
             />
 
-            {/* Money counter */}
+            {/* CPS counter */}
             <div className="absolute top-44 left-0 right-0 z-20 flex justify-center pointer-events-none">
               <div
                 className={cn(
-                  'km-counter-display counter-glow flex flex-col items-center',
+                  'cps-counter-display counter-glow flex flex-col items-center',
                   milestone && 'counter-milestone',
-                  counterBlur && 'km-counter-blur',
+                  counterBlur && 'cps-counter-blur',
                   nitroActive && 'nitro-counter'
                 )}
               >
-                <span className="counter-number font-fredoka font-black text-5xl">
-                  {formatFull(millas)}
+                <span className="cps-counter-number">
+                  {formatFull(store.cpsBalance)}
                 </span>
-                <span className="counter-label mt-1">km</span>
+                <span className="counter-label mt-1">CPS</span>
               </div>
             </div>
 
@@ -1118,8 +1101,12 @@ export default function Game() {
               >
                 {/* Truck shadow */}
                 <div className="truck-shadow" />
-                <span className="truck-emoji text-[9rem] leading-none">
-                  {CLICKER_BUILDINGS.find((b) => b.id === activeVehicleId)?.emoji ?? '🚛'}
+                <span
+                  className="truck-emoji fleet-vehicle leading-none"
+                  style={{ fontSize: 'clamp(9rem, 44vw, 18rem)' }}
+                  title={`${activeVehicle.brand} ${activeVehicle.model} · x${activeVehicle.multiplier} CPS`}
+                >
+                  {activeVehicle.emoji}
                 </span>
               </motion.div>
 
@@ -1373,6 +1360,7 @@ export default function Game() {
         <DailyStreak
           onClaim={(reward, day) => {
             addMillas(reward);
+            store.addEarnings(reward);
             if (day === 5) store.addGoldenTickets(5); // caja especial
             if (day === 7) store.addGoldenTickets(20); // item legendario
             triggerHaptic('flash');
@@ -1409,127 +1397,43 @@ export default function Game() {
       <div className={cn('max-w-3xl mx-auto px-4 mt-4 space-y-3 custom-scrollbar scroll-fade-mask max-h-[60vh] overflow-y-auto pb-6', convoyActive && 'convoy-glow')}>
         {activeTab === 'buildings' && (
           <>
-            {buildingsSorted.map((b, index) => {
-              const canAfford = store.goldenTickets >= b.cost * discountMultiplierRef.current;
-              const discountCost = Math.ceil(b.cost * discountMultiplierRef.current);
-              const rarity = RARITY_STYLES[b.rarity as keyof typeof RARITY_STYLES];
-              const isTop = activeVehicleId === b.id;
-              const tierColor = TIER_COLORS[b.rarity];
-              const isHighTier = index >= 6;
-              const prodShare = totalProduction > 0 ? (b.baseClickBonus * b.owned) / totalProduction : 0;
-              return (
-                <motion.button
-                  key={b.id}
-                  whileTap={{ scale: 0.96, rotate: -1 }}
-                  onClick={(e) => handleBuyBuilding(b.id, e.currentTarget as HTMLElement)}
-                  disabled={!canAfford}
-                  className={cn(
-                    'building-card-v2 w-full flex items-center gap-3 p-3 rounded-2xl text-left relative overflow-hidden',
-                    canAfford && 'affordable-glow',
-                    isHighTier && 'tier-high'
-                  )}
-                  style={{
-                    '--tier-color': tierColor.main,
-                    '--tier-color-light': tierColor.light,
-                    '--drive-speed': `${4 + Math.random() * 4}s`,
-                    '--green': '#22C55E',
-                  } as React.CSSProperties}
-                >
-                  <span className="mini-vehicle">{b.emoji}</span>
-                  {isTop && (
-                    <div className="absolute top-2 right-2 z-10 bg-[#EF4444] text-white text-[9px] font-black px-2 py-0.5 rounded-full border border-white shadow-sm">
-                      TOP
-                    </div>
-                  )}
-                  <div className={cn('w-14 h-14 rounded-xl flex items-center justify-center text-3xl flex-shrink-0 border-2 shadow-inner', isTop ? 'bg-[#EF4444] border-[#EF4444]' : rarity.bg, isTop ? 'border-[#EF4444]' : rarity.border)}>
-                    {b.emoji}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-black text-sm text-white truncate">{b.name}</h3>
-                    <p className="text-slate-300 text-xs line-clamp-2">{b.description}</p>
-                    <div className="inline-flex items-center gap-1.5 mt-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-[#FDE047] to-[#F59E0B] text-[#78350F] border border-[#B45309] shadow-sm">
-                      <span className="text-base">🎫</span>
-                      <span className="font-fredoka font-black text-sm">{Math.floor(discountCost).toLocaleString('es-CO')}</span>
-                    </div>
-                    <div className="prod-bar">
-                      <div className="prod-bar-fill" style={{ width: `${Math.min(100, prodShare * 100)}%` }} />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className="w-10 h-10 rounded-full flex flex-col items-center justify-center border-2 border-white/30 shadow-lg bg-[#22C55E]">
-                      <span className="text-[8px] font-bold text-white leading-none">+</span>
-                      <span className="font-fredoka font-black text-slate-900 text-[10px]">{formatFull(Math.max(1, b.baseClickBonus * b.owned))}/click</span>
-                    </div>
-                    <div className={cn('w-10 h-10 rounded-full flex flex-col items-center justify-center border-2 border-white/30 shadow-lg', isTop ? 'bg-[#EF4444]' : rarity.cost)}>
-                      <span className="text-[8px] font-bold text-white leading-none">Nv</span>
-                      <span className="font-fredoka font-black text-white text-[10px]">{b.owned}</span>
-                    </div>
-                  </div>
-                </motion.button>
-              );
-            })}
+            <p className="text-slate-500 text-[11px] px-1">
+              La flota es un <span className="font-black text-slate-700">multiplicador (×)</span> del CPS
+              y se compra con Golden Tickets 🎟️. El vehículo activo aparece en pantalla.
+            </p>
+            {fleetView.map((f) => (
+              <FleetVehicleCard
+                key={f.vehicle.id}
+                vehicle={f.vehicle}
+                owned={f.owned}
+                selected={f.selected}
+                cost={f.cost}
+                canAfford={f.canAfford}
+                onBuy={handleBuyFleet}
+                onSelect={(id) => store.selectFleet(id)}
+              />
+            ))}
           </>
         )}
 
         {activeTab === 'upgrades' && (
           <>
-            {powersAvailable.length === 0 && (
-              <div className="text-center py-10 text-slate-500">
-                <Zap size={48} className="mx-auto mb-3 opacity-50" />
-                <p className="text-sm font-bold">Sigue generando dinero</p>
-                <p className="text-xs">Las autopartes se desbloquean al acumular dinero total.</p>
-              </div>
-            )}
-            {powersAvailable.map((p) => {
-              const nextContribution = p.baseClickBonus * (p.currentLevel + 1);
-              const tierColor =
-                p.order === 0 ? '#94A3B8' :
-                p.order === 1 ? '#3B82F6' :
-                p.order === 2 ? '#A855F7' :
-                p.order === 3 ? '#F59E0B' : '#EF4444';
-              return (
-                <motion.button
-                  key={p.id}
-                  whileTap={{ scale: 0.96, rotate: 1 }}
-                  onClick={(e) => handleBuyPower(p.id, e.currentTarget as HTMLElement)}
-                  disabled={!p.canAfford || p.isMaxed}
-                  className={cn(
-                    'building-card-v2 w-full flex items-center gap-3 p-3 rounded-2xl text-left relative overflow-hidden',
-                    p.canAfford && !p.isMaxed && 'affordable-glow'
-                  )}
-                  style={{
-                    '--tier-color': tierColor,
-                    '--tier-color-light': tierColor,
-                    '--green': '#22C55E',
-                  } as React.CSSProperties}
-                >
-                  <div className="absolute left-0 top-0 bottom-0 w-1.5" style={{ backgroundColor: tierColor }} />
-                  <div className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl flex-shrink-0 border-2 shadow-inner" style={{ backgroundColor: `${tierColor}20`, borderColor: `${tierColor}40` }}>
-                    {p.emoji}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-black text-sm text-white truncate">{p.name}</h3>
-                    <p className="text-slate-300 text-xs line-clamp-2">
-                      {p.vehicleName} — +{formatFull(p.baseClickBonus)}/click por nivel
-                    </p>
-                    <div className="inline-flex items-center gap-1.5 mt-1.5 px-3 py-1.5 rounded-full bg-slate-100 text-slate-900">
-                      <span className="text-base">💵</span>
-                      <span className="font-fredoka font-black text-sm">{Math.floor(p.cost).toLocaleString('es-CO')}</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <div className="w-10 h-10 rounded-full flex flex-col items-center justify-center border-2 border-white/30 shadow-lg bg-[#22C55E]">
-                      <span className="text-[8px] font-bold text-white leading-none">+</span>
-                      <span className="font-fredoka font-black text-slate-900 text-[10px]">{formatFull(Math.max(1, nextContribution))}/click</span>
-                    </div>
-                    <div className="w-10 h-10 rounded-full flex flex-col items-center justify-center border-2 border-white/30 shadow-lg" style={{ backgroundColor: tierColor }}>
-                      <span className="text-[8px] font-bold text-white leading-none">Nv</span>
-                      <span className="font-fredoka font-black text-white text-[10px]">{p.isMaxed ? 'MAX' : p.currentLevel}</span>
-                    </div>
-                  </div>
-                </motion.button>
-              );
-            })}
+            <p className="text-slate-500 text-[11px] px-1">
+              Cada nivel suma CPS según la <span className="font-black text-slate-700">marca patrocinadora</span> actual.
+              Sube 10 niveles para desbloquear la siguiente marca. Player Level: {playerLevel}.
+            </p>
+            {powersView.map((p) => (
+              <SponsorPowerCard
+                key={p.power.id}
+                power={p.power}
+                level={p.level}
+                cost={p.cost}
+                canAfford={p.canAfford}
+                isMaxed={p.isMaxed}
+                onBuy={handleBuyPower}
+                onTierUp={handleTierUp}
+              />
+            ))}
           </>
         )}
 
@@ -1546,7 +1450,7 @@ export default function Game() {
               </motion.div>
               <h3 className="font-fredoka font-black text-2xl text-slate-900 mb-2">¡Ascender!</h3>
               <p className="text-[#FDE68A] text-sm mb-5">
-                ¡De cero a leyenda! Reinicia tu flota a cambio de Estrellas de Carretera permanentes. Cada ascensión requiere 10x más km.
+                ¡De cero a leyenda! Reinicia tu flota a cambio de Estrellas de Carretera permanentes. Cada ascensión requiere 10x más CPS.
               </p>
 
               <div className="grid grid-cols-3 gap-3 mb-5">
@@ -1593,7 +1497,7 @@ export default function Game() {
                   ? `ASCENDER y ganar ${potentialStars} ⭐`
                   : store.ascensions >= 50
                     ? 'Ascensión máxima alcanzada'
-                    : `Necesitas ${formatNumber(ascensionThreshold)} km totales`}
+                    : `Necesitas ${formatNumber(ascensionThreshold)} CPS totales`}
               </button>
             </div>
           </div>
@@ -1672,7 +1576,7 @@ export default function Game() {
           <motion.div key={timeWarpFx.id} className="time-warp-overlay" exit={{ opacity: 0 }}>
             <div className="time-warp-flash" />
             <span className="time-warp-clock">⏰</span>
-            <span className="time-warp-amount">¡+{formatNumber(timeWarpFx.amount)} KM!</span>
+            <span className="time-warp-amount">¡+{formatNumber(timeWarpFx.amount)} CPS!</span>
           </motion.div>
         )}
       </AnimatePresence>

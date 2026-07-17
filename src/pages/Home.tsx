@@ -120,8 +120,8 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
         <div className="flex items-center justify-center gap-3">
           <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#F59E0B] to-[#F97316] shadow-lg">
             <Coins size={16} className="text-slate-900" />
-            <div className="km-counter-display">
-              <span className="km-counter-number font-fredoka font-bold text-slate-900">
+            <div className="cps-counter-display">
+              <span className="cps-counter-number-static font-fredoka font-bold text-slate-900">
                 {millas.toLocaleString('es-CO')}
               </span>
             </div>
@@ -171,7 +171,7 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
           transition={{ delay: 0.8, duration: 0.3 }}
           className="text-slate-500 text-base font-inter mb-8 max-w-[280px]"
         >
-          Toca la tractomula, arma tu flota y convierte cada kilometro en TicaMillas.
+          Toca la tractomula, arma tu flota y convierte cada click en CPS.
         </motion.p>
 
         {/* Play Button */}
@@ -441,14 +441,14 @@ function QuickStatsSection() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-20%' });
   const navigate = useNavigate();
-  const { totalClicks, totalKm, stars } = useClickerStore();
+  const { totalClicks, cpsTotal, stars } = useClickerStore();
   const clickCount = useAnimatedCounter(totalClicks, 1000, isInView);
-  const kmCount = useAnimatedCounter(Math.floor(totalKm), 1000, isInView);
+  const cpsCount = useAnimatedCounter(Math.floor(cpsTotal), 1000, isInView);
   const starCount = useAnimatedCounter(stars, 1000, isInView);
 
   const stats = [
     { icon: Trophy, color: '#F59E0B', value: `#42`, label: 'Tu Rank', path: '/leaderboard' },
-    { icon: Route, color: '#3B82F6', value: `${kmCount}km`, label: 'Recorrido', path: '/dashboard' },
+    { icon: Route, color: '#3B82F6', value: `${cpsCount.toLocaleString('es-CO')} CPS`, label: 'CPS Totales', path: '/dashboard' },
     { icon: Target, color: '#10B981', value: clickCount.toLocaleString('es-CO'), label: 'Clicks', path: '/dashboard' },
     { icon: Star, color: '#FACC15', value: starCount.toLocaleString('es-CO'), label: 'Estrellas', path: '/dashboard' },
   ];
@@ -613,7 +613,7 @@ function DailyChallengesSection() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-20%' });
   const navigate = useNavigate();
-  const { totalClicks, totalKm, buildings } = useClickerStore();
+  const { totalClicks, cpsTotal, fleetOwned } = useClickerStore();
 
   const challenges = [
     {
@@ -628,18 +628,18 @@ function DailyChallengesSection() {
       title: 'Compra 10 vehiculos',
       icon: Coins,
       color: '#10B981',
-      progress: Math.min(Object.values(buildings).reduce((a, b) => a + b, 0), 10),
+      progress: Math.min(fleetOwned.length, 10),
       total: 10,
       reward: '+300',
     },
     {
-      title: 'Acumula 5km totales',
+      title: 'Acumula 1.000 CPS totales',
       icon: Route,
       color: '#3B82F6',
-      progress: Math.min(totalKm, 5),
-      total: 5,
+      progress: Math.min(Math.floor(cpsTotal), 1000),
+      total: 1000,
       reward: '+1,000',
-      unit: 'km',
+      unit: ' CPS',
     },
   ];
 

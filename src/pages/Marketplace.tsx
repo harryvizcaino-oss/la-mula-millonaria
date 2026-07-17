@@ -14,6 +14,7 @@ import {
   Zap,
   Truck as TruckIcon,
   Check,
+  Copy,
   Loader2,
   Grid3x3,
   Monitor,
@@ -70,6 +71,15 @@ function formatMillas(n: number): string {
 const MILLAS_PER_COP_BLOCK = 100_000_000;
 const COP_PER_BLOCK = 10_000;
 const TICKET_TO_MILLAS = 1_000;
+
+/* ── VTEX Gift Cards (se redimen con CPS; NO afectan el ranking) ── */
+const VTEX_GIFT_CARDS = [
+  { usd: 10, cps: 100_000 },
+  { usd: 25, cps: 250_000 },
+  { usd: 50, cps: 500_000 },
+  { usd: 100, cps: 1_000_000 },
+  { usd: 250, cps: 2_500_000 },
+];
 
 function totalMillasValue(millas: number, tickets: number): number {
   return millas + tickets * TICKET_TO_MILLAS;
@@ -156,6 +166,82 @@ function CashRedemptionModal({
                 </button>
               </div>
               <p className="text-[#ff3131] font-fredoka font-bold text-xl mt-2">${cop.toLocaleString('es-CO')} COP</p>
+            </div>
+            <PrimaryButton variant="primary" onClick={onClose}>
+              Entendido
+            </PrimaryButton>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+/* ═════════════════ VTEX Gift Card Modal (CPS) ═════════════════ */
+
+function VtexGiftCardModal({
+  isOpen,
+  onClose,
+  code,
+  usd,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  code: string;
+  usd: number;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(() => {
+    navigator.clipboard.writeText(code).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = code;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }, [code]);
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-center justify-center px-4"
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.9, opacity: 0 }}
+            className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl"
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-fredoka font-black text-xl text-slate-900">Gift Card VTEX</h3>
+              <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100">
+                <X size={18} className="text-slate-500" />
+              </button>
+            </div>
+            <p className="text-slate-500 text-sm mb-4">
+              Usa este codigo en <span className="font-bold text-slate-900">redpostventa.com</span> para obtener ${usd} USD.
+              Redimir CPS <span className="font-bold">no afecta tu ranking</span>.
+            </p>
+            <div className="bg-gradient-to-br from-[#1A1B26] to-[#232433] rounded-2xl p-5 border-2 border-dashed border-[#ff3131]/60 text-center mb-4">
+              <p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2">Codigo VTEX</p>
+              <div className="flex items-center justify-center gap-2">
+                <code className="font-mono font-bold text-lg text-white tracking-wider">{code}</code>
+                <button onClick={handleCopy} className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20">
+                  {copied ? <Check size={16} className="text-[#ff4c4c]" /> : <Copy size={16} className="text-white" />}
+                </button>
+              </div>
+              <p className="text-[#ff3131] font-fredoka font-bold text-xl mt-2">${usd} USD</p>
             </div>
             <PrimaryButton variant="primary" onClick={onClose}>
               Entendido
@@ -621,6 +707,7 @@ export default function Marketplace() {
   const [cashTicketAmount, setCashTicketAmount] = useState(0);
   const [cashModalOpen, setCashModalOpen] = useState(false);
   const [cashGiftCard, setCashGiftCard] = useState<{ code: string; cop: number } | null>(null);
+  const [vtexGiftCard, setVtexGiftCard] = useState<{ code: string; usd: number } | null>(null);
   const toastIdRef = useRef(0);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(loadMoreRef, { margin: '200px' });
@@ -717,6 +804,15 @@ export default function Marketplace() {
     setTimeout(() => setTicketToasts((prev) => prev.filter((t) => t.id !== id)), 2000);
   };
 
+  // Redime CPS por Gift Card VTEX: solo baja cpsBalance; cpsTotal (ranking) intacto
+  const handleRedeemVtex = (usd: number, cps: number) => {
+    const result = clicker.redeemCps(cps);
+    if (!result.success) return;
+    const code = `VTEX-${usd}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    setVtexGiftCard({ code, usd });
+    showTicketToast(`Gift Card VTEX $${usd} generada`, '#ff4c4c');
+  };
+
   const cartTotalMillas = redemptionCart.reduce((sum, p) => sum + p.millasCost, 0);
 
   if (authLoading) {
@@ -744,6 +840,7 @@ export default function Marketplace() {
           <div>
             <p className="text-[#ff3131] font-fredoka font-bold text-sm">{formatMillas(millas)} TicaMillas</p>
             <p className="text-[#b91c1c] text-[10px] font-bold">🎟️ {clicker.goldenTickets} Golden Tickets</p>
+            <p className="text-[#0D0E14] text-[10px] font-black">⚡ {formatMillas(Math.floor(clicker.cpsBalance))} CPS</p>
           </div>
         </div>
         <div className="text-right">
@@ -830,6 +927,58 @@ export default function Marketplace() {
         >
           Generar Gift Card
         </button>
+      </motion.div>
+
+      {/* ─── VTEX Gift Cards (CPS) ─── */}
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="mx-4 mt-3 bg-white rounded-2xl border border-slate-200 p-3 shadow-sm"
+      >
+        <div className="flex items-center gap-2 mb-3">
+          <div className="w-8 h-8 rounded-full bg-[#0D0E14] flex items-center justify-center text-white shadow-sm">
+            <Gift size={16} />
+          </div>
+          <div>
+            <p className="text-slate-900 font-black text-sm">Gift Cards VTEX</p>
+            <p className="text-slate-500 text-[10px] font-bold">
+              redpostventa.com · Redime con CPS · No afecta tu ranking
+            </p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-2">
+          {VTEX_GIFT_CARDS.map((gc, i) => {
+            const canAfford = clicker.cpsBalance >= gc.cps;
+            return (
+              <div
+                key={gc.usd}
+                className={cn(
+                  'rounded-xl border-2 p-3 flex flex-col items-center text-center transition-colors',
+                  i === VTEX_GIFT_CARDS.length - 1 && 'col-span-2',
+                  canAfford ? 'border-[#ff3131] bg-[#ff3131]/5' : 'border-slate-200 bg-slate-50'
+                )}
+              >
+                <p className="font-fredoka font-black text-xl text-slate-900">${gc.usd}</p>
+                <p className="text-slate-500 text-[10px] font-bold mb-2">
+                  {formatMillas(gc.cps)} CPS
+                </p>
+                <button
+                  onClick={() => handleRedeemVtex(gc.usd, gc.cps)}
+                  disabled={!canAfford}
+                  className={cn(
+                    'w-full py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all',
+                    canAfford
+                      ? 'bg-gradient-to-r from-[#ff3131] to-[#ff4c4c] text-white shadow-[0_2px_10px_rgba(255,49,49,0.35)] active:scale-95'
+                      : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                  )}
+                >
+                  {canAfford ? 'REDIMIR' : `FALTAN ${formatMillas(gc.cps - Math.floor(clicker.cpsBalance))}`}
+                </button>
+              </div>
+            );
+          })}
+        </div>
       </motion.div>
 
       {/* ─── Search Bar (sticky) ─── */}
@@ -1012,6 +1161,14 @@ export default function Marketplace() {
         onClose={() => setCashModalOpen(false)}
         code={cashGiftCard?.code || ''}
         cop={cashGiftCard?.cop || 0}
+      />
+
+      {/* ─── VTEX Gift Card Modal ─── */}
+      <VtexGiftCardModal
+        isOpen={vtexGiftCard !== null}
+        onClose={() => setVtexGiftCard(null)}
+        code={vtexGiftCard?.code || ''}
+        usd={vtexGiftCard?.usd || 0}
       />
 
       {/* ─── Floating Cart FAB ─── */}

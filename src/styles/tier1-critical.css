@@ -119,12 +119,13 @@
   }
 }
 
-.counter-label-km {
+.counter-label-cps {
   letter-spacing: 3px;
   text-transform: uppercase;
   opacity: 0.6;
   font-size: 11px;
   font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .counter-decor-line {
@@ -181,8 +182,8 @@
   transition: width 0.5s ease;
 }
 
-/* ---------- KM Counter Display ---------- */
-.km-counter-display {
+/* ---------- CPS Counter Display ---------- */
+.cps-counter-display {
   position: relative;
   display: inline-flex;
   flex-direction: column;
@@ -197,7 +198,18 @@
     0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
-.km-counter-number {
+/* V3: contador principal CPS — Space Mono, dorado, glow respirante 3s */
+.cps-counter-number {
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-weight: 700;
+  font-size: clamp(36px, 8vw, 64px);
+  line-height: 1.05;
+  color: #FFD700;
+  text-shadow: 0 0 15px rgba(255, 215, 0, 0.5), 0 2px 4px rgba(0, 0, 0, 0.5);
+  animation: counterBreath 3s ease-in-out infinite;
+}
+
+.cps-counter-number-static {
   text-shadow:
     0 -1px 0 rgba(0, 0, 0, 0.15),
     0 1px 0 rgba(255, 255, 255, 0.15);
@@ -212,7 +224,7 @@
   color: rgba(255, 255, 255, 0.7);
 }
 
-.km-counter-blur {
+.cps-counter-blur {
   filter: blur(0.5px);
 }
 
@@ -225,4 +237,117 @@
 .truck-container.bouncing .truck-shadow {
   width: 110px;
   opacity: 0.4;
+}
+
+/* ============================================================
+   SPONSOR SYSTEM — Brand cards, glossy buy buttons, fleet eyes
+   ============================================================ */
+
+/* ---------- V4: Brand card (glassmorphism + franja de marca) ---------- */
+.building-card-v2.brand-card {
+  background: rgba(26, 58, 92, 0.75);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  /* La franja izquierda (4px) usa border-left inline con el color de marca;
+     la transición de 500ms anima el cambio de tier */
+  transition: border-color 0.5s ease, transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.building-card-v2.brand-card::before {
+  display: none; /* la franja de marca la da border-left, no el pseudo-elemento */
+}
+
+/* ---------- V5: Glossy buy buttons (verdes) ---------- */
+.buy-btn-glossy {
+  position: relative;
+  overflow: hidden;
+  color: #ffffff;
+  background: linear-gradient(180deg, #2ecc71 0%, #27ae60 100%);
+  border: 3px solid #1e8449;
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.4),
+    0 4px 8px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.1s ease, filter 0.1s ease;
+  cursor: pointer;
+}
+
+.buy-btn-glossy::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.45) 0%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  border-radius: 8px 8px 40% 40%;
+  pointer-events: none;
+}
+
+.buy-btn-glossy:active {
+  transform: translateY(2px) scale(0.97);
+  background: linear-gradient(180deg, #27ae60 0%, #2ecc71 100%);
+}
+
+.buy-btn-glossy:disabled,
+.buy-btn-glossy.buy-btn-glossy--disabled {
+  background: linear-gradient(180deg, #475569 0%, #334155 100%);
+  border-color: #1e293b;
+  color: rgba(255, 255, 255, 0.45);
+  box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.08);
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ---------- V1: Vehículo de flota con ojos amigables ---------- */
+.fleet-vehicle {
+  position: relative;
+  display: inline-block;
+}
+
+.fleet-vehicle::before,
+.fleet-vehicle::after {
+  content: '';
+  position: absolute;
+  top: 30%;
+  width: 9.5%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 42%, #1f2937 0 30%, transparent 31%),
+    radial-gradient(circle at 38% 30%, rgba(255, 255, 255, 0.95) 0 12%, transparent 13%),
+    #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  animation: fleetEyeBlink 4.6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.fleet-vehicle::before {
+  right: 25%;
+}
+
+.fleet-vehicle::after {
+  right: 11.5%;
+}
+
+@keyframes fleetEyeBlink {
+  0%, 46%, 50%, 100% { transform: scaleY(1); }
+  48% { transform: scaleY(0.08); }
+}
+
+/* ---------- V6: Cursor del typewriter de marca ---------- */
+.type-cursor {
+  display: inline-block;
+  margin-left: 1px;
+  animation: typeCursorBlink 0.7s steps(1) infinite;
+}
+
+@keyframes typeCursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
 }

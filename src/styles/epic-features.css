@@ -767,7 +767,7 @@
   z-index: -1;
 }
 
-.nitro-counter .counter-number {
+.nitro-counter .cps-counter-number {
   color: #DC2626 !important;
   animation: nitroCounterShake 0.25s linear infinite;
 }

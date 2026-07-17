@@ -114,7 +114,7 @@ function getTransactionTitle(type: string, description: string | null): string {
 }
 
 const FAQ_ITEMS = [
-  { q: 'Como gano TicaMillas?', a: 'Toca la tractomula en La Mula Millonaria, compra vehiculos para tu flota y cada kilometro recorrido suma TicaMillas.' },
+  { q: 'Como gano CPS?', a: 'Toca tu camion en La Mula Millonaria, compra poderes de marca con CPS y multiplica todo con tu flota de camiones reales.' },
   { q: 'Como redimo mis TicaMillas?', a: 'Ve a la tienda, selecciona un producto y presiona "Redimir". Se descontaran tus TicaMillas y recibiras un codigo de gift card de VTEX.' },
   { q: 'Cuanto valen las TicaMillas?', a: '1 TicaMilla = $1 COP. Si un producto cuesta $50,000 COP, necesitas 50,000 TicaMillas para redimirlo.' },
   { q: 'Puedo vincular mi cuenta de VTEX?', a: 'Si. En configuracion de cuenta selecciona "Cuenta VTEX" y sigue el proceso de vinculacion.' },
