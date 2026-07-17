@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 800" width="400" height="800" preserveAspectRatio="xMidYMid slice">
+  <defs>
+    <linearGradient id="skyGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#1E3A5F"/>
+      <stop offset="40%" stop-color="#4A90D9"/>
+      <stop offset="70%" stop-color="#87CEEB"/>
+      <stop offset="100%" stop-color="#E0F6FF"/>
+    </linearGradient>
+    <linearGradient id="mountainBack" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#2D5016"/>
+      <stop offset="100%" stop-color="#1A3009"/>
+    </linearGradient>
+    <linearGradient id="mountainMid" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3D6B1F"/>
+      <stop offset="100%" stop-color="#2D5016"/>
+    </linearGradient>
+    <linearGradient id="mountainFront" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#4D7C0F"/>
+      <stop offset="100%" stop-color="#3D6B1F"/>
+    </linearGradient>
+    <linearGradient id="roadGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3D3D3D"/>
+      <stop offset="100%" stop-color="#1A1A1A"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Sky -->
+  <rect width="400" height="800" fill="url(#skyGrad)"/>
+
+  <!-- Sun -->
+  <circle cx="320" cy="120" r="45" fill="#FFD700" opacity="0.9"/>
+  <circle cx="320" cy="120" r="60" fill="#FFD700" opacity="0.2"/>
+  <circle cx="320" cy="120" r="80" fill="#FFD700" opacity="0.1"/>
+
+  <!-- Back mountains -->
+  <path d="M 0 450 L 80 280 L 160 380 L 240 250 L 320 360 L 400 300 L 400 800 L 0 800 Z" fill="url(#mountainBack)" opacity="0.6"/>
+
+  <!-- Mid mountains -->
+  <path d="M 0 500 L 60 350 L 140 420 L 220 320 L 300 430 L 380 380 L 400 420 L 400 800 L 0 800 Z" fill="url(#mountainMid)" opacity="0.8"/>
+
+  <!-- Front mountains -->
+  <path d="M 0 600 L 100 480 L 180 550 L 260 460 L 340 560 L 400 520 L 400 800 L 0 800 Z" fill="url(#mountainFront)"/>
+
+  <!-- Road -->
+  <path d="M 160 800 L 200 600 L 240 800 Z" fill="url(#roadGrad)"/>
+  <path d="M 195 600 L 205 600 L 215 800 L 185 800 Z" fill="#FFF" opacity="0.8"/>
+
+  <!-- Road dashes -->
+  <line x1="200" y1="620" x2="200" y2="640" stroke="#FFD700" stroke-width="3" stroke-linecap="round"/>
+  <line x1="200" y1="660" x2="200" y2="690" stroke="#FFD700" stroke-width="3" stroke-linecap="round"/>
+  <line x1="200" y1="710" x2="200" y2="750" stroke="#FFD700" stroke-width="3" stroke-linecap="round"/>
+
+  <!-- Clouds -->
+  <ellipse cx="80" cy="180" rx="50" ry="20" fill="#FFF" opacity="0.7"/>
+  <ellipse cx="110" cy="170" rx="40" ry="18" fill="#FFF" opacity="0.6"/>
+  <ellipse cx="300" cy="220" rx="45" ry="18" fill="#FFF" opacity="0.6"/>
+  <ellipse cx="330" cy="210" rx="35" ry="15" fill="#FFF" opacity="0.5"/>
+</svg>

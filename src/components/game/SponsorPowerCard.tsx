@@ -38,9 +38,11 @@ interface SponsorPowerCardProps {
 }
 
 /**
- * Tarjeta de poder patrocinado (SECTION D / V4 + V6):
- * - La MARCA es el título hero (18px, font-weight 900); el poder es subtítulo.
+ * Tarjeta de poder patrocinado (SECTION D / V4 + V6 + UI FIX 1-2):
+ * - El PODER es el título principal (17px bold blanco); la MARCA es un
+ *   tag pill top-right con el color del tier.
  * - Franja izquierda de 4px con el color de la marca (transición 500ms).
+ * - Botón de compra circular compacto ("+") con el precio a su izquierda.
  * - Al subir de tier: white flash 300ms → marca escribe letra por letra →
  *   transición de color de borde → count-up del multiplicador → confetti
  *   dorado → toast (lo dispara el padre vía onTierUp).
@@ -139,15 +141,19 @@ export function SponsorPowerCard({
 
   const shownBrand = typedBrand ?? tier.brand;
   const shownMult = displayMult ?? tier.multiplier;
+  const perLevelCps = power.baseCPS * tier.multiplier;
+  const perLevelText = Number.isInteger(perLevelCps)
+    ? formatFull(perLevelCps)
+    : perLevelCps.toLocaleString('es-CO', { maximumFractionDigits: 1 });
 
   return (
     <div
       ref={cardRef}
       className={cn(
-        'brand-card building-card-v2 relative w-full rounded-2xl p-3 overflow-hidden',
+        'building-card-v2 sponsor-card relative w-full overflow-hidden',
         canAfford && !isMaxed && 'affordable-glow'
       )}
-      style={{ borderLeft: `4px solid ${tier.color}` }}
+      style={{ ['--tier-color' as string]: tier.color }}
     >
       {/* White flash 300ms al cambiar de tier */}
       <AnimatePresence>
@@ -162,37 +168,25 @@ export function SponsorPowerCard({
         )}
       </AnimatePresence>
 
+      {/* MARCA como tag pill top-right */}
+      <div className="brand-tag" title={`Marca patrocinadora · Tier ${tier.tier}/10`}>
+        {shownBrand}
+        {typedBrand !== null && <span className="type-cursor">▍</span>}
+      </div>
+
       <div className="flex items-center gap-3">
         <div
-          className="w-14 h-14 rounded-xl flex items-center justify-center text-3xl flex-shrink-0 border-2 shadow-inner transition-colors duration-500"
+          className="w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 border-2 shadow-inner transition-colors duration-500"
           style={{ backgroundColor: `${tier.color}25`, borderColor: `${tier.color}70` }}
         >
           {power.emoji}
         </div>
 
-        <div className="flex-1 min-w-0">
-          {/* MARCA como título hero (18px / 900) */}
-          <h3
-            className="truncate leading-tight transition-colors duration-500"
-            style={{ fontSize: 18, fontWeight: 900, color: brandColor }}
-          >
-            {shownBrand}
-            {typedBrand !== null && <span className="type-cursor">▍</span>}
-          </h3>
-          {/* Nombre del poder como subtítulo */}
-          <p className="text-slate-300 text-xs truncate">
-            {power.name} · Tier {tier.tier}/10
-          </p>
-          <p className="text-slate-400 text-[11px] mt-0.5">
-            {level > 0 ? (
-              <>
-                Aporta <span className="text-[#4ADE80] font-bold">{formatFull(cpsNow)} CPS</span>
-                {' · '}
-              </>
-            ) : (
-              <>Base +{formatFull(power.baseCPS)} CPS/nivel · </>
-            )}
-            Nv {level}
+        <div className="flex-1 min-w-0 pr-20">
+          {/* POWER TYPE como título principal */}
+          <h3 className="sponsor-card-title truncate leading-tight">{power.name}</h3>
+          <p className="text-slate-300 text-[11px] mt-0.5 truncate">
+            +{perLevelText} CPS/nivel · Nivel {level}
             {isMaxed ? ' MAX' : ''}
           </p>
           {/* Progreso hacia la próxima marca */}
@@ -213,30 +207,44 @@ export function SponsorPowerCard({
             </div>
           )}
         </div>
+      </div>
 
-        {/* Multiplicador de marca con count-up */}
-        <div className="flex flex-col items-center flex-shrink-0 w-12">
+      {/* Footer: total CPS + multiplicador | precio + botón circular */}
+      <div className="mt-2.5 flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
           <span
-            className="font-fredoka font-black text-lg leading-none transition-colors duration-500"
+            className="font-fredoka font-black text-base leading-none transition-colors duration-500"
             style={{ color: brandColor }}
+            title="Multiplicador de la marca actual"
           >
             x{shownMult.toFixed(1)}
           </span>
-          <span className="text-[8px] uppercase tracking-wider text-slate-400 mt-0.5">marca</span>
+          <span className="text-slate-400 text-[11px] truncate">
+            {level > 0 ? (
+              <>
+                Aporta <span className="text-[#4ADE80] font-bold">{formatFull(cpsNow)} CPS</span>
+              </>
+            ) : (
+              'Sin niveles aún'
+            )}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2.5 flex-shrink-0">
+          <span className="sponsor-card-price">
+            {isMaxed ? 'MAX' : `💵 ${formatFull(cost)} CPS`}
+          </span>
+          <button
+            onClick={(e) => onBuy(power.id, e.currentTarget as HTMLElement)}
+            disabled={!canAfford || isMaxed}
+            className="buy-btn-circle"
+            aria-label={isMaxed ? `${power.name} al nivel máximo` : `Comprar nivel ${level + 1} de ${power.name}`}
+            title={isMaxed ? 'Nivel máximo' : `Comprar nivel ${level + 1}`}
+          >
+            {isMaxed ? '✓' : '+'}
+          </button>
         </div>
       </div>
-
-      {/* Botón de compra glossy verde */}
-      <button
-        onClick={(e) => onBuy(power.id, e.currentTarget as HTMLElement)}
-        disabled={!canAfford || isMaxed}
-        className={cn(
-          'buy-btn-glossy mt-2.5 w-full py-2.5 rounded-xl font-black text-sm tracking-wide',
-          (!canAfford || isMaxed) && 'buy-btn-glossy--disabled'
-        )}
-      >
-        {isMaxed ? 'NIVEL MÁXIMO' : `COMPRAR NIVEL ${level + 1} · ${formatFull(cost)} CPS`}
-      </button>
     </div>
   );
 }

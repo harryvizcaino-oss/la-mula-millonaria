@@ -5,13 +5,11 @@ import {
   Coins,
   Star,
   Zap,
-  TrendingUp,
   Sparkles,
   MousePointerClick,
-  Crown,
   Clock,
-  Bell,
 } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
 import { useMillas } from '@/providers/MillasProvider';
 import { useClickerStore, calculateClickPower, calculatePlayerLevel } from '@/store/clickerStore';
@@ -38,16 +36,15 @@ import { DailyStreak } from '@/components/game/DailyStreak';
 import { PowerupMenu } from '@/components/game/PowerupMenu';
 import { SponsorPowerCard } from '@/components/game/SponsorPowerCard';
 import { FleetVehicleCard } from '@/components/game/FleetVehicleCard';
+import { FloatingNumber } from '@/components/game/FloatingNumber';
 
 import { useTruckHorn } from '@/hooks/useTruckHorn';
 
-interface FloatingNumber {
+interface FloatingNumberEntry {
   id: number;
   x: number;
   y: number;
-  text: string;
-  color: string;
-  arcX: number;
+  value: string;
 }
 
 interface ClickParticle {
@@ -91,12 +88,62 @@ function formatFull(n: number): string {
   return Math.floor(n).toLocaleString('es-CO');
 }
 
+// ───────────── FIX 7: assets profesionales de camión ─────────────
+// Índice de flota 1 (chevrolet) → mula base, 3 (kenworth) → T800,
+// 4 (volvo) → FH; el resto cae a la mula base.
+const TRUCK_ASSETS: Record<string, string> = {
+  kenworth: '/assets/asset_kenworth_t800.svg',
+  volvo: '/assets/asset_volvo_fh.svg',
+};
+const DEFAULT_TRUCK_ASSET = '/assets/asset_camion_mula_base.svg';
+
+// ───────────── FIX 5: milestones de CPS por click ─────────────
+const CPS_MILESTONES = [
+  { mult: 2, target: 10 },
+  { mult: 3, target: 50 },
+  { mult: 4, target: 200 },
+  { mult: 5, target: 1000 },
+  { mult: 10, target: 5000 },
+  { mult: 20, target: 25000 },
+  { mult: 50, target: 100000 },
+  { mult: 100, target: 500000 },
+];
+
+/** Próximo milestone de CPS por click. Más allá de ×100: duplica el objetivo (×2 del actual). */
+function getNextCpsMilestone(current: number): { label: string; target: number } {
+  for (const m of CPS_MILESTONES) {
+    if (current < m.target) return { label: `×${m.mult}`, target: m.target };
+  }
+  let target = CPS_MILESTONES[CPS_MILESTONES.length - 1].target * 2;
+  while (current >= target) target *= 2;
+  return { label: '×2', target };
+}
+
+/** Mayor objetivo de milestone ya alcanzado (0 si ninguno). */
+function getAchievedMilestoneTarget(current: number): number {
+  let achieved = 0;
+  for (const m of CPS_MILESTONES) {
+    if (current >= m.target) achieved = m.target;
+    else break;
+  }
+  const last = CPS_MILESTONES[CPS_MILESTONES.length - 1].target;
+  if (achieved >= last) {
+    while (current >= achieved * 2) achieved *= 2;
+  }
+  return achieved;
+}
+
+function getMilestoneLabel(target: number): string {
+  const m = CPS_MILESTONES.find((mi) => mi.target === target);
+  return m ? `×${m.mult}` : '×2';
+}
+
 export default function Game() {
   const { addMillas } = useMillas();
   const store = useClickerStore();
 
   const [activeTab, setActiveTab] = useState<'buildings' | 'upgrades' | 'prestige'>('upgrades');
-  const [floatingNumbers, setFloatingNumbers] = useState<FloatingNumber[]>([]);
+  const [floatingNumbers, setFloatingNumbers] = useState<FloatingNumberEntry[]>([]);
   const [particles, setParticles] = useState<ClickParticle[]>([]);
   const [truckBump, setTruckBump] = useState(false);
   const [truckHappy, setTruckHappy] = useState(false);
@@ -118,11 +165,11 @@ export default function Game() {
   const [milestone, setMilestone] = useState(false);
   const [counterBlur, setCounterBlur] = useState(false);
   const [hapticOverlay, setHapticOverlay] = useState<{ type: 'flash' | 'shake' | 'vignette'; id: number } | null>(null);
-  const [notificationCount] = useState(3);
   const [crit, setCrit] = useState<CritState | null>(null);
   const [showAscension, setShowAscension] = useState(false);
   const [timeWarpFx, setTimeWarpFx] = useState<{ id: number; amount: number } | null>(null);
   const [goldCoins, setGoldCoins] = useState<{ id: number; x: number; reward: number }[]>([]);
+  const [milestoneHit, setMilestoneHit] = useState<{ label: string; id: number } | null>(null);
   const [nowMs, setNowMs] = useState(Date.now());
 
   const comboTier = useComboStore((s) => s.comboTier);
@@ -150,15 +197,60 @@ export default function Game() {
   const exhaustIdRef = useRef(0);
   const lastClickRef = useRef(0);
   const prevMilestoneRef = useRef(0);
+  const milestoneAchievedRef = useRef<number | null>(null);
   const critIdRef = useRef(0);
   const goldCoinIdRef = useRef(0);
   const nitroWasActiveRef = useRef(false);
 
+  // FIX 3: suscripción explícita a las slices que alimentan el CPS por click,
+  // para que el header se recalcule siempre al comprar poderes/flota/estrellas.
+  const powerLevels = useClickerStore((s) => s.powerLevels);
+  const storeUpgrades = useClickerStore((s) => s.upgrades);
+  const stars = useClickerStore((s) => s.stars);
+  const selectedFleet = useClickerStore((s) => s.selectedFleet);
   const clickPower = useMemo(
-    () => calculateClickPower(store),
-    [store.upgrades, store.stars, store.powerLevels, store.selectedFleet]
+    () => calculateClickPower(useClickerStore.getState()),
+    [powerLevels, storeUpgrades, stars, selectedFleet]
   );
   const playerLevel = useMemo(() => calculatePlayerLevel(store), [store.powerLevels]);
+
+  // FIX 5: progreso hacia el próximo milestone de CPS por click
+  const nextMilestone = useMemo(() => getNextCpsMilestone(clickPower), [clickPower]);
+  const milestoneProgress = Math.min(1, clickPower / nextMilestone.target);
+
+  // Celebración al alcanzar un milestone: gold flash + texto + mini confetti
+  useEffect(() => {
+    const achieved = getAchievedMilestoneTarget(clickPower);
+    if (milestoneAchievedRef.current === null) {
+      // Primer render con partida cargada: no celebrar hitos ya alcanzados
+      milestoneAchievedRef.current = achieved;
+      return;
+    }
+    if (achieved < milestoneAchievedRef.current) {
+      // Ascensión/reset: los hitos vuelven a celebrarse al re-alcanzarse
+      milestoneAchievedRef.current = achieved;
+      return;
+    }
+    if (achieved > milestoneAchievedRef.current) {
+      milestoneAchievedRef.current = achieved;
+      setMilestoneHit({ label: getMilestoneLabel(achieved), id: Date.now() });
+      const arena = clickAreaRef.current?.getBoundingClientRect();
+      confetti({
+        particleCount: 35,
+        spread: 60,
+        startVelocity: 24,
+        origin: {
+          x: 0.5,
+          y: arena ? Math.min(0.95, (arena.bottom - 48) / window.innerHeight) : 0.8,
+        },
+        colors: ['#FFD700', '#4ADE80', '#FFF7CC'],
+        scalar: 0.75,
+        ticks: 100,
+      });
+      const t = setTimeout(() => setMilestoneHit(null), 1800);
+      return () => clearTimeout(t);
+    }
+  }, [clickPower]);
 
   // Ticker para expirar efectos de power-ups aunque no haya clicks
   useEffect(() => {
@@ -619,11 +711,8 @@ export default function Game() {
       const id = ++floatingIdRef.current;
       setFloatingNumbers((prev) => [
         ...prev,
-        { id, x: relX + (Math.random() - 0.5) * 30, y: relY, text: `+${formatNumber(amount)}`, color: isCrit ? '#EF4444' : multiplier > 1 ? '#FACC15' : '#FBBF24', arcX: (Math.random() - 0.5) * 80 },
+        { id, x: relX + (Math.random() - 0.5) * 30, y: relY, value: `+${formatNumber(amount)} CPS` },
       ]);
-      setTimeout(() => {
-        setFloatingNumbers((prev) => prev.filter((n) => n.id !== id));
-      }, 1000);
 
       spawnLayeredParticles(relX, relY);
     },
@@ -828,79 +917,74 @@ export default function Game() {
       {/* Game atmospheric background — confined to arena via absolute ancestor below */}
 
       {/* Floating Header */}
-      <div className="absolute top-0 left-0 right-0 z-50 py-2 bg-white/30 backdrop-blur-sm">
-        <div className="px-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2 pl-3 pr-4 py-1.5 rounded-full bg-gradient-to-r from-[#FDE047] via-[#FACC15] to-[#F59E0B] border-2 border-[#B45309] shadow-[0_0_16px_rgba(245,158,11,0.45)] relative overflow-visible">
-                <span className="text-lg drop-shadow-sm">🎟️</span>
-                <span className="font-fredoka font-black text-[#78350F]">{store.goldenTickets}</span>
-                <AnimatePresence>
-                  {ticketBurst && (
-                    <>
-                      {Array.from({ length: 8 }).map((_, i) => (
-                        <motion.span
-                          key={i}
-                          initial={{ opacity: 1, scale: 0.5, x: 0, y: 0 }}
-                          animate={{
-                            opacity: 0,
-                            scale: 1.5,
-                            x: Math.cos((i / 8) * Math.PI * 2) * 40,
-                            y: Math.sin((i / 8) * Math.PI * 2) * 40,
-                          }}
-                          exit={{ opacity: 0 }}
-                          transition={{ duration: 0.7, ease: 'easeOut' }}
-                          className="absolute left-1/2 top-1/2 text-lg pointer-events-none"
-                          style={{ marginLeft: -8, marginTop: -8 }}
-                        >
-                          ✨
-                        </motion.span>
-                      ))}
-                    </>
-                  )}
-                </AnimatePresence>
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#22C55E] text-slate-900 shadow-sm border-2 border-white">
-                <TrendingUp size={14} className="fill-white" />
-                <span className="font-fredoka font-black text-sm">+{formatFull(clickPower * activeClickMultiplier)}/click</span>
-              </div>
-              <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#3B82F6] text-white shadow-sm border-2 border-white">
-                <Truck size={14} />
-                <span className="font-fredoka font-black text-sm">{store.fleetOwned.length}</span>
-              </div>
-              <div
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#A855F7] text-white shadow-sm border-2 border-white"
-                title={`Player Level = suma de niveles de poder (${playerLevel})`}
-              >
-                <Zap size={14} />
-                <span className="font-fredoka font-black text-sm">Nv {playerLevel}</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {store.ascensions > 0 && (
-                <div className="ascension-badge" title={`Ascensión ${store.ascensions}`}>
-                  ⭐x{store.ascensions}
-                </div>
+      <div className={cn('game-header absolute top-0 left-0 right-0 z-50', nitroActive && 'nitro-counter')}>
+        <div className="px-3 py-2 flex items-center justify-between gap-2">
+          {/* 🎟️ Golden Tickets */}
+          <div className="game-header-pill relative overflow-visible bg-gradient-to-r from-[#FDE047] via-[#FACC15] to-[#F59E0B] border border-[#B45309] text-[#78350F] shadow-[0_0_12px_rgba(245,158,11,0.35)]">
+            <span className="text-base drop-shadow-sm">🎟️</span>
+            <span>{store.goldenTickets}</span>
+            <AnimatePresence>
+              {ticketBurst && (
+                <>
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <motion.span
+                      key={i}
+                      initial={{ opacity: 1, scale: 0.5, x: 0, y: 0 }}
+                      animate={{
+                        opacity: 0,
+                        scale: 1.5,
+                        x: Math.cos((i / 8) * Math.PI * 2) * 40,
+                        y: Math.sin((i / 8) * Math.PI * 2) * 40,
+                      }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.7, ease: 'easeOut' }}
+                      className="absolute left-1/2 top-1/2 text-lg pointer-events-none"
+                      style={{ marginLeft: -8, marginTop: -8 }}
+                    >
+                      ✨
+                    </motion.span>
+                  ))}
+                </>
               )}
-              <div className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-slate-100 border border-[#FACC15]/40">
-                <Crown size={14} className="text-[#F59E0B]" />
-                <span className="font-fredoka font-bold text-[#F59E0B]">#{rankPosition}</span>
-              </div>
-              <button
-                onClick={() => showToast('Notificaciones próximamente', '#F59E0B')}
-                className="relative p-2 rounded-full bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors border border-slate-200"
-              >
-                <Bell size={16} />
-                {notificationCount > 0 && (
-                  <span className="notification-badge">
-                    {notificationCount > 9 ? '9+' : notificationCount}
-                  </span>
-                )}
-              </button>
-            </div>
+            </AnimatePresence>
           </div>
 
+          {/* 💵 CPS balance (contador principal) */}
+          <div className="flex items-baseline gap-1.5 min-w-0 flex-1 justify-center">
+            <span className="text-base">💵</span>
+            <span
+              className={cn(
+                'game-header-cps cps-counter-number counter-glow truncate',
+                milestone && 'counter-milestone',
+                counterBlur && 'cps-counter-blur'
+              )}
+            >
+              {formatFull(store.cpsBalance)}
+            </span>
+            <span className="text-[10px] font-bold text-white/60 tracking-[0.2em]">CPS</span>
+          </div>
+
+          {/* ⚡ CPS por click */}
+          <div
+            className="game-header-pill bg-[#22C55E]/15 border border-[#22C55E]/50 text-[#4ADE80]"
+            title={`CPS por click · Player Level ${playerLevel}`}
+          >
+            <span>⚡</span>
+            <span>+{formatFull(clickPower * activeClickMultiplier)}/click</span>
+          </div>
+
+          {/* 👑 Rank */}
+          <div className="flex items-center gap-1.5">
+            {store.ascensions > 0 && (
+              <div className="ascension-badge" title={`Ascensión ${store.ascensions}`}>
+                ⭐x{store.ascensions}
+              </div>
+            )}
+            <div className="game-header-pill bg-white/10 border border-[#FACC15]/40 text-[#FACC15]">
+              <span>👑</span>
+              <span>#{rankPosition}</span>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -918,11 +1002,17 @@ export default function Game() {
             )}
             style={{ touchAction: 'none' }}
           >
-            {/* Sky */}
-            <div className="absolute inset-0 bg-gradient-to-b from-[#38BDF8] to-[#BAE6FD] z-[1]" />
+            {/* Fondo: carretera andina (cover, anclado abajo para ver la vía) */}
+            <div
+              className="absolute inset-0 z-[1] bg-cover"
+              style={{
+                backgroundImage: "url('/assets/fondo_carretera_andina.svg')",
+                backgroundPosition: 'center bottom',
+              }}
+            />
 
-            {/* Atmospheric background layers */}
-            <div className="game-bg !absolute !inset-0 !z-[2]">
+            {/* Atmospheric background layers (más sutiles sobre el fondo) */}
+            <div className="game-bg game-bg--subtle !absolute !inset-0 !z-[2]">
               <div className="bg-glow" />
               <div className="bg-bokeh bg-bokeh--gold" />
               <div className="bg-bokeh bg-bokeh--blue" />
@@ -965,81 +1055,22 @@ export default function Game() {
               </div>
             )}
 
-            {/* Sun */}
-            <motion.div
-              animate={{ y: [0, -8, 0] }}
-              transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-              className="absolute top-36 left-1/2 -translate-x-1/2 w-16 h-16 rounded-full bg-[#FDE047] shadow-[0_0_24px_rgba(253,224,71,0.6)] z-[3]"
-            />
-
-            {/* CPS counter */}
-            <div className="absolute top-44 left-0 right-0 z-20 flex justify-center pointer-events-none">
-              <div
-                className={cn(
-                  'cps-counter-display counter-glow flex flex-col items-center',
-                  milestone && 'counter-milestone',
-                  counterBlur && 'cps-counter-blur',
-                  nitroActive && 'nitro-counter'
-                )}
-              >
-                <span className="cps-counter-number">
-                  {formatFull(store.cpsBalance)}
-                </span>
-                <span className="counter-label mt-1">CPS</span>
-              </div>
-            </div>
-
-            {/* Clouds */}
-            <motion.div
-              animate={{ x: [-20, 20, -20] }}
-              transition={{ duration: 7, repeat: Infinity, ease: 'easeInOut' }}
-              className="absolute top-44 left-6 w-20 h-7 bg-white/80 rounded-full blur-[1px] z-[3]"
-            />
-            <motion.div
-              animate={{ x: [20, -20, 20] }}
-              transition={{ duration: 9, repeat: Infinity, ease: 'easeInOut' }}
-              className="absolute top-52 right-16 w-24 h-8 bg-white/70 rounded-full blur-[1px] z-[3]"
-            />
-
-            {/* Ground / Arena */}
-            <div className="absolute bottom-0 inset-x-0 h-28 bg-gradient-to-b from-[#84CC16] to-[#4D7C0F] z-[3]">
-              <div className="absolute inset-x-0 top-0 h-3 bg-[#A3E635] opacity-60" />
-            </div>
-
-            {/* Road with moving dashed lines */}
-            <div className="absolute bottom-6 inset-x-4 h-14 bg-[#57534E] rounded-full shadow-inner overflow-hidden z-[3]">
-              <div className="road-lines" />
-              <div className="absolute inset-x-4 top-1/2 -translate-y-1/2 h-4 bg-black/40 rounded-full overflow-hidden border border-white/10">
-                <div
-                  className="progress-bar-v2 h-full rounded-full overflow-visible border-0"
-                  style={{ background: 'transparent' }}
-                >
-                  <motion.div
-                    className="progress-fill-v2 h-full"
-                    initial={{ width: '0%' }}
-                    animate={{ width: `${Math.min(100, (cycleClicks / CPS_THRESHOLD) * 100)}%` }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 25 }}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Multiplicador label — centered to screen, not to road */}
+            {/* Multiplicador label — sobre el camión, cerca de la barra de milestone */}
             {cycleClicks >= 30 && (
               <motion.div
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: [1, 0.35, 1], y: 0 }}
                 transition={{ duration: 0.9, repeat: Infinity }}
-                className="absolute bottom-[5.25rem] left-1/2 -translate-x-1/2 text-white font-fredoka font-black text-2xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)] pointer-events-none whitespace-nowrap z-[3]"
+                className="absolute top-[42%] left-1/2 -translate-x-1/2 text-white font-fredoka font-black text-2xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)] pointer-events-none whitespace-nowrap z-[3]"
               >
                 Multiplicador
               </motion.div>
             )}
 
-            {/* Click target with 3D perspective */}
+            {/* Click target with 3D perspective — camión sobre la carretera del fondo */}
             <div
               ref={clickAreaRef}
-              className="absolute inset-0 flex items-center justify-center z-[5]"
+              className="absolute inset-0 flex items-end justify-center pb-[16%] z-[5]"
               style={{ perspective: 900 }}
               onPointerMove={handlePointerMove}
               onPointerLeave={handlePointerLeave}
@@ -1090,7 +1121,7 @@ export default function Game() {
                 }}
                 transition={{ type: 'spring', stiffness: 320, damping: 18 }}
                 className={cn(
-                  'truck-container relative z-10 cursor-pointer select-none mt-12',
+                  'truck-container relative z-10 cursor-pointer select-none',
                   truckBump && 'bouncing',
                   nitroActive && 'nitro-flames',
                   store.ascensions > 0 && 'golden-aura',
@@ -1101,13 +1132,13 @@ export default function Game() {
               >
                 {/* Truck shadow */}
                 <div className="truck-shadow" />
-                <span
-                  className="truck-emoji fleet-vehicle leading-none"
-                  style={{ fontSize: 'clamp(9rem, 44vw, 18rem)' }}
+                <img
+                  src={TRUCK_ASSETS[store.selectedFleet] ?? DEFAULT_TRUCK_ASSET}
+                  alt={`${activeVehicle.brand} ${activeVehicle.model}`}
                   title={`${activeVehicle.brand} ${activeVehicle.model} · x${activeVehicle.multiplier} CPS`}
-                >
-                  {activeVehicle.emoji}
-                </span>
+                  className={cn('truck-image', shake && 'truck-shake')}
+                  draggable={false}
+                />
               </motion.div>
 
               {store.totalClicks < 5 && (
@@ -1218,27 +1249,50 @@ export default function Game() {
               })}
             </AnimatePresence>
 
-            {/* Floating numbers with arc trajectory */}
+            {/* Floating numbers (+N CPS en el punto del click) */}
+            {floatingNumbers.map((n) => (
+              <FloatingNumber
+                key={n.id}
+                value={n.value}
+                x={n.x}
+                y={n.y}
+                onComplete={() =>
+                  setFloatingNumbers((prev) => prev.filter((f) => f.id !== n.id))
+                }
+              />
+            ))}
+
+            {/* FIX 5: milestone loader — progreso al próximo ×N CPS por click */}
+            <div className="milestone-loader">
+              <div className="milestone-loader-row">
+                <span>🎯 Próximo: {nextMilestone.label} CPS</span>
+                <span>
+                  {formatNumber(clickPower)} / {formatNumber(nextMilestone.target)} CPS
+                </span>
+              </div>
+              <div className={cn('milestone-bar', milestoneHit && 'milestone-flash')}>
+                <div
+                  className="milestone-bar-fill"
+                  style={{ width: `${milestoneProgress * 100}%` }}
+                />
+              </div>
+              <div className="milestone-loader-pct">{Math.floor(milestoneProgress * 100)}%</div>
+            </div>
+
+            {/* Celebración de milestone alcanzado */}
             <AnimatePresence>
-              {floatingNumbers.map((n) => (
+              {milestoneHit && (
                 <motion.div
-                  key={n.id}
-                  initial={{ opacity: 1, y: 0, scale: 0.6, x: 0 }}
-                  animate={{
-                    opacity: 0,
-                    y: -120,
-                    scale: 1.3,
-                    x: n.arcX,
-                  }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 1, ease: [0.25, 0.46, 0.45, 0.94] }}
-                  className="absolute pointer-events-none font-fredoka font-black text-3xl flex items-center gap-1"
-                  style={{ left: n.x - 30, top: n.y - 40, color: n.color, textShadow: '0 3px 10px rgba(0,0,0,0.6)' }}
+                  key={milestoneHit.id}
+                  initial={{ opacity: 0, scale: 0.6, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -14 }}
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                  className="milestone-hit-text"
                 >
-                  <Coins size={22} className="fill-current" />
-                  {n.text}
+                  ¡{milestoneHit.label} ALCANZADO!
                 </motion.div>
-              ))}
+              )}
             </AnimatePresence>
 
             {/* Floating collectibles (golden tickets) */}
@@ -1288,7 +1342,7 @@ export default function Game() {
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
-            className="absolute top-[50px] left-0 right-0 z-40 rounded-b-2xl px-4 py-2 bg-white/90 backdrop-blur-sm border-2 border-t-0 border-slate-200/80 shadow-sm flex items-center gap-3"
+            className="absolute top-[64px] left-0 right-0 z-40 rounded-b-2xl px-4 py-2 bg-white/90 backdrop-blur-sm border-2 border-t-0 border-slate-200/80 shadow-sm flex items-center gap-3"
           >
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#A855F7] to-[#7E22CE] flex items-center justify-center text-xl shadow-lg flex-shrink-0 animate-pulse">
               <MousePointerClick size={20} className="text-white" />
