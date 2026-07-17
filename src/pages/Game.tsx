@@ -241,6 +241,7 @@ export default function Game() {
   const critIdRef = useRef(0);
   const goldCoinIdRef = useRef(0);
   const nitroWasActiveRef = useRef(false);
+  const barFlashProcessingRef = useRef(false);
 
   // FIX 3: suscripción explícita a las slices que alimentan el CPS por click,
   // para que el header se recalcule siempre al comprar poderes/flota/estrellas.
@@ -311,14 +312,17 @@ export default function Game() {
 
   // V9: barra al 100% → flash gold + "×N ACTIVADO!" 2s + multiplicador 30s + siguiente target
   useEffect(() => {
-    if (barCharge < 100) return;
+    if (barCharge < 100 || barFlashProcessingRef.current) return;
+    barFlashProcessingRef.current = true;
     const now = Date.now();
     setBarMultiplier({ mult: barMilestone.mult, label: barMilestone.label, until: now + 30000 });
     setBarFlash({ label: barMilestone.label, id: now });
     setBarCharge(0);
     setBarTargetIdx(barMilestoneIdx + 1);
-    const t = setTimeout(() => setBarFlash(null), 2000);
-    return () => clearTimeout(t);
+    setTimeout(() => {
+      setBarFlash(null);
+      barFlashProcessingRef.current = false;
+    }, 2000);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [barCharge]);
 
@@ -1210,11 +1214,10 @@ export default function Game() {
                 >
                   {formatFull(store.cpsBalance)}
                 </span>
-                {/* V9: badge del multiplicador de barra activo (30s) */}
+                {/* V11: badge pequeño del multiplicador de barra activo */}
                 {barMultActive && barMultiplier && (
                   <span className="cps-multiplier-badge">
-                    {barMultiplier.label} ACTIVO ·{' '}
-                    {Math.max(1, Math.ceil((barMultiplier.until - nowMs) / 1000))}s
+                    {barMultiplier.label}
                   </span>
                 )}
               </div>
@@ -1261,6 +1264,33 @@ export default function Game() {
               {/* Efecto de golpe crítico */}
               <CriticalHit crit={crit} />
 
+              {/* V11: 4 epic power buttons — right side vertical stack */}
+              <div className="epic-powers-row">
+                {EPIC_POWER_BUTTONS.map((b) => {
+                  const count = powerupInventory[b.id] ?? 0;
+                  const isActive = (activePowerupEffects[b.id] ?? 0) > nowMs;
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => handleEpicPower(b.id)}
+                      className={cn(
+                        'epic-power',
+                        b.colorClass,
+                        isActive && 'epic-power--active',
+                        count <= 0 && !isActive && 'epic-power--empty'
+                      )}
+                      title={`${POWERUP_DEFS[b.id].name}: ${POWERUP_DEFS[b.id].description}`}
+                    >
+                      <span className="epic-power-btn">
+                        {b.emoji}
+                        <span className="epic-power-count">{count}</span>
+                      </span>
+                      <span className="epic-power-label">{b.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
             </div>
 
             {/* Hint inicial (bajo el camión, en la banda libre de la arena) */}
@@ -1274,19 +1304,7 @@ export default function Game() {
               </motion.div>
             )}
 
-            {/* Click multiplier badge */}
-            <AnimatePresence>
-              {clickMultiplierLevel > 1 && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0, y: 20 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0 }}
-                  className="absolute top-[64%] right-4 z-[7] bg-gradient-to-r from-[#EF4444] to-[#DC2626] text-white px-5 py-2.5 rounded-full font-fredoka font-black text-xl shadow-lg border-2 border-white animate-pulse"
-                >
-                  x{clickMultiplierLevel}
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* Click multiplier badge — removed per V11: no big overlay text */}
 
             {/* Autoclick active indicator */}
             <AnimatePresence>
@@ -1396,18 +1414,18 @@ export default function Game() {
               )}
             </AnimatePresence>
 
-            {/* V9: "×N ACTIVADO!" al llenar la barra THICK (visible 2s) */}
+            {/* V11: toast pequeño "×N ACTIVADO!" al llenar la barra THICK */}
             <AnimatePresence>
               {barFlash && (
                 <motion.div
                   key={barFlash.id}
-                  initial={{ opacity: 0, scale: 0.6, y: 10 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -14 }}
-                  transition={{ duration: 0.25, ease: 'easeOut' }}
-                  className="milestone-hit-text"
+                  initial={{ opacity: 0, y: -30, x: '-50%' }}
+                  animate={{ opacity: 1, y: 0, x: '-50%' }}
+                  exit={{ opacity: 0, y: -20, x: '-50%' }}
+                  transition={{ duration: 0.3, ease: 'easeOut' }}
+                  className="multiplier-toast"
                 >
-                  ¡{barFlash.label} ACTIVADO!
+                  {barFlash.label} ACTIVADO! +30s
                 </motion.div>
               )}
             </AnimatePresence>
@@ -1454,35 +1472,8 @@ export default function Game() {
               ))}
             </AnimatePresence>
 
-            {/* V8: stack inferior — 4 poderes épicos + barra THICK + tabs glossy */}
+            {/* V8: stack inferior — barra THICK + tabs glossy */}
             <div className="arena-bottom-stack">
-              {/* 4 epic power buttons (mapean a power-ups existentes) */}
-              <div className="epic-powers-row">
-                {EPIC_POWER_BUTTONS.map((b) => {
-                  const count = powerupInventory[b.id] ?? 0;
-                  const isActive = (activePowerupEffects[b.id] ?? 0) > nowMs;
-                  return (
-                    <button
-                      key={b.id}
-                      onClick={() => handleEpicPower(b.id)}
-                      className={cn(
-                        'epic-power',
-                        b.colorClass,
-                        isActive && 'epic-power--active',
-                        count <= 0 && !isActive && 'epic-power--empty'
-                      )}
-                      title={`${POWERUP_DEFS[b.id].name}: ${POWERUP_DEFS[b.id].description}`}
-                    >
-                      <span className="epic-power-btn">
-                        {b.emoji}
-                        <span className="epic-power-count">{count}</span>
-                      </span>
-                      <span className="epic-power-label">{b.label}</span>
-                    </button>
-                  );
-                })}
-              </div>
-
               {/* THICK progress bar V9: se carga con cada click; al 100% activa el multiplicador por 30s */}
               <div className="milestone-v8">
                 <div className="milestone-v8-row">
