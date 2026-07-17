@@ -207,7 +207,6 @@ export default function Game() {
   // V9: barra THICK cargada por clicks (0-100), multiplicador activo y flash "×N ACTIVADO!"
   const [barCharge, setBarCharge] = useState(0);
   const [barTargetIdx, setBarTargetIdx] = useState<number | null>(null);
-  const [barMultiplier, setBarMultiplier] = useState<{ mult: number; label: string; until: number } | null>(null);
   const [barFlash, setBarFlash] = useState<{ label: string; id: number } | null>(null);
 
   const comboTier = useComboStore((s) => s.comboTier);
@@ -259,7 +258,9 @@ export default function Game() {
   // click y avanza al siguiente target con cada activación (×3, ×4, ×5, ×10...)
   const barMilestoneIdx = Math.max(barTargetIdx ?? 0, getDerivedMilestoneIdx(clickPower));
   const barMilestone = useMemo(() => getBarMilestone(barMilestoneIdx), [barMilestoneIdx]);
-  const barMultActive = barMultiplier !== null && barMultiplier.until > nowMs;
+  // V15: el multiplicador está ligado al nivel de la barra (no es un buff temporal)
+  const currentBarMultiplier = 1 + (barCharge / 100) * (barMilestone.mult - 1);
+  const barMultActive = currentBarMultiplier > 1.05;
 
   // Celebración al alcanzar un milestone: gold flash + texto + mini confetti
   useEffect(() => {
@@ -301,21 +302,20 @@ export default function Game() {
     return () => clearInterval(iv);
   }, []);
 
-  // V9: la barra THICK decae 0.3%/s cuando pasa 1s sin clicks
+  // V15: la barra THICK decae 3%/s cuando pasa 1s sin clicks
   useEffect(() => {
     const iv = setInterval(() => {
       if (Date.now() - lastBarClickRef.current < 1000) return;
-      setBarCharge((prev) => Math.max(0, prev - 0.03));
+      setBarCharge((prev) => Math.max(0, prev - 0.3));
     }, 100);
     return () => clearInterval(iv);
   }, []);
 
-  // V9: barra al 100% → flash gold + "×N ACTIVADO!" 2s + multiplicador 30s + siguiente target
+  // V15: barra al 100% → flash gold + toast pequeño + siguiente target (sin buff temporal)
   useEffect(() => {
     if (barCharge < 100 || barFlashProcessingRef.current) return;
     barFlashProcessingRef.current = true;
     const now = Date.now();
-    setBarMultiplier({ mult: barMilestone.mult, label: barMilestone.label, until: now + 30000 });
     setBarFlash({ label: barMilestone.label, id: now });
     setBarCharge(0);
     setBarTargetIdx(barMilestoneIdx + 1);
@@ -715,9 +715,9 @@ export default function Game() {
       setCycleClicks((prev) => prev + 1);
       clicksSinceTicketRef.current += 1;
 
-      // V9: cada click carga la barra THICK: (cpsPerClick / target) × 100
+      // V15: cada click carga la barra THICK: (cpsPerClick × currentMultiplier) / target × 100
       lastBarClickRef.current = Date.now();
-      setBarCharge((prev) => Math.min(100, prev + (clickPower / barMilestone.target) * 100));
+      setBarCharge((prev) => Math.min(100, prev + (clickPower * currentBarMultiplier / barMilestone.target) * 100));
       const chance = Math.min(0.25, clicksSinceTicketRef.current * 0.0075);
       if (Math.random() < chance) {
         spawnCollectible();
@@ -738,8 +738,8 @@ export default function Game() {
       if (nitroActive) multiplier *= 50;
       if (convoyActive) multiplier *= 10;
       if (caravanaActive) multiplier *= 3;
-      // V9: multiplicador de la barra THICK (dura 30s)
-      if (barMultiplier && barMultiplier.until > Date.now()) multiplier *= barMultiplier.mult;
+      // V15: multiplicador ligado al nivel de la barra
+      multiplier *= currentBarMultiplier;
       if (isCrit) multiplier *= 10;
 
       const amount = clickPower * multiplier;
@@ -791,7 +791,7 @@ export default function Game() {
 
       spawnLayeredParticles(relX, relY);
     },
-    [clickPower, store, addMillas, activeClickMultiplier, spawnLayeredParticles, triggerHaptic, nitroActive, convoyActive, caravanaActive, barMultiplier, barMilestone]
+    [clickPower, store, addMillas, activeClickMultiplier, spawnLayeredParticles, triggerHaptic, nitroActive, convoyActive, caravanaActive, currentBarMultiplier, barMilestone]
   );
 
   // Keep latest click handler accessible to autoclick loop without restarting it
@@ -1214,10 +1214,10 @@ export default function Game() {
                 >
                   {formatFull(store.cpsBalance)}
                 </span>
-                {/* V11: badge pequeño del multiplicador de barra activo */}
-                {barMultActive && barMultiplier && (
+                {/* V15: badge pequeño del multiplicador actual ligado a la barra */}
+                {barMultActive && (
                   <span className="cps-multiplier-badge">
-                    {barMultiplier.label}
+                    x{currentBarMultiplier.toFixed(1)}
                   </span>
                 )}
               </div>
@@ -1424,7 +1424,7 @@ export default function Game() {
                   transition={{ duration: 0.3, ease: 'easeOut' }}
                   className="multiplier-toast"
                 >
-                  {barFlash.label} ACTIVADO! +30s
+                  ¡{barFlash.label} ALCANZADO!
                 </motion.div>
               )}
             </AnimatePresence>
