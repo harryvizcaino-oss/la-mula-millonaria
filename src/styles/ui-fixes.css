@@ -1242,3 +1242,39 @@
     transform: scale(1.1);
   }
 }
+
+/* ---------- V16: Anuncio épico al activar multiplicador ---------- */
+.epic-announcement-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 9998;
+}
+
+.epic-announcement-popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 9999;
+  width: 320px;
+  height: auto;
+  pointer-events: none;
+}
+
+.epic-announcement-img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.epic-announcement-text {
+  position: absolute;
+  top: 28%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: 'Inter', sans-serif;
+  font-weight: 900;
+  font-size: 56px;
+  color: white;
+  text-shadow: 0 3px 6px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.5);
+}

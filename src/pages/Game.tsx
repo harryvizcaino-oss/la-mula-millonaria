@@ -113,19 +113,23 @@ function getFleetBackground(fleetId: string): string {
   return FLEET_BACKGROUNDS[fleetId] ?? DEFAULT_FLEET_BACKGROUND;
 }
 
-// ───────────── FIX 5: milestones de CPS por click ─────────────
-const CPS_MILESTONES = [
-  { mult: 2, target: 10 },
-  { mult: 3, target: 50 },
-  { mult: 4, target: 200 },
-  { mult: 5, target: 1000 },
-  { mult: 10, target: 5000 },
-  { mult: 20, target: 25000 },
-  { mult: 50, target: 100000 },
-  { mult: 100, target: 500000 },
-];
+// ───────────── V16: milestones +1 desde x2 hasta x200 ─────────────
+const CPS_MILESTONES = (() => {
+  const list: { mult: number; target: number }[] = [];
+  const baseTargets = [10000, 50000, 150000, 400000, 1000000];
+  for (let mult = 2; mult <= 200; mult++) {
+    let target: number;
+    if (mult - 2 < baseTargets.length) {
+      target = baseTargets[mult - 2];
+    } else {
+      target = baseTargets[baseTargets.length - 1] * Math.pow(2, mult - 2 - baseTargets.length + 1);
+    }
+    list.push({ mult, target });
+  }
+  return list;
+})();
 
-/** Milestone de la barra THICK por índice. Más allá de ×100: duplica el objetivo. */
+/** Milestone de la barra THICK por índice. */
 function getBarMilestone(idx: number): { mult: number; target: number; label: string } {
   if (idx < CPS_MILESTONES.length) {
     const m = CPS_MILESTONES[idx];
@@ -207,7 +211,10 @@ export default function Game() {
   // V9: barra THICK cargada por clicks (0-100), multiplicador activo y flash "×N ACTIVADO!"
   const [barCharge, setBarCharge] = useState(0);
   const [barTargetIdx, setBarTargetIdx] = useState<number | null>(null);
-  const [barFlash, setBarFlash] = useState<{ label: string; id: number } | null>(null);
+  // V16: primera llenada de la barra requiere mínimo 50 clicks
+  const [hasFilledBarBefore, setHasFilledBarBefore] = useState(false);
+  // V16: anuncio épico al activar multiplicador
+  const [epicAnnouncement, setEpicAnnouncement] = useState<{ label: string; id: number } | null>(null);
 
   const comboTier = useComboStore((s) => s.comboTier);
   const comboActive = useComboStore((s) => s.comboActive);
@@ -311,18 +318,19 @@ export default function Game() {
     return () => clearInterval(iv);
   }, []);
 
-  // V15: barra al 100% → flash gold + toast pequeño + siguiente target (sin buff temporal)
+  // V16: barra al 100% → anuncio épico + siguiente target
   useEffect(() => {
     if (barCharge < 100 || barFlashProcessingRef.current) return;
     barFlashProcessingRef.current = true;
     const now = Date.now();
-    setBarFlash({ label: barMilestone.label, id: now });
+    setEpicAnnouncement({ label: barMilestone.label, id: now });
     setBarCharge(0);
     setBarTargetIdx(barMilestoneIdx + 1);
+    if (barMilestone.mult === 2) setHasFilledBarBefore(true);
     setTimeout(() => {
-      setBarFlash(null);
+      setEpicAnnouncement(null);
       barFlashProcessingRef.current = false;
-    }, 2000);
+    }, 3000);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [barCharge]);
 
@@ -715,9 +723,16 @@ export default function Game() {
       setCycleClicks((prev) => prev + 1);
       clicksSinceTicketRef.current += 1;
 
-      // V15: cada click carga la barra THICK: (cpsPerClick × currentMultiplier) / target × 100
+      // V16: cada click carga la barra THICK
       lastBarClickRef.current = Date.now();
-      setBarCharge((prev) => Math.min(100, prev + (clickPower * currentBarMultiplier / barMilestone.target) * 100));
+      let fillPerClick: number;
+      if (barMilestone.mult === 2 && !hasFilledBarBefore) {
+        // Primera vez: mínimo 50 clicks para llenar la barra
+        fillPerClick = 100 / 50; // 2% por click
+      } else {
+        fillPerClick = (clickPower * currentBarMultiplier / barMilestone.target) * 100;
+      }
+      setBarCharge((prev) => Math.min(100, prev + fillPerClick));
       const chance = Math.min(0.25, clicksSinceTicketRef.current * 0.0075);
       if (Math.random() < chance) {
         spawnCollectible();
@@ -1413,19 +1428,34 @@ export default function Game() {
               )}
             </AnimatePresence>
 
-            {/* V11: toast pequeño "×N ACTIVADO!" al llenar la barra THICK */}
+            {/* V16: anuncio épico al activar multiplicador */}
             <AnimatePresence>
-              {barFlash && (
-                <motion.div
-                  key={barFlash.id}
-                  initial={{ opacity: 0, y: -30, x: '-50%' }}
-                  animate={{ opacity: 1, y: 0, x: '-50%' }}
-                  exit={{ opacity: 0, y: -20, x: '-50%' }}
-                  transition={{ duration: 0.3, ease: 'easeOut' }}
-                  className="multiplier-toast"
-                >
-                  ¡{barFlash.label} ALCANZADO!
-                </motion.div>
+              {epicAnnouncement && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="epic-announcement-backdrop"
+                  />
+                  <motion.div
+                    key={epicAnnouncement.id}
+                    initial={{ opacity: 0, scale: 0.3, x: '-50%', y: '-50%' }}
+                    animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
+                    exit={{ opacity: 0, scale: 1.2, x: '-50%', y: '-50%' }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                    className="epic-announcement-popup"
+                  >
+                    <img
+                      src="/assets/efecto_boom_poder_activado.png"
+                      alt="Poder activado"
+                      className="epic-announcement-img"
+                    />
+                    <span className="epic-announcement-text">
+                      {epicAnnouncement.label}
+                    </span>
+                  </motion.div>
+                </>
               )}
             </AnimatePresence>
 
@@ -1481,7 +1511,7 @@ export default function Game() {
                   </span>
                 </div>
                 <div className="milestone-v8-bar-wrap">
-                  <div className={cn('milestone-v8-bar', (milestoneHit || barFlash) && 'milestone-flash')}>
+                  <div className={cn('milestone-v8-bar', (milestoneHit || epicAnnouncement) && 'milestone-flash')}>
                     <div
                       className={cn('milestone-v8-fill', truckBump && 'milestone-v8-fill--pulse')}
                       style={{ width: `${barCharge}%` }}
