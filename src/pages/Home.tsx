@@ -16,14 +16,12 @@ import {
   Coins,
   ArrowRight,
   Star,
-  TrendingUp,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Footer from '@/components/Footer';
 import { useMillas } from '@/providers/MillasProvider';
-import { useClickerStore, calculateClickPower } from '@/store/clickerStore';
+import { useClickerStore } from '@/store/clickerStore';
 import { GameTutorial } from '@/components/GameTutorial';
-import { getTruckAsset } from '@/data/truckAssets';
 import { FLEET_VEHICLES } from '@/data/fleetVehicles';
 
 /* ─────────────────────── Animation Variants ─────────────────────── */
@@ -82,19 +80,8 @@ function formatNumber(n: number): string {
 
 function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
   const navigate = useNavigate();
-  const { millas } = useMillas();
   const clicker = useClickerStore();
-  const clickPower = calculateClickPower(clicker);
   const { user, isAuthenticated, isLoading, logout } = useAuth();
-
-  // Nubes orgánicas (float 40-60s, delays negativos para distribuirlas)
-  const clouds = [
-    { top: '10%', width: 150, height: 46, dur: 48, delay: -14 },
-    { top: '20%', width: 110, height: 36, dur: 60, delay: -38 },
-    { top: '6%', width: 190, height: 54, dur: 55, delay: -50 },
-    { top: '28%', width: 120, height: 38, dur: 42, delay: -6 },
-    { top: '16%', width: 90, height: 30, dur: 44, delay: -26 },
-  ];
 
   // Partículas doradas flotando hacia arriba (deterministas)
   const particles = useMemo(
@@ -117,120 +104,53 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
       .toUpperCase() || 'TU';
 
   return (
-    <section className="home-hero relative min-h-[100dvh] flex flex-col items-center px-6 overflow-hidden">
-      {/* Sol dorado con glow pulse (top-right, 60px) */}
-      <div className="home-sun" />
-
-      {/* Nubes orgánicas blancas */}
-      {clouds.map((c, i) => (
-        <div
-          key={i}
-          className="home-cloud"
-          style={{
-            top: c.top,
-            left: 0,
-            width: c.width,
-            height: c.height,
-            animationDuration: `${c.dur}s`,
-            animationDelay: `${c.delay}s`,
-          }}
+    <section className="relative flex flex-col items-center overflow-hidden">
+      {/* Hero banner 55vh con overlay gradiente oscuro abajo */}
+      <div className="home-banner">
+        <img
+          src="/assets/home_banner_juego_completo.jpg"
+          alt="La Mula Millonaria — juego clicker de tractomulas"
+          className="home-banner-img"
+          draggable={false}
         />
-      ))}
+        <div className="home-banner-overlay" />
 
-      {/* Partículas doradas */}
-      {particles.map((p, i) => (
-        <span
-          key={i}
-          className="home-particle"
-          style={{
-            left: `${p.left}%`,
-            width: p.size,
-            height: p.size,
-            animationDuration: `${p.dur}s`,
-            animationDelay: `${p.delay}s`,
-          }}
-        />
-      ))}
-
-      {/* Top counters */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.2 }}
-        className="absolute top-14 left-0 right-0 z-10 px-6"
-      >
-        <div className="flex items-center justify-center gap-3">
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#F59E0B] to-[#F97316] shadow-lg">
-            <Coins size={16} className="text-slate-900" />
-            <div className="cps-counter-display">
-              <span className="cps-counter-number-static font-fredoka font-bold text-slate-900">
-                {millas.toLocaleString('es-CO')}
-              </span>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 border border-white/25 backdrop-blur-md shadow-sm">
-            <TrendingUp size={16} className="text-[#4ADE80]" />
-            <span className="font-fredoka font-bold text-white">+{formatNumber(clickPower)}/click</span>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* Content */}
-      <div className="relative z-10 flex flex-col items-center text-center w-full max-w-sm flex-1 justify-center py-10 mt-10">
-        {/* Contador CPS grande arriba del camión (28-44px gold glow) */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.35, duration: 0.4 }}
-          className="cps-counter-overlay"
-        >
-          <span className="cps-counter-value">{formatNumber(clicker.cpsBalance)}</span>
-          <span className="cps-counter-label">CPS</span>
-        </motion.div>
-
-        {/* Camión PNG centrado (180px) con idle bounce */}
-        <motion.div
-          initial={{ opacity: 0, scale: 0 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.2 }}
-        >
-          <img
-            src={getTruckAsset(clicker.selectedFleet)}
-            alt="Tractomula"
-            className="home-truck"
-            draggable={false}
+        {/* Partículas doradas sobre el banner */}
+        {particles.map((p, i) => (
+          <span
+            key={i}
+            className="home-particle"
+            style={{
+              left: `${p.left}%`,
+              width: p.size,
+              height: p.size,
+              animationDuration: `${p.dur}s`,
+              animationDelay: `${p.delay}s`,
+            }}
           />
-        </motion.div>
+        ))}
 
-        {/* Título 3D gold metallic */}
+        {/* Título 3D gold metallic sobre el banner */}
         <motion.h1
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.6, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-          className="home-title-3d font-fredoka font-black uppercase text-[clamp(38px,11vw,60px)] leading-[0.95] tracking-wide mt-4 mb-3"
+          transition={{ delay: 0.35, duration: 0.5, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+          className="home-title-3d absolute bottom-7 left-0 right-0 z-[2] px-6 text-center font-fredoka font-black uppercase text-[clamp(34px,10vw,56px)] leading-[0.95] tracking-wide"
         >
           La Mula
           <br />
           Millonaria
         </motion.h1>
+      </div>
 
-        {/* Subtítulo */}
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.8, duration: 0.3 }}
-          className="text-white/85 text-base font-inter mb-7 max-w-[280px]"
-          style={{ textShadow: '0 1px 3px rgba(0,0,0,0.5)' }}
-        >
-          Toca la tractomula, arma tu flota
-        </motion.p>
-
-        {/* Botón JUGAR 280x64 gold glossy con pulse */}
+      {/* Contenido bajo el banner */}
+      <div className="w-full max-w-sm px-6 flex flex-col items-center">
+        {/* Botón JUGAR gold glossy solapado al borde del banner (margin -28px) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.0, duration: 0.4, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-          className="mb-5"
+          transition={{ delay: 0.55, duration: 0.4, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+          className="-mt-7 mb-5"
         >
           <button className="home-play-btn" onClick={() => navigate('/game')}>
             JUGAR
@@ -241,7 +161,7 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 1.2, duration: 0.3 }}
+          transition={{ delay: 0.7, duration: 0.3 }}
           className="flex items-center gap-5"
         >
           <button
@@ -260,26 +180,26 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
           </button>
         </motion.div>
 
-        {/* Auth actions (compactas, glass) */}
+        {/* Menú de cuenta (cards limpias) */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 1.4, duration: 0.3 }}
-          className="mt-5 w-full max-w-[280px] flex gap-2.5"
+          transition={{ delay: 0.85, duration: 0.3 }}
+          className="mt-5 w-full flex gap-2.5"
         >
           {!isLoading && isAuthenticated ? (
             <>
               <button
                 type="button"
                 onClick={() => navigate('/profile')}
-                className="home-section-card flex-1 h-10 rounded-xl text-white font-fredoka font-bold text-xs hover:bg-white/10 transition-colors"
+                className="home-section-card flex-1 h-11 rounded-xl text-white font-fredoka font-bold text-xs hover:bg-white/10 transition-colors"
               >
                 Mi perfil
               </button>
               <button
                 type="button"
                 onClick={() => logout()}
-                className="flex-1 h-10 rounded-xl bg-black/25 border border-white/15 text-white/70 font-fredoka font-bold text-xs hover:bg-black/35 transition-colors"
+                className="home-section-card flex-1 h-11 rounded-xl text-white/70 font-fredoka font-bold text-xs hover:bg-white/10 transition-colors"
               >
                 Cerrar sesión
               </button>
@@ -293,7 +213,7 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
                   e.stopPropagation();
                   navigate('/login');
                 }}
-                className="flex-1 h-10 rounded-xl bg-gradient-to-r from-[#F59E0B] to-[#F97316] text-white font-fredoka font-black text-xs shadow-md hover:opacity-90 transition-opacity"
+                className="flex-1 h-11 rounded-xl bg-gradient-to-r from-[#F59E0B] to-[#F97316] text-white font-fredoka font-black text-xs shadow-md hover:opacity-90 transition-opacity"
               >
                 Iniciar sesión
               </button>
@@ -304,49 +224,49 @@ function HeroSection({ onOpenTutorial }: { onOpenTutorial: () => void }) {
                   e.stopPropagation();
                   navigate('/register');
                 }}
-                className="home-section-card flex-1 h-10 rounded-xl text-white font-fredoka font-black text-xs hover:bg-white/10 transition-colors"
+                className="home-section-card flex-1 h-11 rounded-xl text-white font-fredoka font-black text-xs hover:bg-white/10 transition-colors"
               >
                 Crear cuenta
               </button>
             </>
           )}
         </motion.div>
-      </div>
 
-      {/* Stats panel glassmorphism: avatar, nombre, CPS total, camiones */}
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 1.5, duration: 0.45, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-        className="home-stats-panel relative z-10 w-full max-w-sm mb-16 px-4 py-3 flex items-center gap-3"
-      >
-        <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#FFD700] to-[#F59E0B] flex items-center justify-center text-[#4A3000] font-fredoka font-black text-sm flex-shrink-0 border-2 border-white/50 shadow-lg">
-          {initials}
-        </div>
-        <div className="flex-1 min-w-0 text-left">
-          <p className="text-white text-sm font-bold truncate">{user?.name || 'Invitado'}</p>
-          <p className="text-white/60 text-[11px] truncate">Conductor de la flota</p>
-        </div>
-        <div className="text-right flex-shrink-0">
-          <p className="font-fredoka font-black text-[#FFD700] text-base leading-tight">
-            {formatNumber(clicker.cpsTotal)}
-          </p>
-          <p className="text-white/60 text-[9px] uppercase tracking-wider">CPS Total</p>
-        </div>
-        <div className="w-px h-8 bg-white/20 flex-shrink-0" />
-        <div className="text-right flex-shrink-0">
-          <p className="font-fredoka font-black text-[#FFD700] text-base leading-tight">
-            {clicker.fleetOwned.length}/{FLEET_VEHICLES.length}
-          </p>
-          <p className="text-white/60 text-[9px] uppercase tracking-wider">Camiones</p>
-        </div>
-      </motion.div>
+        {/* Stats panel glassmorphism: avatar, nombre, CPS total, camiones */}
+        <motion.div
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1.0, duration: 0.45, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+          className="home-stats-panel relative z-10 w-full mt-5 mb-14 px-4 py-3 flex items-center gap-3"
+        >
+          <div className="w-11 h-11 rounded-full bg-gradient-to-br from-[#FFD700] to-[#F59E0B] flex items-center justify-center text-[#4A3000] font-fredoka font-black text-sm flex-shrink-0 border-2 border-white/50 shadow-lg">
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-white text-sm font-bold truncate">{user?.name || 'Invitado'}</p>
+            <p className="text-white/60 text-[11px] truncate">Conductor de la flota</p>
+          </div>
+          <div className="text-right flex-shrink-0">
+            <p className="font-fredoka font-black text-[#FFD700] text-base leading-tight">
+              {formatNumber(clicker.cpsTotal)}
+            </p>
+            <p className="text-white/60 text-[9px] uppercase tracking-wider">CPS Total</p>
+          </div>
+          <div className="w-px h-8 bg-white/20 flex-shrink-0" />
+          <div className="text-right flex-shrink-0">
+            <p className="font-fredoka font-black text-[#FFD700] text-base leading-tight">
+              {clicker.fleetOwned.length}/{FLEET_VEHICLES.length}
+            </p>
+            <p className="text-white/60 text-[9px] uppercase tracking-wider">Camiones</p>
+          </div>
+        </motion.div>
+      </div>
 
       {/* Scroll Indicator */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 1.7, duration: 0.5 }}
+        transition={{ delay: 1.2, duration: 0.5 }}
         className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10"
       >
         <motion.div

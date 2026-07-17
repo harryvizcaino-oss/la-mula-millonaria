@@ -85,19 +85,11 @@
 }
 
 /* ---------- Contador CPS grande sobre el camión ---------- */
-.truck-section {
-  position: relative;
-  z-index: 10;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
 .cps-counter-overlay {
   display: flex;
   flex-direction: column;
   align-items: center;
-  margin-bottom: -15px; /* solapa levemente con el camión */
+  margin-bottom: 20px; /* V2-3: separación sobre el camión */
   pointer-events: none;
   z-index: 11;
 }
@@ -180,14 +172,13 @@
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.45));
 }
 
-/* ---------- FIX 1: Sponsor power card redesign ---------- */
+/* ---------- FIX 1 + V2-5: Sponsor power card (blanca) ---------- */
 .sponsor-card {
-  background: rgba(30, 45, 70, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: #ffffff;
   border-radius: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid #e2e8f0;
   border-left: 4px solid var(--tier-color, #607d8b);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
   padding: 14px 16px;
   transition:
     border-color 0.5s ease,
@@ -196,48 +187,56 @@
 }
 
 .sponsor-card-title {
-  font-size: 17px;
+  font-size: 16px;
   font-weight: 700;
-  color: #ffffff;
+  color: #1a1a2e;
 }
 
-/* Marca patrocinadora como pill top-right */
-.brand-tag {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  background: linear-gradient(
-    135deg,
-    var(--tier-color, #607d8b),
-    rgba(255, 255, 255, 0.15)
-  );
-  color: #fff;
-  font-weight: 700;
-  font-size: 11px;
+/* BRAND TEXT BADGE: pill con el color del tier (los logos de marca no
+   existen como imágenes; se usa texto, no <img>) */
+.brand-text-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 800;
+  font-size: 10px;
   text-transform: uppercase;
-  padding: 4px 12px;
-  border-radius: 20px;
   letter-spacing: 0.5px;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
-  max-width: 46%;
+  max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  z-index: 2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
 }
 
-/* ---------- FIX 2: Compact buy button ---------- */
+/* LEVEL pill gris a la izquierda del botón de compra */
+.level-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ---------- FIX 2 + V2-5: Compact buy button (44px) ---------- */
 .sponsor-card-price {
   font-family: 'Space Mono', 'JetBrains Mono', monospace;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
-  color: #ffd700;
+  color: #1a1a2e;
   white-space: nowrap;
 }
 
 .buy-btn-circle {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -374,35 +373,89 @@
   white-space: nowrap;
 }
 
-/* ---------- FIX 6: Game header + fondo andino ---------- */
-.game-header {
-  background: rgba(15, 30, 50, 0.9);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.game-header-pill {
-  display: flex;
+/* ---------- V2-2: indicadores flotantes (reemplazan el game-header) ---------- */
+.float-pill {
+  display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
+  gap: 4px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-weight: 600;
+  font-size: 12px;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  color: #ffffff;
   white-space: nowrap;
 }
 
-.game-header-cps {
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
-  font-weight: 700;
-  font-size: clamp(20px, 5.4vw, 30px);
-  line-height: 1.1;
-  color: #ffd700;
-  text-shadow:
-    0 0 14px rgba(255, 215, 0, 0.5),
-    0 2px 4px rgba(0, 0, 0, 0.6);
+.float-pill--red {
+  background: rgba(220, 38, 38, 0.72);
+}
+
+.float-pill--gold {
+  background: rgba(245, 158, 11, 0.78);
+}
+
+.float-pill--green {
+  background: rgba(22, 163, 74, 0.75);
+}
+
+.float-pill--orange {
+  background: rgba(234, 88, 12, 0.78);
+}
+
+/* ---------- V2-3: área de juego 45vh (contador CPS + camión centrado) ---------- */
+.game-play-area {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 45vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 60px 0 20px;
+  z-index: 5;
+}
+
+/* El combo baja a la banda libre bajo el camión (antes top: 23%) */
+.combo-display {
+  top: 76%;
+}
+
+/* ---------- V2-6: BOOM al comprar poder / cambiar de tier ---------- */
+.boom-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 85;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.boom-flash {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 223, 89, 0.9) 0%,
+    rgba(255, 165, 0, 0.55) 45%,
+    rgba(255, 140, 0, 0.25) 100%
+  );
+}
+
+.boom-image {
+  position: relative;
+  width: min(78vw, 420px);
+  height: auto;
+  filter: drop-shadow(0 0 30px rgba(255, 170, 0, 0.55));
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 /* Capas bokeh/glow más sutiles sobre el fondo de carretera andina */
@@ -436,91 +489,40 @@
 }
 
 /* ============================================================
-   HOME CINEMATOGRÁFICO — sunset, nubes, sol, partículas,
-   camión PNG, título 3D gold, botón JUGAR, panel glass
+   HOME V2-1 — hero banner 55vh (home_banner_juego_completo.jpg),
+   overlay oscuro abajo, título 3D gold, botón JUGAR, panel glass
    ============================================================ */
 
-.home-hero {
+.home-banner {
+  position: relative;
+  width: 100%;
+  height: 55vh;
+  overflow: hidden;
+  border-radius: 0 0 2rem 2rem;
+}
+
+.home-banner-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center top;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+/* Overlay gradiente oscuro hacia abajo (legibilidad del título/botón) */
+.home-banner-overlay {
+  position: absolute;
+  inset: 0;
   background: linear-gradient(
     180deg,
-    #2c3e50 0%,
-    #8e44ad 32%,
-    #e67e22 58%,
-    #f39c12 78%,
-    #27ae60 100%
+    rgba(13, 14, 20, 0.28) 0%,
+    rgba(13, 14, 20, 0) 38%,
+    rgba(13, 14, 20, 0.55) 78%,
+    #101820 100%
   );
-}
-
-/* Nubes orgánicas blancas con float 40-60s */
-.home-cloud {
-  position: absolute;
-  background: rgba(255, 255, 255, 0.85);
-  border-radius: 999px;
-  filter: blur(2px);
-  opacity: 0.75;
-  animation: homeCloudDrift linear infinite;
-}
-
-.home-cloud::before,
-.home-cloud::after {
-  content: '';
-  position: absolute;
-  background: inherit;
-  border-radius: 50%;
-}
-
-.home-cloud::before {
-  width: 55%;
-  height: 160%;
-  left: 12%;
-  top: -70%;
-}
-
-.home-cloud::after {
-  width: 40%;
-  height: 120%;
-  right: 14%;
-  top: -45%;
-}
-
-@keyframes homeCloudDrift {
-  0% {
-    transform: translateX(-30vw);
-  }
-  100% {
-    transform: translateX(115vw);
-  }
-}
-
-/* Sol dorado con glow pulsante (top-right, 60px) */
-.home-sun {
-  position: absolute;
-  top: 64px;
-  right: 40px;
-  width: 60px;
-  height: 60px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #fff7cc 0%, #ffd700 55%, #f39c12 100%);
-  box-shadow:
-    0 0 24px rgba(255, 215, 0, 0.85),
-    0 0 70px rgba(255, 165, 0, 0.5);
-  animation: homeSunPulse 4s ease-in-out infinite;
-}
-
-@keyframes homeSunPulse {
-  0%,
-  100% {
-    box-shadow:
-      0 0 24px rgba(255, 215, 0, 0.85),
-      0 0 70px rgba(255, 165, 0, 0.5);
-    transform: scale(1);
-  }
-  50% {
-    box-shadow:
-      0 0 36px rgba(255, 215, 0, 1),
-      0 0 110px rgba(255, 165, 0, 0.7);
-    transform: scale(1.06);
-  }
 }
 
 /* Partículas doradas flotando hacia arriba */
@@ -552,17 +554,6 @@
     transform: translateY(-88vh) scale(1.05);
     opacity: 0;
   }
-}
-
-/* Camión PNG centrado con idle bounce */
-.home-truck {
-  height: 180px;
-  width: auto;
-  object-fit: contain;
-  filter: drop-shadow(0 12px 24px rgba(0, 0, 0, 0.4));
-  animation: truckIdle 3s ease-in-out infinite;
-  user-select: none;
-  -webkit-user-drag: none;
 }
 
 /* Título 3D gold metallic (múltiples text-shadow) */

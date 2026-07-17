@@ -48,6 +48,11 @@ export default function TopAppBar({ transparent = false, light = true }: TopAppB
 
   const showBar = isVisible || scrolled;
 
+  // V2-2: el juego es full-bleed — el fondo llega al borde superior y los
+  // indicadores flotantes van a top 12px; la barra oculta evita solapes.
+  // (La navegación sigue disponible en el Navbar inferior.)
+  if (location.pathname === '/game') return null;
+
   return (
     <header
       className={cn(
