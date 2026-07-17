@@ -27,7 +27,7 @@ import { useComboStore } from '@/store/comboStore';
 import { usePowerupStore, POWERUP_DEFS, type PowerupId } from '@/store/powerupStore';
 import { useUnlockStore } from '@/store/unlockStore';
 import { useEventStore } from '@/store/eventStore';
-import { ComboDisplay } from '@/components/game/ComboDisplay';
+
 import { CriticalHit, type CritState } from '@/components/game/CriticalHit';
 import { AscensionCinematic } from '@/components/game/AscensionCinematic';
 import { UnlockCinematic } from '@/components/game/UnlockCinematic';
@@ -1324,8 +1324,7 @@ export default function Game() {
               )}
             </AnimatePresence>
 
-            {/* Combo display (bajo el camión, sobre el milestone loader) */}
-            <ComboDisplay />
+            {/* Combo display eliminado en V13: solo queda la barra verde THICK al bottom */}
 
             {/* Particles */}
             <AnimatePresence>
