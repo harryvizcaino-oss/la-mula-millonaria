@@ -185,7 +185,7 @@ export function GlobalEventBanner() {
               {lastResult.success ? '¡EVENTO COMPLETADO!' : 'Evento Finalizado'}
             </p>
             <p className="text-white/80 text-sm mt-1">
-              {lastResult.name} — +{lastResult.rewardMillas.toLocaleString('es-CO')} CPS
+              {lastResult.name} — +{lastResult.rewardMillas.toLocaleString('es-CO')}
               {lastResult.rewardTickets > 0 ? ` +${lastResult.rewardTickets} 🎟️` : ''}
             </p>
           </motion.div>

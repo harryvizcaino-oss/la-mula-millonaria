@@ -78,11 +78,10 @@ export function FleetVehicleCard({
           )}
         </div>
 
-        <div className="flex flex-col items-center flex-shrink-0 w-12">
+        <div className="flex flex-col items-center justify-center flex-shrink-0 w-12">
           <span className="font-fredoka font-black text-lg leading-none text-[#4ADE80]">
             x{vehicle.multiplier}
           </span>
-          <span className="text-[8px] uppercase tracking-wider text-slate-400 mt-0.5">CPS</span>
         </div>
       </div>
 

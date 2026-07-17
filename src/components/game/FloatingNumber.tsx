@@ -8,7 +8,7 @@ interface FloatingNumberProps {
 }
 
 /**
- * Número flotante "+N CPS" en el punto exacto del click.
+ * Número flotante "+N" en el punto exacto del click.
  * La animación vive en `.floating-number` (ui-fixes.css) y dura 1s;
  * al terminar llama onComplete para que el padre lo desmonte.
  */

@@ -24,7 +24,7 @@ import {
 import { pickRandomEvent, type ClickerGameEvent } from '@/data/clickerEvents';
 import { GameTutorial } from '@/components/GameTutorial';
 import { useComboStore } from '@/store/comboStore';
-import { usePowerupStore, type PowerupId } from '@/store/powerupStore';
+import { usePowerupStore, POWERUP_DEFS, type PowerupId } from '@/store/powerupStore';
 import { useUnlockStore } from '@/store/unlockStore';
 import { useEventStore } from '@/store/eventStore';
 import { ComboDisplay } from '@/components/game/ComboDisplay';
@@ -155,6 +155,14 @@ function getMilestoneLabel(target: number): string {
   return m ? `×${m.mult}` : '×2';
 }
 
+// ───────────── V8: 4 epic power buttons (mapean a los power-ups existentes) ─────────────
+const EPIC_POWER_BUTTONS: { id: PowerupId; label: string; emoji: string; colorClass: string }[] = [
+  { id: 'nitro', label: 'VELOCIDAD', emoji: '🚀', colorClass: 'epic-power--gold' },
+  { id: 'time_warp', label: 'CONGELAR', emoji: '❄️', colorClass: 'epic-power--cyan' },
+  { id: 'convoy', label: 'DINEROx2', emoji: '💰', colorClass: 'epic-power--orange' },
+  { id: 'gold_rain', label: 'CAJA', emoji: '🎁', colorClass: 'epic-power--purple' },
+];
+
 export default function Game() {
   const { addMillas } = useMillas();
   const store = useClickerStore();
@@ -193,6 +201,7 @@ export default function Game() {
   const comboTier = useComboStore((s) => s.comboTier);
   const comboActive = useComboStore((s) => s.comboActive);
   const activePowerupEffects = usePowerupStore((s) => s.activeEffects);
+  const powerupInventory = usePowerupStore((s) => s.inventory);
   const activeGlobalEvent = useEventStore((s) => s.activeEvent);
   const lastEventResult = useEventStore((s) => s.lastResult);
   const legendaryUnlocked = useUnlockStore((s) => s.unlockedMilestones.includes('ascension-10'));
@@ -317,7 +326,7 @@ export default function Game() {
     if (lastEventResult.rewardTickets > 0) store.addGoldenTickets(lastEventResult.rewardTickets);
     showToast(
       lastEventResult.success
-        ? `¡Evento completado! +${formatNumber(lastEventResult.rewardMillas)} CPS`
+        ? `¡Evento completado! +${formatNumber(lastEventResult.rewardMillas)}`
         : 'Evento finalizado: recompensa de participación',
       lastEventResult.success ? '#F59E0B' : '#94A3B8'
     );
@@ -730,7 +739,7 @@ export default function Game() {
       const id = ++floatingIdRef.current;
       setFloatingNumbers((prev) => [
         ...prev,
-        { id, x: relX + (Math.random() - 0.5) * 30, y: relY, value: `+${formatNumber(amount)} CPS` },
+        { id, x: relX + (Math.random() - 0.5) * 30, y: relY, value: `+${formatNumber(amount)}` },
       ]);
 
       spawnLayeredParticles(relX, relY);
@@ -776,7 +785,7 @@ export default function Game() {
       if (vehicle) spawnFlyItem(vehicle.emoji, el, getTruckAsset(vehicle.id));
       showToast(
         result.cost > 0
-          ? `¡${vehicle?.brand ?? 'Vehículo'} en tu flota! x${vehicle?.multiplier} CPS`
+          ? `¡${vehicle?.brand ?? 'Vehículo'} en tu flota! x${vehicle?.multiplier}`
           : `${vehicle?.brand ?? 'Vehículo'} seleccionado`,
         '#3B82F6'
       );
@@ -839,13 +848,23 @@ export default function Game() {
     if (powerupId === 'gold_rain') showToast('🌧️ ¡Lluvia de Oro!', '#FACC15');
   };
 
+  // V8: los 4 botones épicos activan los power-ups existentes del inventario
+  const handleEpicPower = (powerupId: PowerupId) => {
+    const ok = usePowerupStore.getState().activatePowerup(powerupId);
+    if (!ok) {
+      showToast(`Sin ${POWERUP_DEFS[powerupId].name} disponible`, '#94A3B8');
+      return;
+    }
+    handlePowerupActivate(powerupId);
+  };
+
   const handleGoldCoinCollect = (coinId: number) => {
     setGoldCoins((prev) => {
       const coin = prev.find((c) => c.id === coinId);
       if (!coin) return prev;
       addMillas(coin.reward);
       store.addEarnings(coin.reward);
-      showToast(`+${formatNumber(coin.reward)} CPS`, '#FACC15');
+      showToast(`+${formatNumber(coin.reward)}`, '#FACC15');
       spawnParticlesPercent(coin.x, 50);
       return prev.filter((c) => c.id !== coinId);
     });
@@ -947,7 +966,7 @@ export default function Game() {
             animate={shake ? { x: [-4, 4, -4, 4, 0] } : { x: 0 }}
             transition={{ duration: 0.2 }}
             className={cn(
-              'relative aspect-[3/4] max-h-[85vh] rounded-b-[2rem] overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.2)] select-none',
+              'relative h-[100dvh] rounded-b-[2rem] overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.2)] select-none',
               hapticOverlay?.type === 'shake' && 'screen-shake',
               crit && 'crit-shake',
               comboActive && comboTier >= 4 && 'combo-max-shake'
@@ -1014,22 +1033,22 @@ export default function Game() {
                 </AnimatePresence>
               </div>
 
-              {/* 💵 Balance CPS */}
+              {/* 💵 Balance */}
               <div
                 className="float-pill float-pill--gold pointer-events-auto"
-                title={`Balance: ${formatFull(store.cpsBalance)} CPS`}
+                title={`Balance: ${formatFull(store.cpsBalance)}`}
               >
                 <span>💵</span>
                 <span>{formatNumber(store.cpsBalance)}</span>
               </div>
 
-              {/* ⚡ CPS por click */}
+              {/* ⚡ Poder por click */}
               <div
                 className="float-pill float-pill--green pointer-events-auto"
-                title={`CPS por click: +${formatFull(clickPower * activeClickMultiplier)} · Player Level ${playerLevel}`}
+                title={`+${formatFull(clickPower * activeClickMultiplier)} por click`}
               >
                 <span>⚡</span>
-                <span>+{formatNumber(clickPower * activeClickMultiplier)}/click</span>
+                <span>+{formatNumber(clickPower * activeClickMultiplier)}</span>
               </div>
 
               {/* 👑 Rank */}
@@ -1087,13 +1106,13 @@ export default function Game() {
                 initial={{ opacity: 0, y: 5 }}
                 animate={{ opacity: [1, 0.35, 1], y: 0 }}
                 transition={{ duration: 0.9, repeat: Infinity }}
-                className="absolute top-[70%] left-1/2 -translate-x-1/2 text-white font-fredoka font-black text-2xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)] pointer-events-none whitespace-nowrap z-[3]"
+                className="absolute top-[64%] left-1/2 -translate-x-1/2 text-white font-fredoka font-black text-2xl drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)] pointer-events-none whitespace-nowrap z-[3]"
               >
                 Multiplicador
               </motion.div>
             )}
 
-            {/* Click target with 3D perspective — área de juego 45vh: contador CPS arriba, camión centrado */}
+            {/* Click target with 3D perspective — área de juego: contador grande arriba, camión centrado (V8: llena hasta el stack inferior) */}
             <div
               ref={clickAreaRef}
               className="game-play-area"
@@ -1131,7 +1150,7 @@ export default function Game() {
                 ))}
               </AnimatePresence>
 
-              {/* Contador CPS grande arriba del camión (margin-bottom 20px) */}
+              {/* Contador grande dorado arriba del camión (margin-bottom 20px) */}
               <div
                 className={cn(
                   'cps-counter-overlay',
@@ -1148,7 +1167,6 @@ export default function Game() {
                 >
                   {formatFull(store.cpsBalance)}
                 </span>
-                <span className="cps-counter-label">CPS</span>
               </div>
 
               {/* Camión centrado en el espacio restante del área de juego */}
@@ -1183,7 +1201,7 @@ export default function Game() {
                   <img
                     src={getTruckAsset(store.selectedFleet)}
                     alt={`${activeVehicle.brand} ${activeVehicle.model}`}
-                    title={`${activeVehicle.brand} ${activeVehicle.model} · x${activeVehicle.multiplier} CPS`}
+                    title={`${activeVehicle.brand} ${activeVehicle.model} · x${activeVehicle.multiplier}`}
                     className={cn('truck-image', shake && 'truck-shake')}
                     draggable={false}
                   />
@@ -1200,7 +1218,7 @@ export default function Game() {
               <motion.div
                 animate={{ y: [0, -8, 0], scale: [1, 1.05, 1] }}
                 transition={{ duration: 1, repeat: Infinity }}
-                className="absolute top-[70%] left-1/2 -translate-x-1/2 z-[7] bg-[#F59E0B] text-[#0D0E14] px-4 py-1.5 rounded-full text-sm font-black shadow-lg border-2 border-white pointer-events-none"
+                className="absolute top-[64%] left-1/2 -translate-x-1/2 z-[7] bg-[#F59E0B] text-[#0D0E14] px-4 py-1.5 rounded-full text-sm font-black shadow-lg border-2 border-white pointer-events-none"
               >
                 ¡Toca para ganar dinero!
               </motion.div>
@@ -1213,7 +1231,7 @@ export default function Game() {
                   initial={{ opacity: 0, scale: 0, y: 20 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0 }}
-                  className="absolute top-[70%] right-4 z-[7] bg-gradient-to-r from-[#EF4444] to-[#DC2626] text-white px-5 py-2.5 rounded-full font-fredoka font-black text-xl shadow-lg border-2 border-white animate-pulse"
+                  className="absolute top-[64%] right-4 z-[7] bg-gradient-to-r from-[#EF4444] to-[#DC2626] text-white px-5 py-2.5 rounded-full font-fredoka font-black text-xl shadow-lg border-2 border-white animate-pulse"
                 >
                   x{clickMultiplierLevel}
                 </motion.div>
@@ -1227,7 +1245,7 @@ export default function Game() {
                   initial={{ opacity: 0, scale: 0 }}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0 }}
-                  className="absolute top-[70%] left-4 z-[7] bg-gradient-to-r from-[#A855F7] to-[#7E22CE] text-white px-3 py-1.5 rounded-full font-fredoka font-black text-sm shadow-lg border-2 border-white flex items-center gap-1.5"
+                  className="absolute top-[64%] left-4 z-[7] bg-gradient-to-r from-[#A855F7] to-[#7E22CE] text-white px-3 py-1.5 rounded-full font-fredoka font-black text-sm shadow-lg border-2 border-white flex items-center gap-1.5"
                 >
                   <span className="relative flex h-2.5 w-2.5">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75" />
@@ -1299,7 +1317,7 @@ export default function Game() {
               })}
             </AnimatePresence>
 
-            {/* Floating numbers (+N CPS en el punto del click) */}
+            {/* Floating numbers (+N en el punto del click) */}
             {floatingNumbers.map((n) => (
               <FloatingNumber
                 key={n.id}
@@ -1311,23 +1329,6 @@ export default function Game() {
                 }
               />
             ))}
-
-            {/* FIX 5: milestone loader — progreso al próximo ×N CPS por click */}
-            <div className="milestone-loader">
-              <div className="milestone-loader-row">
-                <span>🎯 Próximo: {nextMilestone.label} CPS</span>
-                <span>
-                  {formatNumber(clickPower)} / {formatNumber(nextMilestone.target)} CPS
-                </span>
-              </div>
-              <div className={cn('milestone-bar', milestoneHit && 'milestone-flash')}>
-                <div
-                  className="milestone-bar-fill"
-                  style={{ width: `${milestoneProgress * 100}%` }}
-                />
-              </div>
-              <div className="milestone-loader-pct">{Math.floor(milestoneProgress * 100)}%</div>
-            </div>
 
             {/* Celebración de milestone alcanzado */}
             <AnimatePresence>
@@ -1386,6 +1387,77 @@ export default function Game() {
                 </motion.button>
               ))}
             </AnimatePresence>
+
+            {/* V8: stack inferior — 4 poderes épicos + barra THICK + tabs glossy */}
+            <div className="arena-bottom-stack">
+              {/* 4 epic power buttons (mapean a power-ups existentes) */}
+              <div className="epic-powers-row">
+                {EPIC_POWER_BUTTONS.map((b) => {
+                  const count = powerupInventory[b.id] ?? 0;
+                  const isActive = (activePowerupEffects[b.id] ?? 0) > nowMs;
+                  return (
+                    <button
+                      key={b.id}
+                      onClick={() => handleEpicPower(b.id)}
+                      className={cn(
+                        'epic-power',
+                        b.colorClass,
+                        isActive && 'epic-power--active',
+                        count <= 0 && !isActive && 'epic-power--empty'
+                      )}
+                      title={`${POWERUP_DEFS[b.id].name}: ${POWERUP_DEFS[b.id].description}`}
+                    >
+                      <span className="epic-power-btn">
+                        {b.emoji}
+                        <span className="epic-power-count">{count}</span>
+                      </span>
+                      <span className="epic-power-label">{b.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* THICK progress bar: clickPower hacia el próximo milestone (pulsa con cada click) */}
+              <div className="milestone-v8">
+                <div className="milestone-v8-row">
+                  <span>
+                    {formatNumber(clickPower)} / {formatNumber(nextMilestone.target)}
+                  </span>
+                </div>
+                <div className="milestone-v8-bar-wrap">
+                  <div className={cn('milestone-v8-bar', milestoneHit && 'milestone-flash')}>
+                    <div
+                      className={cn('milestone-v8-fill', truckBump && 'milestone-v8-fill--pulse')}
+                      style={{ width: `${milestoneProgress * 100}%` }}
+                    />
+                  </div>
+                  <div
+                    className="milestone-v8-star"
+                    title={`Próximo multiplicador: ${nextMilestone.label}`}
+                  >
+                    {nextMilestone.label}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tabs glossy pill */}
+              <div className="game-tabs-v8">
+                {[
+                  { id: 'upgrades', label: 'Poderes', icon: Zap },
+                  { id: 'buildings', label: 'Flota', icon: Truck },
+                  { id: 'prestige', label: 'Ascensión', icon: Star },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                    className={cn('game-tab-v8', activeTab === tab.id && 'game-tab-v8--active')}
+                  >
+                    <tab.icon size={14} />
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
           </motion.div>
 
           {/* Superpoder Autoclick (bloque bajo la arena; ya no hay header del que colgar) */}
@@ -1472,32 +1544,7 @@ export default function Game() {
         />
       </div>
 
-      {/* Tabs */}
-      <div className="max-w-3xl mx-auto px-4 mt-5">
-        <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl border-2 border-slate-200">
-          {[
-            { id: 'upgrades', label: 'Poderes', icon: Zap },
-            { id: 'buildings', label: 'Flota', icon: Truck },
-            { id: 'prestige', label: 'Ascensión', icon: Star },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as typeof activeTab)}
-              className={cn(
-                'game-btn-v2 flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-sm font-black transition-all border-b-4',
-                activeTab === tab.id
-                  ? 'bg-gradient-to-b from-[#F59E0B] to-[#D97706] text-slate-900 border-[#92400E] shadow-[0_4px_16px_rgba(245,158,11,0.35)] translate-y-[-2px]'
-                  : 'bg-white text-slate-500 border-transparent hover:text-slate-800 shadow-sm'
-              )}
-            >
-              <tab.icon size={18} />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Content */}
+      {/* Content (los tabs viven ahora en el stack inferior de la arena) */}
       <div className={cn('max-w-3xl mx-auto px-4 mt-4 space-y-3 custom-scrollbar scroll-fade-mask max-h-[60vh] overflow-y-auto pb-6', convoyActive && 'convoy-glow')}>
         {activeTab === 'buildings' && (
           <>
@@ -1523,8 +1570,8 @@ export default function Game() {
         {activeTab === 'upgrades' && (
           <>
             <p className="text-slate-500 text-[11px] px-1">
-              Cada nivel suma CPS según la <span className="font-black text-slate-700">marca patrocinadora</span> actual.
-              Sube 10 niveles para desbloquear la siguiente marca. Player Level: {playerLevel}.
+              Cada nivel suma verdes según la <span className="font-black text-slate-700">marca patrocinadora</span> actual.
+              Sube 10 niveles para desbloquear la siguiente marca.
             </p>
             {powersView.map((p, idx) => (
               <SponsorPowerCard
@@ -1602,7 +1649,7 @@ export default function Game() {
                   ? `ASCENDER y ganar ${potentialStars} ⭐`
                   : store.ascensions >= 50
                     ? 'Ascensión máxima alcanzada'
-                    : `Necesitas ${formatNumber(ascensionThreshold)} CPS totales`}
+                    : `Necesitas ${formatNumber(ascensionThreshold)} totales`}
               </button>
             </div>
           </div>
@@ -1690,7 +1737,7 @@ export default function Game() {
           <motion.div key={timeWarpFx.id} className="time-warp-overlay" exit={{ opacity: 0 }}>
             <div className="time-warp-flash" />
             <span className="time-warp-clock">⏰</span>
-            <span className="time-warp-amount">¡+{formatNumber(timeWarpFx.amount)} CPS!</span>
+            <span className="time-warp-amount">¡+{formatNumber(timeWarpFx.amount)}!</span>
           </motion.div>
         )}
       </AnimatePresence>

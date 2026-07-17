@@ -272,76 +272,8 @@
   transform: none;
 }
 
-/* ---------- FIX 5: Milestone progress loader ---------- */
-.milestone-loader {
-  position: absolute;
-  bottom: 16px;
-  left: 20px;
-  right: 20px;
-  z-index: 6;
-  pointer-events: none;
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
-}
-
-.milestone-loader-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 11px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.92);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
-  margin-bottom: 5px;
-  white-space: nowrap;
-}
-
-.milestone-bar {
-  height: 8px;
-  border-radius: 999px;
-  background: rgba(0, 0, 0, 0.45);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  overflow: hidden;
-}
-
-.milestone-bar-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, #16a34a 0%, #4ade80 100%);
-  position: relative;
-  overflow: hidden;
-  transition: width 0.3s ease;
-}
-
-.milestone-bar-fill::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.55),
-    transparent
-  );
-  transform: translateX(-100%);
-  animation: milestoneShine 1.8s linear infinite;
-}
-
-@keyframes milestoneShine {
-  to {
-    transform: translateX(100%);
-  }
-}
-
-.milestone-loader-pct {
-  margin-top: 4px;
-  text-align: center;
-  font-size: 10px;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.75);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
-}
-
-.milestone-bar.milestone-flash {
+/* ---------- FIX 5: milestone flash (la barra THICK V8 vive en el bloque V8) ---------- */
+.milestone-v8-bar.milestone-flash {
   animation: milestoneGoldFlash 0.9s ease-out;
 }
 
@@ -359,7 +291,7 @@
 .milestone-hit-text {
   position: absolute;
   left: 50%;
-  bottom: 68px;
+  bottom: calc(325px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 7;
   font-family: 'Space Mono', 'JetBrains Mono', monospace;
@@ -407,13 +339,13 @@
   background: rgba(234, 88, 12, 0.78);
 }
 
-/* ---------- V2-3: área de juego 45vh (contador CPS + camión centrado) ---------- */
+/* ---------- V2-3 + V8: área de juego (contador + camión), llena hasta el stack inferior ---------- */
 .game-play-area {
   position: absolute;
   left: 0;
   right: 0;
   top: 0;
-  height: 45vh;
+  bottom: calc(265px + env(safe-area-inset-bottom, 0px)); /* V8: libre el stack (poderes + barra THICK + tabs + navbar) */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -422,9 +354,10 @@
   z-index: 5;
 }
 
-/* El combo baja a la banda libre bajo el camión (antes top: 23%) */
+/* El combo flota justo sobre el stack inferior de la arena */
 .combo-display {
-  top: 76%;
+  top: auto;
+  bottom: calc(272px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ---------- V2-6: BOOM al comprar poder / cambiar de tier ---------- */
@@ -658,4 +591,457 @@
   border: 1px solid rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
+}
+
+/* ============================================================
+   V8 FINAL — sponsor card horizontal glossy, 4 epic power
+   buttons, THICK milestone bar 20px, glossy pill tabs,
+   stack inferior de la arena full-screen
+   ============================================================ */
+
+/* ---------- V8: stack inferior de la arena (poderes + barra + tabs) ---------- */
+.arena-bottom-stack {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 9;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  /* 78px + safe-area: el contenido queda por encima del bottom navbar (h-16) */
+  padding: 4px 16px calc(78px + env(safe-area-inset-bottom, 0px));
+}
+
+/* ---------- V8: Sponsor power card (horizontal glossy 90px) ---------- */
+.sponsor-card-v8 {
+  width: 100%;
+  height: 90px;
+  background: linear-gradient(180deg, #fafbfc, #f0f2f5);
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  transition:
+    transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Badge glossy circular 56px con el icono del producto */
+.sponsor-v8-badge {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(
+    180deg,
+    var(--product-color-light, #b0bec5),
+    var(--product-color, #607d8b)
+  );
+  border: 3px solid var(--product-color-dark, #37474f);
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.5),
+    0 4px 12px rgba(0, 0, 0, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  transition:
+    background 0.5s ease,
+    border-color 0.5s ease;
+}
+
+.sponsor-v8-badge::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 10%;
+  right: 10%;
+  height: 42%;
+  border-radius: 999px 999px 45% 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.sponsor-v8-center {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.sponsor-v8-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a2e;
+  line-height: 1.15;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* MARCA HERO: TEXT_BADGE 22px 900 uppercase con el color del tier
+   (los logos de marca NO existen como imágenes; siempre texto) */
+.brand-hero-badge {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  padding: 1px 10px;
+  border-radius: 10px;
+  font-weight: 900;
+  font-size: 22px;
+  line-height: 1.1;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.35),
+    0 2px 6px rgba(0, 0, 0, 0.18);
+  transition: background-color 0.5s ease;
+}
+
+.type-cursor {
+  animation: typeCursorBlink 0.7s step-end infinite;
+  margin-left: 1px;
+}
+
+@keyframes typeCursorBlink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+/* Stats row: +N (verde) + "verdes" (gris 9px) + costo (Space Mono #1a1a2e) */
+.sponsor-v8-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.sponsor-v8-gain {
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: #16a34a;
+}
+
+.sponsor-v8-gain-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: #9ca3af;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.sponsor-v8-cost {
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1a1a2e;
+  margin-left: 7px;
+}
+
+/* Botón BUY glossy circular verde 48px */
+.buy-btn-circle--v8 {
+  position: relative;
+  width: 48px;
+  height: 48px;
+  font-size: 24px;
+}
+
+.buy-btn-circle--v8::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 10%;
+  right: 10%;
+  height: 44%;
+  border-radius: 999px 999px 45% 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+/* ---------- V8: 4 epic power buttons (60px glossy, label 8px) ---------- */
+.epic-powers-row {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  padding: 10px 0;
+}
+
+.epic-power {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.epic-power-btn {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  line-height: 1;
+  border: 3px solid var(--epic-dark, #92400e);
+  background: linear-gradient(180deg, var(--epic-light, #fde047), var(--epic-base, #f59e0b));
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.45),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+  transition:
+    transform 0.1s ease,
+    filter 0.15s ease;
+}
+
+.epic-power-btn::before {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 10%;
+  right: 10%;
+  height: 42%;
+  border-radius: 999px 999px 45% 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.epic-power:active .epic-power-btn {
+  transform: scale(0.92);
+  filter: brightness(0.95);
+}
+
+.epic-power--gold {
+  --epic-light: #ffe066;
+  --epic-base: #f5a623;
+  --epic-dark: #b8860b;
+}
+
+.epic-power--cyan {
+  --epic-light: #a5f3fc;
+  --epic-base: #22d3ee;
+  --epic-dark: #0e7490;
+}
+
+.epic-power--orange {
+  --epic-light: #fdba74;
+  --epic-base: #f97316;
+  --epic-dark: #c2410c;
+}
+
+.epic-power--purple {
+  --epic-light: #d8b4fe;
+  --epic-base: #a855f7;
+  --epic-dark: #7e22ce;
+}
+
+.epic-power-label {
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.65);
+}
+
+.epic-power-count {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1a1a2e;
+  border: 2px solid var(--epic-dark, #92400e);
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-size: 10px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.epic-power--empty {
+  opacity: 0.55;
+}
+
+.epic-power--active .epic-power-btn {
+  animation: epicPowerActive 1s ease-in-out infinite;
+}
+
+@keyframes epicPowerActive {
+  0%,
+  100% {
+    box-shadow:
+      inset 0 2px 4px rgba(255, 255, 255, 0.45),
+      0 4px 12px rgba(0, 0, 0, 0.3),
+      0 0 0 0 rgba(255, 255, 255, 0.5);
+  }
+  50% {
+    box-shadow:
+      inset 0 2px 4px rgba(255, 255, 255, 0.45),
+      0 4px 12px rgba(0, 0, 0, 0.3),
+      0 0 18px 5px rgba(255, 255, 255, 0.55);
+  }
+}
+
+/* ---------- V8: THICK progress bar 20px + estrella del multiplicador ---------- */
+.milestone-v8 {
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+}
+
+.milestone-v8-row {
+  display: flex;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.65);
+  margin-bottom: 4px;
+  white-space: nowrap;
+}
+
+.milestone-v8-bar-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.milestone-v8-bar {
+  flex: 1;
+  height: 20px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.45);
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  overflow: hidden;
+}
+
+.milestone-v8-fill {
+  height: 100%;
+  border-radius: 7px;
+  background: linear-gradient(90deg, #2ecc71, #27ae60, #2ecc71);
+  background-size: 200% 100%;
+  animation: barShine 2s linear infinite;
+  box-shadow: 0 0 15px rgba(46, 204, 113, 0.5);
+  position: relative;
+  transition:
+    width 0.3s ease,
+    filter 0.15s ease;
+}
+
+/* Leading edge glow (borde blanco difuso al frente del fill) */
+.milestone-v8-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  width: 18px;
+  background: radial-gradient(
+    ellipse at right,
+    rgba(255, 255, 255, 0.9),
+    rgba(255, 255, 255, 0)
+  );
+  filter: blur(3px);
+}
+
+/* Pulso por click: el fill brilla un instante con cada toque al camión */
+.milestone-v8-fill--pulse {
+  filter: brightness(1.4);
+}
+
+@keyframes barShine {
+  0% {
+    background-position: 0% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* Estrella dorada 32px al final de la barra con el multiplicador objetivo */
+.milestone-v8-star {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  margin-left: -4px;
+  z-index: 1;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(180deg, #ffe066 0%, #ffd700 45%, #f5a623 100%);
+  border: 2px solid #b8860b;
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.6),
+    0 3px 10px rgba(0, 0, 0, 0.35);
+  color: #4a3000;
+  font-family: 'Fredoka', 'Baloo 2', sans-serif;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: -0.5px;
+}
+
+/* ---------- V8: tabs glossy pill (activo gold, inactivo glass) ---------- */
+.game-tabs-v8 {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.game-tab-v8 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
+}
+
+.game-tab-v8:active {
+  transform: scale(0.96);
+}
+
+.game-tab-v8--active {
+  padding: 7px 17px; /* compensa el borde 2px */
+  background: linear-gradient(180deg, #ffe066 0%, #ffd700 45%, #f5a623 100%);
+  border: 2px solid #b8860b;
+  color: #4a3000;
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.6),
+    0 4px 14px rgba(255, 215, 0, 0.35);
 }

@@ -5,7 +5,7 @@
 - **App name:** La Mula Millonaria
 - **Repository:** `Documents/trucker-surfers/app`
 - **Stack:** React 19 + TypeScript + Vite 7 + Tailwind CSS + Zustand + Framer Motion
-- **Router:** `HashRouter` → routes like `/#/game`
+- **Router:** `BrowserRouter` → routes like `/game`
 - **Local dev:** `npm run dev` (serves on `http://localhost:3000/`)
 - **Build:** `npm run build` (also runs `tsc` implicitly via Vite transform)
 - **Type-check:** `npx tsc --noEmit`
@@ -52,7 +52,7 @@ CHEVROLET ×1 (default, 0 🎟️), FREIGHTLINER ×1.5 (5), KENWORTH ×2 (15), V
 
 ### Tier-Change Animation (`src/components/game/SponsorPowerCard.tsx`)
 
-On brand tier up: gold flash 300ms → brand name types letter by letter (inside the bottom-row `.brand-text-badge` pill) → border-left color transitions 500ms → multiplier count-up (bottom-row `x{mult}`) → gold confetti (`canvas-confetti`) → BOOM overlay (`BoomEffect`, disparado por el padre) → toast `Nueva marca desbloqueada: [BRAND]!`.
+On brand tier up: gold flash 300ms → brand name types letter by letter (dentro del `.brand-hero-badge`) → transición de color del badge/badge circular 500ms → gold confetti (`canvas-confetti`) → BOOM overlay (`BoomEffect`, disparado por el padre) → toast `Nueva marca desbloqueada: [BRAND]!`.
 
 ### BOOM Effect (`src/components/game/BoomEffect.tsx`)
 
@@ -107,11 +107,11 @@ After changing keys, users must hard-refresh (`Cmd + Shift + R`) to discard old 
 | `src/data/sponsorPowers.ts` | 10 brand-sponsor powers × 10 brand tiers, costs, CPS helpers |
 | `src/data/fleetVehicles.ts` | 10 real truck brands: multipliers and golden-ticket costs |
 | `src/data/clickerUpgrades.ts` | Click/global upgrades (legacy multipliers, still applied) |
-| `src/components/game/SponsorPowerCard.tsx` | Power card (blanca): power name como título + brand TEXT BADGE + pill `Nv X` + tier-change animation + circular buy button 44px |
+| `src/components/game/SponsorPowerCard.tsx` | Power card V8 (horizontal glossy 90px): badge circular 56px + título + MARCA HERO TEXT_BADGE 22px + stats `+N verdes` / costo + buy button glossy 48px + tier-change animation |
 | `src/components/game/BoomEffect.tsx` | Overlay BOOM al comprar poder/tier: PNG explosión + flash dorado + confetti cuadrados |
 | `src/components/game/FleetVehicleCard.tsx` | Fleet card with ×multiplier and ticket cost |
-| `src/components/game/FloatingNumber.tsx` | "+N CPS" floating number at click point (1s CSS animation, self-dismiss) |
-| `src/styles/ui-fixes.css` | UI fixes: floating numbers, truck assets, sponsor card, milestone loader, game header |
+| `src/components/game/FloatingNumber.tsx` | "+N" floating number at click point (1s CSS animation, self-dismiss) |
+| `src/styles/ui-fixes.css` | UI fixes: floating numbers, truck assets, sponsor card V8, THICK milestone bar, epic power buttons, glossy tabs, game header |
 | `src/providers/MillasProvider.tsx` | Spendable millas context + persistence |
 | `src/components/ClickerEngine.tsx` | Legacy production loop (currently no-op for income) |
 | `src/App.tsx` | Routes + mounts `ClickerEngine` |
@@ -166,14 +166,15 @@ Items in order:
 
 ## UI Conventions
 
-- **Sin header en `/game` (V2):** el fondo llega al borde superior y `TopAppBar` devuelve `null` en esa ruta. En su lugar hay indicadores flotantes (`position: absolute; top: 12px`, `.float-pill`, Space Mono 12px 600, blur 8px): 🎟️ tickets (roja) | 💵 balance CPS (dorada) | ⚡ `+X/click` (verde) | 👑 `#rank` (naranja, + badge `⭐xN` de ascensión cuando aplica). Valores en formato compacto (`formatNumber`), valor completo en `title`.
-- Arena: fondo según flota seleccionada (V2-4, crossfade 300ms con `AnimatePresence` keyed por URL): chevrolet/freightliner → `fondo_flota1_tropical.jpg`, kenworth → `fondo_flota2_desierto.jpg`, volvo → `fondo_flota3_montana.jpg`, scania/mercedes → `fondo_flota4_artico.jpg`, international/daf/foton/tesla → `fondo_flota5_cyberpunk.jpg` (`cover`, `center bottom`); capas bokeh/glow atenuadas (`.game-bg--subtle`, opacity 0.45).
-- Área de juego (`.game-play-area`): `height: 45vh`, flex column centrada, `padding: 60px 0 20px`. Contador CPS (`.cps-counter-overlay`, `margin-bottom: 20px`, conserva `cpsGlow`/`cpsBounce`/`counter-milestone`/`cps-counter-blur`/`nitro-counter`) arriba del camión; camión centrado en el espacio restante. Hint/badge xN/AUTO en la banda libre (`top: 70%` de la arena); `.combo-display` baja a `top: 76%`; milestone loader sigue al fondo de la arena.
+- **Sin header en `/game` (V2):** el fondo llega al borde superior y `TopAppBar` devuelve `null` en esa ruta. En su lugar hay indicadores flotantes (`position: absolute; top: 12px`, `.float-pill`, Space Mono 12px 600, blur 8px): 🎟️ tickets (roja) | 💵 balance (dorada) | ⚡ `+X` (verde) | 👑 `#rank` (naranja, + badge `⭐xN` de ascensión cuando aplica). Valores en formato compacto (`formatNumber`), valor completo en `title`. **V8:** ningún número de la pantalla de juego lleva el sufijo "CPS" (solo emoji + número).
+- Arena (V8): `h-[100dvh]` (background full-screen, `rounded-b-[2rem]`), fondo según flota seleccionada (V2-4, crossfade 300ms con `AnimatePresence` keyed por URL): chevrolet/freightliner → `fondo_flota1_tropical.jpg`, kenworth → `fondo_flota2_desierto.jpg`, volvo → `fondo_flota3_montana.jpg`, scania/mercedes → `fondo_flota4_artico.jpg`, international/daf/foton/tesla → `fondo_flota5_cyberpunk.jpg` (`cover`, `center bottom`); capas bokeh/glow atenuadas (`.game-bg--subtle`, opacity 0.45).
+- Área de juego (`.game-play-area`): absoluta `top: 0; bottom: calc(265px + safe-area)`, flex column centrada, `padding: 60px 0 20px`. Contador grande dorado (`.cps-counter-overlay`, solo el número — el label "CPS" se eliminó en V8; conserva `cpsGlow`/`cpsBounce`/`counter-milestone`/`cps-counter-blur`/`nitro-counter`) arriba del camión; camión centrado en el espacio restante. Hint/badge xN/AUTO en `top: 64%` de la arena; `.combo-display` flota sobre el stack (`bottom: 272px + safe-area`).
+- **Stack inferior de la arena (`.arena-bottom-stack`, V8, bottom 0, padding-bottom que libra el navbar):** en orden de arriba a abajo: (1) 4 epic power buttons (`.epic-power`, círculos glossy 60px con `::before` gloss, label 8px uppercase y badge de inventario) — VELOCIDAD gold → `nitro`, CONGELAR cyan → `time_warp`, DINEROx2 orange → `convoy`, CAJA purple → `gold_rain` (activan los power-ups reales del `powerupStore`); (2) THICK progress bar 20px (`.milestone-v8-bar`, fill verde animado `barShine` + glow de borde, pulsa con cada click vía `truckBump`) con estrella dorada 32px (`.milestone-v8-star`) que muestra el multiplicador objetivo; (3) tabs glossy pill (`.game-tab-v8`, activo gold gradiente, inactivo glass `rgba(255,255,255,0.08)`). El FAB de `PowerupMenu` queda `fixed` a `bottom: 300px + safe-area` (sobre el stack).
 - Camión: assets PNG con `.truck-image` (180px alto, idle `truckIdle` 3s, `truck-shake` al click). Mapeo en `src/data/truckAssets.ts` (kenworth/volvo/scania propios; el resto cae a la mula base naranja).
-- Power card (`.sponsor-card`, BLANCA `#FFFFFF`, V2-5): badge de producto 48px a la izquierda, POWER TYPE como título (16px bold `#1a1a2e`) + badge verde `+baseCPS`, subtítulo `+N CPS/nivel · Nivel X`, barra de progreso gris/verde, bottom row: BRAND TEXT BADGE (`.brand-text-badge`, pill sólido con el color del tier y texto en contraste — los logos de marca NO existen como imágenes, siempre texto) + `x{mult}` | precio (`💵 N`, `.sponsor-card-price`, Space Mono 12px `#1a1a2e`) + pill gris `Nv X` (`.level-pill`) + botón circular verde `.buy-btn-circle` ("+", 44px, active scale 0.92). Franja izquierda 4px `var(--tier-color)` con transición 500ms.
-- Buy buttons: `.buy-btn-circle` (poderes) y `.buy-btn-glossy` (flota, verde gradiente glossy).
-- Números flotantes: componente `FloatingNumber` (`+N CPS`, Space Mono 20px #FFD700, animación `floatNumberUp` 1s, z-index 1000).
-- Milestone loader (`.milestone-loader`, reemplaza la barra gris de la carretera): progreso del CPS/click hacia el próximo milestone (×2 en 10, ×3 en 50, ×4 en 200, ×5 en 1.000, ×10 en 5.000, ×20 en 25.000, ×50 en 100.000, ×100 en 500.000, luego ×2 del objetivo actual). Barra 8px con fill verde + shine, porcentaje abajo; al alcanzar: gold flash, `¡×N ALCANZADO!` y mini confetti dorado. La barra del ciclo CPS Frenzy ya no se muestra; el nivel sigue en el badge xN y el label "Multiplicador" (≥30 clicks).
+- Power card V8 (`.sponsor-card-v8`, horizontal glossy 90px): fondo `linear-gradient(180deg, #FAFBFC, #F0F2F5)`, radius 16px, padding 12px 14px, flex con gap 12px. 5 elementos: (1) badge glossy circular 56px (`.sponsor-v8-badge`, gradiente + borde + gloss `::before` con colores del tier vía `--product-color(-light/-dark)`, `ProductBadge` 38px dentro); (2) título del poder 14px bold `#1a1a2e`; (3) MARCA HERO 22px 900 uppercase (`.brand-hero-badge`, TEXT_BADGE con el color del tier — los logos de marca NO existen como imágenes, siempre texto); (4) stats row `+N` (verde Space Mono 16px) + label `verdes` (9px gris) + costo compacto (Space Mono 14px `#1a1a2e`); (5) botón BUY glossy circular verde 48px (`.buy-btn-circle.buy-btn-circle--v8`, "+"). V8 eliminó: level badge, tier progress bar, "CPS/nivel", "CPS total", multiplicador x1.0, "Base +X" y el segundo botón.
+- Buy buttons: `.buy-btn-circle` (poderes, variante V8 48px) y `.buy-btn-glossy` (flota, verde gradiente glossy).
+- Números flotantes: componente `FloatingNumber` (`+N`, Space Mono 20px #FFD700, animación `floatNumberUp` 1s, z-index 1000).
+- Milestone THICK bar (`.milestone-v8`, V8, reemplaza el milestone loader de 8px): progreso del CPS/click hacia el próximo milestone (×2 en 10, ×3 en 50, ×4 en 200, ×5 en 1.000, ×10 en 5.000, ×20 en 25.000, ×50 en 100.000, ×100 en 500.000, luego ×2 del objetivo actual). Barra 20px radius 10px, track `rgba(0,0,0,0.45)` + borde glass, fill `linear-gradient(90deg, #2ECC71, #27AE60, #2ECC71)` animado (`barShine` 2s) con glow verde y leading edge blanco (`::after`); estrella dorada 32px al final con el ×N objetivo. Row superior: solo `{actual} / {objetivo}` (sin "CPS"). El fill pulsa (`brightness`) con cada click (clase ligada a `truckBump`). Al alcanzar: gold flash (`.milestone-flash`), `¡×N ALCANZADO!` (`.milestone-hit-text`, sobre el stack) y mini confetti dorado. La barra del ciclo CPS Frenzy ya no se muestra; el nivel sigue en el badge xN y el label "Multiplicador" (≥30 clicks).
 - Fleet cost in Golden Tickets (`🎟️`). Power cost in CPS.
 - Active vehicle marked `TOP`.
 - Home (V2-1): hero banner 55vh (`home_banner_juego_completo.jpg`, `.home-banner`, rounded-b 2rem) con overlay gradiente oscuro abajo y partículas doradas; título 3D gold metallic (`.home-title-3d`) sobre el banner; botón JUGAR gold glossy (`.home-play-btn`) solapado bajo el banner (`margin: -28px auto 0`); links gold "Como Jugar?"/"Ver Tienda" (`.home-link-gold`); menú de cuenta en cards limpias (`.home-section-card`); stats panel glassmorphism (`.home-stats-panel`). Sin fondo blanco/kinder.

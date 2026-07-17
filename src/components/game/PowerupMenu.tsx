@@ -38,7 +38,7 @@ export function PowerupMenu({ onActivate }: PowerupMenuProps) {
   };
 
   return (
-    <div className="fixed bottom-20 left-3 z-40">
+    <div className="fixed left-3 z-40 bottom-[calc(300px+env(safe-area-inset-bottom,0px))]">
       {/* Chips de efectos activos */}
       <div className="flex flex-col gap-1 mb-2">
         {POWERUP_IDS.map((id) => {
