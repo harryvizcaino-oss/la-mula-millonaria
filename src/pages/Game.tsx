@@ -30,7 +30,6 @@ import { useEventStore } from '@/store/eventStore';
 import { ComboDisplay } from '@/components/game/ComboDisplay';
 import { CriticalHit, type CritState } from '@/components/game/CriticalHit';
 import { AscensionCinematic } from '@/components/game/AscensionCinematic';
-import { GlobalEventBanner } from '@/components/game/GlobalEventBanner';
 import { UnlockCinematic } from '@/components/game/UnlockCinematic';
 import { DailyStreak } from '@/components/game/DailyStreak';
 import { PowerupMenu } from '@/components/game/PowerupMenu';
@@ -126,14 +125,22 @@ const CPS_MILESTONES = [
   { mult: 100, target: 500000 },
 ];
 
-/** Próximo milestone de CPS por click. Más allá de ×100: duplica el objetivo (×2 del actual). */
-function getNextCpsMilestone(current: number): { label: string; target: number } {
-  for (const m of CPS_MILESTONES) {
-    if (current < m.target) return { label: `×${m.mult}`, target: m.target };
+/** Milestone de la barra THICK por índice. Más allá de ×100: duplica el objetivo. */
+function getBarMilestone(idx: number): { mult: number; target: number; label: string } {
+  if (idx < CPS_MILESTONES.length) {
+    const m = CPS_MILESTONES[idx];
+    return { mult: m.mult, target: m.target, label: `×${m.mult}` };
   }
-  let target = CPS_MILESTONES[CPS_MILESTONES.length - 1].target * 2;
-  while (current >= target) target *= 2;
-  return { label: '×2', target };
+  const last = CPS_MILESTONES[CPS_MILESTONES.length - 1];
+  const target = last.target * Math.pow(2, idx - CPS_MILESTONES.length + 1);
+  return { mult: last.mult, target, label: `×${last.mult}` };
+}
+
+/** Índice del primer milestone cuyo objetivo supera el CPS por click actual. */
+function getDerivedMilestoneIdx(current: number): number {
+  let idx = 0;
+  while (current >= getBarMilestone(idx).target) idx += 1;
+  return idx;
 }
 
 /** Mayor objetivo de milestone ya alcanzado (0 si ninguno). */
@@ -197,6 +204,11 @@ export default function Game() {
   const [milestoneHit, setMilestoneHit] = useState<{ label: string; id: number } | null>(null);
   const [boom, setBoom] = useState<{ id: number; tierUp: boolean } | null>(null);
   const [nowMs, setNowMs] = useState(Date.now());
+  // V9: barra THICK cargada por clicks (0-100), multiplicador activo y flash "×N ACTIVADO!"
+  const [barCharge, setBarCharge] = useState(0);
+  const [barTargetIdx, setBarTargetIdx] = useState<number | null>(null);
+  const [barMultiplier, setBarMultiplier] = useState<{ mult: number; label: string; until: number } | null>(null);
+  const [barFlash, setBarFlash] = useState<{ label: string; id: number } | null>(null);
 
   const comboTier = useComboStore((s) => s.comboTier);
   const comboActive = useComboStore((s) => s.comboActive);
@@ -223,6 +235,7 @@ export default function Game() {
   const shockwaveIdRef = useRef(0);
   const exhaustIdRef = useRef(0);
   const lastClickRef = useRef(0);
+  const lastBarClickRef = useRef(0);
   const prevMilestoneRef = useRef(0);
   const milestoneAchievedRef = useRef<number | null>(null);
   const critIdRef = useRef(0);
@@ -241,9 +254,11 @@ export default function Game() {
   );
   const playerLevel = useMemo(() => calculatePlayerLevel(store), [store.powerLevels]);
 
-  // FIX 5: progreso hacia el próximo milestone de CPS por click
-  const nextMilestone = useMemo(() => getNextCpsMilestone(clickPower), [clickPower]);
-  const milestoneProgress = Math.min(1, clickPower / nextMilestone.target);
+  // V9: objetivo de la barra THICK — arranca en el próximo milestone del CPS por
+  // click y avanza al siguiente target con cada activación (×3, ×4, ×5, ×10...)
+  const barMilestoneIdx = Math.max(barTargetIdx ?? 0, getDerivedMilestoneIdx(clickPower));
+  const barMilestone = useMemo(() => getBarMilestone(barMilestoneIdx), [barMilestoneIdx]);
+  const barMultActive = barMultiplier !== null && barMultiplier.until > nowMs;
 
   // Celebración al alcanzar un milestone: gold flash + texto + mini confetti
   useEffect(() => {
@@ -284,6 +299,28 @@ export default function Game() {
     const iv = setInterval(() => setNowMs(Date.now()), 500);
     return () => clearInterval(iv);
   }, []);
+
+  // V9: la barra THICK decae 0.3%/s cuando pasa 1s sin clicks
+  useEffect(() => {
+    const iv = setInterval(() => {
+      if (Date.now() - lastBarClickRef.current < 1000) return;
+      setBarCharge((prev) => Math.max(0, prev - 0.03));
+    }, 100);
+    return () => clearInterval(iv);
+  }, []);
+
+  // V9: barra al 100% → flash gold + "×N ACTIVADO!" 2s + multiplicador 30s + siguiente target
+  useEffect(() => {
+    if (barCharge < 100) return;
+    const now = Date.now();
+    setBarMultiplier({ mult: barMilestone.mult, label: barMilestone.label, until: now + 30000 });
+    setBarFlash({ label: barMilestone.label, id: now });
+    setBarCharge(0);
+    setBarTargetIdx(barMilestoneIdx + 1);
+    const t = setTimeout(() => setBarFlash(null), 2000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barCharge]);
 
   const nitroActive = (activePowerupEffects.nitro ?? 0) > nowMs;
   const convoyActive = (activePowerupEffects.convoy ?? 0) > nowMs;
@@ -673,6 +710,10 @@ export default function Game() {
       cycleClicksRef.current += 1;
       setCycleClicks((prev) => prev + 1);
       clicksSinceTicketRef.current += 1;
+
+      // V9: cada click carga la barra THICK: (cpsPerClick / target) × 100
+      lastBarClickRef.current = Date.now();
+      setBarCharge((prev) => Math.min(100, prev + (clickPower / barMilestone.target) * 100));
       const chance = Math.min(0.25, clicksSinceTicketRef.current * 0.0075);
       if (Math.random() < chance) {
         spawnCollectible();
@@ -693,6 +734,8 @@ export default function Game() {
       if (nitroActive) multiplier *= 50;
       if (convoyActive) multiplier *= 10;
       if (caravanaActive) multiplier *= 3;
+      // V9: multiplicador de la barra THICK (dura 30s)
+      if (barMultiplier && barMultiplier.until > Date.now()) multiplier *= barMultiplier.mult;
       if (isCrit) multiplier *= 10;
 
       const amount = clickPower * multiplier;
@@ -744,7 +787,7 @@ export default function Game() {
 
       spawnLayeredParticles(relX, relY);
     },
-    [clickPower, store, addMillas, activeClickMultiplier, spawnLayeredParticles, triggerHaptic, nitroActive, convoyActive, caravanaActive]
+    [clickPower, store, addMillas, activeClickMultiplier, spawnLayeredParticles, triggerHaptic, nitroActive, convoyActive, caravanaActive, barMultiplier, barMilestone]
   );
 
   // Keep latest click handler accessible to autoclick loop without restarting it
@@ -999,7 +1042,7 @@ export default function Game() {
             </div>
 
             {/* Indicadores flotantes (sin header: el fondo llega al borde superior) */}
-            <div className="absolute top-3 left-0 right-0 z-[8] flex items-center justify-between gap-1.5 px-3 pointer-events-none">
+            <div className="absolute top-2 left-0 right-0 z-[8] flex items-center justify-between gap-1.5 px-3 pointer-events-none">
               {/* 🎟️ Golden Tickets */}
               <div
                 className="float-pill float-pill--red pointer-events-auto relative overflow-visible"
@@ -1033,12 +1076,12 @@ export default function Game() {
                 </AnimatePresence>
               </div>
 
-              {/* 💵 Balance */}
+              {/* 💰 Balance */}
               <div
                 className="float-pill float-pill--gold pointer-events-auto"
                 title={`Balance: ${formatFull(store.cpsBalance)}`}
               >
-                <span>💵</span>
+                <span>💰</span>
                 <span>{formatNumber(store.cpsBalance)}</span>
               </div>
 
@@ -1058,7 +1101,7 @@ export default function Game() {
                     ⭐x{store.ascensions}
                   </div>
                 )}
-                <div className="float-pill float-pill--orange" title="Tu posición en el ranking">
+                <div className="float-pill float-pill--purple" title="Tu posición en el ranking">
                   <span>👑</span>
                   <span>#{rankPosition}</span>
                 </div>
@@ -1167,6 +1210,13 @@ export default function Game() {
                 >
                   {formatFull(store.cpsBalance)}
                 </span>
+                {/* V9: badge del multiplicador de barra activo (30s) */}
+                {barMultActive && barMultiplier && (
+                  <span className="cps-multiplier-badge">
+                    {barMultiplier.label} ACTIVO ·{' '}
+                    {Math.max(1, Math.ceil((barMultiplier.until - nowMs) / 1000))}s
+                  </span>
+                )}
               </div>
 
               {/* Camión centrado en el espacio restante del área de juego */}
@@ -1346,6 +1396,22 @@ export default function Game() {
               )}
             </AnimatePresence>
 
+            {/* V9: "×N ACTIVADO!" al llenar la barra THICK (visible 2s) */}
+            <AnimatePresence>
+              {barFlash && (
+                <motion.div
+                  key={barFlash.id}
+                  initial={{ opacity: 0, scale: 0.6, y: 10 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -14 }}
+                  transition={{ duration: 0.25, ease: 'easeOut' }}
+                  className="milestone-hit-text"
+                >
+                  ¡{barFlash.label} ACTIVADO!
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* Floating collectibles (golden tickets) */}
             <AnimatePresence>
               {collectibles.map((c) => (
@@ -1417,25 +1483,25 @@ export default function Game() {
                 })}
               </div>
 
-              {/* THICK progress bar: clickPower hacia el próximo milestone (pulsa con cada click) */}
+              {/* THICK progress bar V9: se carga con cada click; al 100% activa el multiplicador por 30s */}
               <div className="milestone-v8">
                 <div className="milestone-v8-row">
                   <span>
-                    {formatNumber(clickPower)} / {formatNumber(nextMilestone.target)}
+                    {formatNumber(clickPower)} / {formatNumber(barMilestone.target)}
                   </span>
                 </div>
                 <div className="milestone-v8-bar-wrap">
-                  <div className={cn('milestone-v8-bar', milestoneHit && 'milestone-flash')}>
+                  <div className={cn('milestone-v8-bar', (milestoneHit || barFlash) && 'milestone-flash')}>
                     <div
                       className={cn('milestone-v8-fill', truckBump && 'milestone-v8-fill--pulse')}
-                      style={{ width: `${milestoneProgress * 100}%` }}
+                      style={{ width: `${barCharge}%` }}
                     />
                   </div>
                   <div
                     className="milestone-v8-star"
-                    title={`Próximo multiplicador: ${nextMilestone.label}`}
+                    title={`Próximo multiplicador: ${barMilestone.label}`}
                   >
-                    {nextMilestone.label}
+                    {barMilestone.label}
                   </div>
                 </div>
               </div>
@@ -1713,8 +1779,9 @@ export default function Game() {
         ))}
       </AnimatePresence>
 
-      {/* Eventos globales */}
-      <GlobalEventBanner />
+      {/* V9: el GlobalEventBanner (barra púrpura/azul con timer fija en top-16)
+          se eliminó porque tapaba el número grande; los eventos globales siguen
+          activos en eventStore y sus recompensas llegan por toast */}
 
       {/* Cinemáticas de desbloqueo épico */}
       <UnlockCinematic />

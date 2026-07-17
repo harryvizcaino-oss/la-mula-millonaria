@@ -19,7 +19,7 @@ function formatCompact(n: number): string {
 }
 
 /** Mezcla un color hex con blanco (pct > 0) o negro (pct < 0) para derivar light/dark. */
-function shadeHex(hex: string, pct: number): string {
+export function shadeHex(hex: string, pct: number): string {
   const m = hex.replace('#', '');
   if (m.length !== 6) return hex;
   const num = parseInt(m, 16);

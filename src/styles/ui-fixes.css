@@ -305,38 +305,62 @@
   white-space: nowrap;
 }
 
-/* ---------- V2-2: indicadores flotantes (reemplazan el game-header) ---------- */
+/* ---------- V2-2 + V9: indicadores flotantes glossy epic 3D ---------- */
 .float-pill {
+  position: relative;
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 12px;
+  gap: 6px;
+  padding: 8px 16px;
   border-radius: 20px;
   font-family: 'Space Mono', 'JetBrains Mono', monospace;
-  font-weight: 600;
-  font-size: 12px;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  font-weight: 700;
+  font-size: 13px;
   color: #ffffff;
+  border: 2px solid var(--color-dark, #374151);
+  background: linear-gradient(180deg, var(--color-light, #9ca3af), var(--color, #6b7280));
+  box-shadow:
+    inset 0 2px 4px rgba(255, 255, 255, 0.4),
+    0 4px 12px rgba(0, 0, 0, 0.3);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   white-space: nowrap;
 }
 
+/* Gloss highlight superior (efecto 3D) */
+.float-pill::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 10%;
+  right: 10%;
+  height: 42%;
+  border-radius: 999px 999px 45% 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
 .float-pill--red {
-  background: rgba(220, 38, 38, 0.72);
+  --color: #ef4444;
+  --color-light: #fca5a5;
+  --color-dark: #991b1b;
 }
 
 .float-pill--gold {
-  background: rgba(245, 158, 11, 0.78);
+  --color: #f59e0b;
+  --color-light: #fde047;
+  --color-dark: #b45309;
 }
 
 .float-pill--green {
-  background: rgba(22, 163, 74, 0.75);
+  --color: #22c55e;
+  --color-light: #86efac;
+  --color-dark: #15803d;
 }
 
-.float-pill--orange {
-  background: rgba(234, 88, 12, 0.78);
+.float-pill--purple {
+  --color: #a855f7;
+  --color-light: #d8b4fe;
+  --color-dark: #7e22ce;
 }
 
 /* ---------- V2-3 + V8: área de juego (contador + camión), llena hasta el stack inferior ---------- */
@@ -350,7 +374,7 @@
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  padding: 60px 0 20px;
+  padding: 66px 0 16px; /* V9: 20px bajo los indicadores (8px top) y 16px sobre los epic buttons */
   z-index: 5;
 }
 
@@ -929,16 +953,16 @@
 
 .milestone-v8-bar {
   flex: 1;
-  height: 20px;
-  border-radius: 10px;
-  background: rgba(0, 0, 0, 0.45);
-  border: 2px solid rgba(255, 255, 255, 0.12);
+  height: 24px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.5);
+  border: 2px solid rgba(255, 255, 255, 0.15);
   overflow: hidden;
 }
 
 .milestone-v8-fill {
   height: 100%;
-  border-radius: 7px;
+  border-radius: 8px;
   background: linear-gradient(90deg, #2ecc71, #27ae60, #2ecc71);
   background-size: 200% 100%;
   animation: barShine 2s linear infinite;
@@ -1044,4 +1068,122 @@
   box-shadow:
     inset 0 2px 3px rgba(255, 255, 255, 0.6),
     0 4px 14px rgba(255, 215, 0, 0.35);
+}
+
+/* ============================================================
+   V9 — badge de multiplicador activo junto al número grande
+   + fleet cards glossy 90px (match power cards)
+   ============================================================ */
+
+/* Badge gold del multiplicador de barra activo, bajo el número grande */
+.cps-multiplier-badge {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-size: 12px;
+  font-weight: 700;
+  color: #4a3000;
+  background: linear-gradient(180deg, #ffe066 0%, #ffd700 45%, #f5a623 100%);
+  border: 2px solid #b8860b;
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.6),
+    0 3px 10px rgba(0, 0, 0, 0.35);
+  animation: cpsMultiplierPulse 1s ease-in-out infinite;
+}
+
+@keyframes cpsMultiplierPulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+/* ---------- V9: Fleet vehicle card (reutiliza .sponsor-card-v8 90px) ---------- */
+.fleet-card-v8--selected {
+  box-shadow:
+    0 0 0 2px #ffd700,
+    0 4px 14px rgba(255, 215, 0, 0.35);
+}
+
+/* PNG del camión dentro del badge glossy 56px */
+.fleet-v8-truck {
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35));
+}
+
+/* Marca HERO 20px 900 uppercase */
+.fleet-v8-brand {
+  font-size: 20px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #1a1a2e;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Modelo 11px gris */
+.fleet-v8-model {
+  font-size: 11px;
+  font-weight: 600;
+  color: #9ca3af;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Stats: multiplicador gold + costo en tickets red */
+.fleet-v8-stats {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.fleet-v8-mult {
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-size: 16px;
+  font-weight: 700;
+  color: #d97706;
+}
+
+.fleet-v8-cost {
+  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: #ef4444;
+}
+
+.fleet-v8-driving {
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #b45309;
+  background: rgba(255, 215, 0, 0.25);
+  border: 1px solid rgba(184, 134, 11, 0.5);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+/* Botón glossy 48px gold ✓ (vehículo owned: tócalo para conducirlo) */
+.buy-btn-circle--gold {
+  background: linear-gradient(180deg, #ffe066 0%, #f5a623 100%);
+  border-color: #b8860b;
+  color: #4a3000;
+}
+
+.buy-btn-circle--gold:active {
+  background: linear-gradient(180deg, #f5a623 0%, #ffe066 100%);
 }

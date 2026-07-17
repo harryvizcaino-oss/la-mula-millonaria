@@ -1,6 +1,7 @@
 import { cn } from '@/lib/utils';
 import type { FleetVehicle } from '@/data/fleetVehicles';
 import { getTruckAsset } from '@/data/truckAssets';
+import { shadeHex } from '@/components/game/SponsorPowerCard';
 
 interface FleetVehicleCardProps {
   vehicle: FleetVehicle;
@@ -13,8 +14,14 @@ interface FleetVehicleCardProps {
 }
 
 /**
- * Tarjeta de vehículo de flota (SECTION B):
- * la flota es un MULTIPLICADOR (×) del CPS y se compra con Golden Tickets 🎟️.
+ * Tarjeta de vehículo de flota V9 — HORIZONTAL glossy (90px), igual que las
+ * power cards (SponsorPowerCard):
+ * - LEFT: badge glossy circular 56px con el PNG del camión, color por marca.
+ * - CENTER: marca HERO 20px 900 uppercase + modelo 11px gris.
+ * - CENTER-BOTTOM: stats "xN" gold + "🎟️ costo" red.
+ * - RIGHT: botón glossy circular 48px — verde "+" (comprar), gold "✓"
+ *   (owned: tócalo para conducirlo), gris "🔒" (locked: no alcanza).
+ * La flota es un MULTIPLICADOR (×) del CPS y se compra con Golden Tickets 🎟️.
  */
 export function FleetVehicleCard({
   vehicle,
@@ -25,87 +32,74 @@ export function FleetVehicleCard({
   onBuy,
   onSelect,
 }: FleetVehicleCardProps) {
+  const locked = !owned && !canAfford;
+
   return (
     <div
       className={cn(
-        'brand-card building-card-v2 relative w-full rounded-2xl p-3 overflow-hidden',
-        !owned && canAfford && 'affordable-glow'
+        'sponsor-card-v8 relative overflow-hidden',
+        !owned && canAfford && 'affordable-glow',
+        selected && 'fleet-card-v8--selected'
       )}
-      style={{ borderLeft: `4px solid ${vehicle.color}` }}
+      style={{
+        ['--product-color' as string]: vehicle.color,
+        ['--product-color-light' as string]: shadeHex(vehicle.color, 0.45),
+        ['--product-color-dark' as string]: shadeHex(vehicle.color, -0.35),
+      }}
     >
-      {selected && (
-        <div className="absolute top-2 right-2 z-10 bg-[#EF4444] text-white text-[9px] font-black px-2 py-0.5 rounded-full border border-white shadow-sm">
-          TOP
-        </div>
-      )}
+      {/* 1) Badge glossy circular 56px con el camión de la marca */}
+      <div className="sponsor-v8-badge">
+        <img
+          src={getTruckAsset(vehicle.id)}
+          alt={`${vehicle.brand} ${vehicle.model}`}
+          className="fleet-v8-truck"
+          draggable={false}
+        />
+      </div>
 
-      <div className="flex items-center gap-3">
-        <div
-          className={cn(
-            'w-14 h-14 rounded-xl flex items-center justify-center flex-shrink-0 border-2 shadow-inner transition-colors duration-500',
-            selected && 'border-white/70'
+      {/* 2-3) Marca HERO + modelo + stats */}
+      <div className="sponsor-v8-center">
+        <h3 className="fleet-v8-brand">{vehicle.brand}</h3>
+        <p className="fleet-v8-model">
+          {vehicle.model} · {vehicle.country}
+        </p>
+        <div className="fleet-v8-stats">
+          <span className="fleet-v8-mult">x{vehicle.multiplier}</span>
+          {owned ? (
+            selected && <span className="fleet-v8-driving">Conduciendo</span>
+          ) : (
+            <span className="fleet-v8-cost">🎟️ {cost.toLocaleString('es-CO')}</span>
           )}
-          style={{ backgroundColor: `${vehicle.color}25`, borderColor: `${vehicle.color}70` }}
-        >
-          <img
-            src={getTruckAsset(vehicle.id)}
-            alt={`${vehicle.brand} ${vehicle.model}`}
-            className="w-12 h-12 object-contain"
-            draggable={false}
-          />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <h3
-            className="text-white truncate leading-tight"
-            style={{ fontSize: 18, fontWeight: 900 }}
-          >
-            {vehicle.brand}
-          </h3>
-          <p className="text-slate-300 text-xs truncate">
-            {vehicle.model} · {vehicle.country}
-          </p>
-          {!owned && (
-            <div className="inline-flex items-center gap-1.5 mt-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-[#FDE047] to-[#F59E0B] text-[#78350F] border border-[#B45309] shadow-sm">
-              <span className="text-sm">🎟️</span>
-              <span className="font-fredoka font-black text-sm">
-                {cost.toLocaleString('es-CO')}
-              </span>
-            </div>
-          )}
-          {owned && !selected && (
-            <p className="text-slate-400 text-[11px] mt-1">En tu flota · tócalo para conducirlo</p>
-          )}
-        </div>
-
-        <div className="flex flex-col items-center justify-center flex-shrink-0 w-12">
-          <span className="font-fredoka font-black text-lg leading-none text-[#4ADE80]">
-            x{vehicle.multiplier}
-          </span>
         </div>
       </div>
 
-      {selected ? (
-        <div className="mt-2.5 w-full py-2.5 rounded-xl font-black text-sm tracking-wide text-center bg-white/10 text-white border border-white/20">
-          ✓ CONDUCIENDO
-        </div>
-      ) : owned ? (
+      {/* 4) Botón glossy circular 48px: verde + / gold ✓ / gris 🔒 */}
+      {owned ? (
         <button
           onClick={() => onSelect(vehicle.id)}
-          className="buy-btn-glossy mt-2.5 w-full py-2.5 rounded-xl font-black text-sm tracking-wide"
+          className="buy-btn-circle buy-btn-circle--v8 buy-btn-circle--gold"
+          aria-label={selected ? `Conduciendo ${vehicle.brand}` : `Conducir ${vehicle.brand}`}
+          title={selected ? 'Conduciendo' : 'Conducir'}
         >
-          CONDUCIR
+          ✓
         </button>
       ) : (
         <button
           onClick={(e) => onBuy(vehicle.id, e.currentTarget as HTMLElement)}
-          disabled={!canAfford}
-          className={cn(
-            'buy-btn-glossy mt-2.5 w-full py-2.5 rounded-xl font-black text-sm tracking-wide',
-            !canAfford && 'buy-btn-glossy--disabled'
-          )}
+          disabled={locked}
+          className="buy-btn-circle buy-btn-circle--v8"
+          aria-label={
+            locked
+              ? `${vehicle.brand} bloqueado: faltan Golden Tickets`
+              : `Comprar ${vehicle.brand} por ${cost} Golden Tickets`
+          }
+          title={
+            locked
+              ? `Te faltan tickets · 🎟️ ${cost.toLocaleString('es-CO')}`
+              : `Comprar · 🎟️ ${cost.toLocaleString('es-CO')}`
+          }
         >
-          COMPRAR · 🎟️ {cost.toLocaleString('es-CO')}
+          {locked ? '🔒' : '+'}
         </button>
       )}
     </div>
