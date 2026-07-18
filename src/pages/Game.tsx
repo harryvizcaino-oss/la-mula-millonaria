@@ -339,7 +339,7 @@ export default function Game() {
     setTimeout(() => {
       setEpicAnnouncement(null);
       barFlashProcessingRef.current = false;
-    }, 3000);
+    }, 5000);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [barCharge]);
 
@@ -1430,23 +1430,24 @@ export default function Game() {
               )}
             </AnimatePresence>
 
-            {/* V16: anuncio épico al activar multiplicador */}
+            {/* V17: anuncio épico al activar multiplicador — dismiss con cualquier click */}
             <AnimatePresence>
               {epicAnnouncement && (
-                <>
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    className="epic-announcement-backdrop"
-                  />
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  className="epic-announcement-backdrop"
+                  onClick={() => setEpicAnnouncement(null)}
+                >
                   <motion.div
                     key={epicAnnouncement.id}
                     initial={{ opacity: 0, scale: 0.3, x: '-50%', y: '-50%' }}
                     animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
-                    exit={{ opacity: 0, scale: 1.2, x: '-50%', y: '-50%' }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 20 }}
+                    exit={{ opacity: 0, scale: 1.3, x: '-50%', y: '-50%' }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 22 }}
                     className="epic-announcement-popup"
+                    onClick={(e) => e.stopPropagation()}
                   >
                     <img
                       src="/assets/anuncio_xN_activado.png"
@@ -1457,7 +1458,7 @@ export default function Game() {
                       {epicAnnouncement.label}
                     </span>
                   </motion.div>
-                </>
+                </motion.div>
               )}
             </AnimatePresence>
 

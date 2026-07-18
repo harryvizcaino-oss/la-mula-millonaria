@@ -1247,8 +1247,9 @@
 .epic-announcement-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.4);
   z-index: 9998;
+  cursor: pointer;
 }
 
 .epic-announcement-popup {
@@ -1256,9 +1257,10 @@
   top: 50%;
   left: 50%;
   z-index: 9999;
-  width: 320px;
+  width: 85vw;
+  max-width: 500px;
   height: auto;
-  pointer-events: none;
+  cursor: pointer;
 }
 
 .epic-announcement-img {
