@@ -211,8 +211,6 @@ export default function Game() {
   // V9: barra THICK cargada por clicks (0-100), multiplicador activo y flash "×N ACTIVADO!"
   const [barCharge, setBarCharge] = useState(0);
   const [barTargetIdx, setBarTargetIdx] = useState<number | null>(null);
-  // V16: primera llenada de la barra requiere mínimo 50 clicks
-  const [hasFilledBarBefore, setHasFilledBarBefore] = useState(false);
   // V16: anuncio épico al activar multiplicador
   const [epicAnnouncement, setEpicAnnouncement] = useState<{ label: string; id: number } | null>(null);
 
@@ -309,11 +307,11 @@ export default function Game() {
     return () => clearInterval(iv);
   }, []);
 
-  // V15: la barra THICK decae 3%/s cuando pasa 1s sin clicks
+  // V17: la barra THICK decae 2%/s cuando pasa 1s sin clicks
   useEffect(() => {
     const iv = setInterval(() => {
       if (Date.now() - lastBarClickRef.current < 1000) return;
-      setBarCharge((prev) => Math.max(0, prev - 0.3));
+      setBarCharge((prev) => Math.max(0, prev - 0.2));
     }, 100);
     return () => clearInterval(iv);
   }, []);
@@ -326,7 +324,6 @@ export default function Game() {
     setEpicAnnouncement({ label: barMilestone.label, id: now });
     setBarCharge(0);
     setBarTargetIdx(barMilestoneIdx + 1);
-    if (barMilestone.mult === 2) setHasFilledBarBefore(true);
     setTimeout(() => {
       setEpicAnnouncement(null);
       barFlashProcessingRef.current = false;
@@ -723,16 +720,9 @@ export default function Game() {
       setCycleClicks((prev) => prev + 1);
       clicksSinceTicketRef.current += 1;
 
-      // V16: cada click carga la barra THICK
+      // V17: cada click carga la barra THICK — siempre 2% (50 clicks para llenar)
       lastBarClickRef.current = Date.now();
-      let fillPerClick: number;
-      if (barMilestone.mult === 2 && !hasFilledBarBefore) {
-        // Primera vez: mínimo 50 clicks para llenar la barra
-        fillPerClick = 100 / 50; // 2% por click
-      } else {
-        fillPerClick = (clickPower * currentBarMultiplier / barMilestone.target) * 100;
-      }
-      setBarCharge((prev) => Math.min(100, prev + fillPerClick));
+      setBarCharge((prev) => Math.min(100, prev + 2));
       const chance = Math.min(0.25, clicksSinceTicketRef.current * 0.0075);
       if (Math.random() < chance) {
         spawnCollectible();
@@ -1447,7 +1437,7 @@ export default function Game() {
                     className="epic-announcement-popup"
                   >
                     <img
-                      src="/assets/efecto_boom_poder_activado.png"
+                      src="/assets/anuncio_xN_activado.png"
                       alt="Poder activado"
                       className="epic-announcement-img"
                     />
