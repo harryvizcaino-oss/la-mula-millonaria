@@ -9,6 +9,7 @@ import {
   getSponsorPowerCPS,
 } from '@/data/sponsorPowers';
 import { DEFAULT_FLEET_ID, getFleetMultiplier, getFleetVehicle } from '@/data/fleetVehicles';
+import { loadGameState, rowToHydration, scheduleSave } from '@/lib/gameSync';
 
 const CLICKER_STORAGE_KEY = 'truckSurfers_clicker_v5';
 const OFFLINE_CAP_SECONDS = 8 * 60 * 60; // max 8 hours of offline progress
@@ -54,6 +55,9 @@ export interface ClickerState {
   getCriticalChance: () => number;
   addEarnings: (amount: number) => void;
   hydrate: (saved: ClickerHydration) => void;
+  // Sincronización con Supabase (debounce 5s); el estado local sigue mandando offline
+  debouncedSave: (userId: string) => void;
+  loadFromSupabase: (userId: string) => Promise<boolean>;
 }
 
 type ClickerComputed = Omit<
@@ -76,6 +80,8 @@ type ClickerComputed = Omit<
     | 'getCriticalChance'
     | 'addEarnings'
     | 'hydrate'
+    | 'debouncedSave'
+    | 'loadFromSupabase'
   >
 >;
 
@@ -345,6 +351,22 @@ export const useClickerStore = create<ClickerState>()(
           next.cpsBalance = fleet.cpsBalance;
         }
         if (Object.keys(next).length > 0) set(next);
+      },
+
+      // Guardado con debounce de 5s: lo invoca useClickerSync ante cada
+      // cambio de estado; gameSync coalesca y solo persiste el último snapshot.
+      debouncedSave: (userId: string) => {
+        scheduleSave(userId, () => get());
+      },
+
+      // Carga el snapshot del servidor al iniciar sesión. Devuelve true si
+      // hidrató desde Supabase; false si no había fila o falló la carga (en
+      // ese caso se conserva el estado local offline).
+      loadFromSupabase: async (userId: string) => {
+        const row = await loadGameState(userId);
+        if (!row) return false;
+        get().hydrate(rowToHydration(row));
+        return true;
       },
     }),
     {

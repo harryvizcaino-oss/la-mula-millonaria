@@ -1,19 +1,19 @@
-import { SignUp, useUser, useClerk } from "@clerk/clerk-react";
 import { useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import SupabaseAuthForm from "@/components/SupabaseAuthForm";
 
 export default function Register() {
   const navigate = useNavigate();
-  const { isSignedIn, isLoaded } = useUser();
-  const { signOut } = useClerk();
+  const { user, isAuthenticated, isLoading, logout } = useAuth();
 
   useEffect(() => {
-    if (isLoaded && isSignedIn) {
+    if (!isLoading && isAuthenticated) {
       navigate('/game', { replace: true });
     }
-  }, [isLoaded, isSignedIn, navigate]);
+  }, [isLoading, isAuthenticated, navigate]);
 
-  if (!isLoaded) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="animate-pulse text-slate-500">Cargando...</div>
@@ -21,7 +21,7 @@ export default function Register() {
     );
   }
 
-  if (isSignedIn) {
+  if (isAuthenticated && user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 gap-4">
         <p className="text-slate-700 text-center">Ya iniciaste sesión.</p>
@@ -34,7 +34,7 @@ export default function Register() {
         </button>
         <button
           type="button"
-          onClick={() => signOut(() => navigate('/register'))}
+          onClick={() => void logout()}
           className="text-slate-500 text-sm underline"
         >
           Cerrar sesión
@@ -45,12 +45,7 @@ export default function Register() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
-      <SignUp
-        routing="path"
-        path="/register"
-        signInUrl="/login"
-        forceRedirectUrl="/game"
-      />
+      <SupabaseAuthForm mode="register" />
     </div>
   );
 }

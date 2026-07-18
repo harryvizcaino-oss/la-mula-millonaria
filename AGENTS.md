@@ -121,11 +121,14 @@ After changing keys, users must hard-refresh (`Cmd + Shift + R`) to discard old 
 | `api/lib/clicker.ts` | Server-side copy of the CPS formula |
 | `api/trpc/routers/game.ts` | tRPC: clicker saveState/getState + leaderboard score = cpsTotal |
 
-## Server Sync (useClickerSync)
+## Server Sync (Supabase)
 
-- Wire shape: `{ fleet: { fleetOwned, selectedFleet, cpsBalance }, upgrades, powerLevels, totalClicks, cpsTotal, totalEarned, stars, goldenTickets, autoclickLevel, lastTickAt }`.
-- The fleet snapshot is stored in the legacy `buildings` JSON column (no DB migration); `total_km` column carries `cpsTotal`. `getState` returns `fleet: null` for legacy rows and the client keeps its local state.
-- Leaderboard `score` = `Math.floor(cpsTotal)`, updated with `Math.max(existing, new)` — the ranking never decreases.
+- **Auth:** Supabase Auth (OAuth Google/Apple, PKCE) reemplazó a Clerk en el frontend. `src/lib/auth.ts` expone `signInWithGoogle/signInWithApple/getCurrentUser/signOut`; `src/hooks/useAuth.ts` mantiene la interfaz `{ user: { id, name, email, avatar }, isAuthenticated, isLoading, logout, refresh }` que consumen las páginas. Callback OAuth en `/auth/callback` (`src/pages/AuthCallback.tsx`). Perfil + `game_state` se crean con el trigger `handle_new_user` (fallback client-side: `ensureUserRecords`).
+- **Backend:** Supabase Postgres. Esquema en `supabase/migrations/001_initial_schema.sql`: `profiles`, `game_state`, `leaderboard_global`, `transactions`, `friends` (RLS en todas) + función `update_leaderboard()` (RPC) y trigger que la corre en cada cambio de `cps_total`. Env vars: `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (sin ellas la app corre offline/anónima).
+- **Game sync (`src/lib/gameSync.ts` + `useClickerSync`):** upsert del snapshot a `game_state` con **debounce de 5s** (`store.debouncedSave`), carga al iniciar sesión (`store.loadFromSupabase` → `hydrate`), flush en `beforeunload`/`visibilitychange`. Mapping: `cps` = cpsBalance, `cps_total` = cpsTotal (ranking, nunca baja — el servidor conserva `greatest()`), `power_levels`, `fleet_unlocked`, `active_fleet_id`, `upgrades`, `total_clicks`, `total_earned`, `stars`, `ascensions`, `autoclick_level`, `last_tick_at`, `streak_days`, `last_claim_date`. La columna `millas` la escribe solo MillasProvider (upsert parcial, mismo debounce 5s).
+- **Offline:** Zustand/localStorage es la fuente de verdad en tiempo real. Los guardados que fallan se encolan en localStorage (`truckSurfers_sync_queue_v1`, coalesced por usuario+kind, `src/lib/offlineQueue.ts`) y se reenvían con el evento `online`.
+- **Leaderboard:** `src/pages/Leaderboard.tsx` lee `leaderboard_global` (top 50 por `cps_total`) con suscripción Realtime (`postgres_changes`) + poll de 30s de respaldo; cae a `mockPlayers` si está vacío/no configurado.
+- **Legacy:** el servidor tRPC/MySQL en `api/` sigue sirviendo features no migradas (`Profile` transactions/stats, `Redemption` redeem). `src/providers/trpc.tsx` ahora adjunta el access token de Supabase (el backend viejo verificaba Clerk, así que esas llamadas responden no-autenticado hasta migrarlas).
 
 ## Marketplace / Tienda
 

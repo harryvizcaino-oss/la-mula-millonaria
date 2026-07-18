@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
-import { useUser } from '@clerk/clerk-react';
-import { trpc } from '@/providers/trpc';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { saveMillasNow, SAVE_DEBOUNCE_MS } from '@/lib/gameSync';
 
 const MILLAS_STORAGE_KEY = 'truckSurfers_millas_v3';
 
@@ -26,76 +27,81 @@ function loadLocalMillas(): number {
   return 0;
 }
 
+/**
+ * Balance de TicaMillas. Persiste local (localStorage) para jugar offline y
+ * sincroniza la columna `millas` de `game_state` en Supabase con debounce de
+ * 5s (upsert parcial; el resto de columnas las maneja useClickerSync).
+ */
 export function MillasProvider({ children }: { children: ReactNode }) {
-  const { user, isLoaded, isSignedIn } = useUser();
+  const { user, isLoading: authLoading } = useAuth();
+  const userId = user?.id ?? null;
   const [millas, setMillasState] = useState<number>(loadLocalMillas);
-  const [syncedBalance, setSyncedBalance] = useState<number | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Balance del servidor ya cargado para este userId (null = ninguno aún)
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const millasRef = useRef(millas);
+  const userIdRef = useRef(userId);
 
-  const utils = trpc.useUtils();
-  const syncMutation = trpc.game.points.syncBalance.useMutation();
-  const syncMutateRef = useRef(syncMutation.mutate);
-  syncMutateRef.current = syncMutation.mutate;
+  const isLoading = authLoading || (isSupabaseConfigured && !!userId && loadedFor !== userId);
 
-  // Load server balance when authenticated user is available
+  // Refs "latest" para los callbacks async (asignados en efecto, no en render)
   useEffect(() => {
-    if (!isLoaded || !isSignedIn || !user) {
-      setIsLoading(false);
-      return;
-    }
+    millasRef.current = millas;
+    userIdRef.current = userId;
+  }, [millas, userId]);
 
-    setIsLoading(true);
-    utils.game.points.getBalance
-      .fetch()
-      .then((data) => {
-        const serverBalance = data.balance;
-        setSyncedBalance(serverBalance);
+  // Carga el balance del servidor cuando hay sesión (una vez por usuario)
+  useEffect(() => {
+    if (authLoading || !userId || !isSupabaseConfigured) return;
+    if (loadedFor === userId) return;
+
+    Promise.resolve(
+      supabase
+        .from('game_state')
+        .select('millas')
+        .eq('id', userId)
+        .maybeSingle()
+    )
+      .then(({ data, error }) => {
+        if (error) {
+          console.error('[MillasProvider] Failed to load balance:', error);
+          return;
+        }
+        const serverBalance = data?.millas ?? 0;
         // Prefer server balance if it exists, otherwise keep local
         setMillasState((local) => (serverBalance > 0 ? serverBalance : local));
       })
-      .catch((err) => {
-        console.error('[MillasProvider] Failed to load balance:', err);
-      })
       .finally(() => {
-        setIsLoading(false);
+        setLoadedFor(userId);
       });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isLoaded, isSignedIn, user]);
+  }, [authLoading, userId, loadedFor]);
 
   // Persist to localStorage
   useEffect(() => {
     localStorage.setItem(MILLAS_STORAGE_KEY, String(millas));
   }, [millas]);
 
-  // Sync to server periodically
+  // Guardado en Supabase con debounce de 5s (trailing) ante cada cambio
   useEffect(() => {
-    if (!isSignedIn || !user) return;
+    if (!userId) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => {
+      saveTimerRef.current = null;
+      void saveMillasNow(userId, millasRef.current);
+    }, SAVE_DEBOUNCE_MS);
+  }, [userId, millas]);
 
-    const interval = setInterval(() => {
-      if (millas !== syncedBalance) {
-        syncMutateRef.current(
-          { totalMillas: millas },
-          {
-            onSuccess: (data) => {
-              setSyncedBalance(data.balance);
-            },
-            onError: (err) => {
-              console.error('[MillasProvider] Sync failed:', err);
-            },
-          }
-        );
-      }
-    }, 10000);
-
+  // Sync final al desmontar o cambiar de usuario
+  useEffect(() => {
     return () => {
-      clearInterval(interval);
-      // Final sync on unmount
-      if (millas !== syncedBalance) {
-        syncMutateRef.current({ totalMillas: millas });
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+        const uid = userIdRef.current;
+        if (uid) void saveMillasNow(uid, millasRef.current);
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSignedIn, user, millas, syncedBalance]);
+  }, [userId]);
 
   const addMillas = useCallback((amount: number) => {
     setMillasState((prev) => Math.max(0, prev + Math.floor(amount)));

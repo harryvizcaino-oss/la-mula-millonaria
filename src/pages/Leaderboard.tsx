@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Crown,
@@ -16,9 +16,18 @@ import {
 import { cn } from '@/lib/utils';
 import { mockPlayers, mockCurrentUser, mockFriends, weeklyPrizes } from '@/data/mockLeaderboard';
 import type { Player } from '@/data/mockLeaderboard';
-import { trpc } from '@/providers/trpc';
-import { useAuth } from '@/hooks/useAuth';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { useClickerStore } from '@/store/clickerStore';
+
+/** Fila de la tabla `leaderboard_global` (migración 001). */
+interface LeaderboardEntry {
+  user_id: string;
+  username: string | null;
+  cps_total: number;
+  level: number;
+  avatar_url: string | null;
+  rank: number | null;
+}
 
 type TimeFilter = 'Semanal' | 'Mensual' | 'Global';
 type CategoryFilter = 'Puntaje' | 'TicaMillas' | 'Distancia';
@@ -171,17 +180,17 @@ function Podium({ players }: { players: Player[] }) {
 /* ------------------------------------------------------------------ */
 /*  Your Rank Card                                                     */
 /* ------------------------------------------------------------------ */
-function YourRankCard({ category }: { category: CategoryFilter }) {
+function YourRankCard({ category, players }: { category: CategoryFilter; players: Player[] }) {
   // El ranking mide el CPS TOTAL acumulado (histórico, nunca baja).
   const cpsTotal = useClickerStore((s) => s.cpsTotal);
   const { rank, nextGap, progressPercent } = useMemo(() => {
-    const all = [...mockPlayers.map((p) => p.score), cpsTotal].sort((a, b) => b - a);
+    const all = [...players.map((p) => p.score), cpsTotal].sort((a, b) => b - a);
     const r = all.indexOf(cpsTotal) + 1;
     const above = r > 1 ? all[r - 2] : null;
     const gap = above !== null ? Math.max(0, Math.floor(above - cpsTotal)) : 0;
     const pct = above !== null && above > 0 ? Math.min(99, Math.round((cpsTotal / above) * 100)) : 100;
     return { rank: r, nextGap: gap, progressPercent: pct };
-  }, [cpsTotal]);
+  }, [cpsTotal, players]);
 
   return (
     <motion.div
@@ -203,7 +212,7 @@ function YourRankCard({ category }: { category: CategoryFilter }) {
           >
             #{rank}
           </motion.span>
-          <span className="text-[10px] text-slate-500">de {mockPlayers.length + 1}</span>
+          <span className="text-[10px] text-slate-500">de {players.length + 1}</span>
         </div>
 
         {/* Avatar */}
@@ -510,30 +519,66 @@ export default function Leaderboard() {
   const [timeFilter, setTimeFilter] = useState<TimeFilter>('Semanal');
   const [category, setCategory] = useState<CategoryFilter>('Puntaje');
   const [scope, setScope] = useState<ScopeFilter>('Global');
-  const { user } = useAuth();
-  const { data: leaderboardData, isRefetching, refetch } = trpc.game.game.getLeaderboard.useQuery(
-    { limit: 50 },
-    {
-      refetchInterval: 10000,
-      staleTime: 0,
-    },
-  );
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+
+  // Lee leaderboard_global y se suscribe a cambios vía Supabase Realtime.
+  // Fallback: poll cada 30s por si Realtime no está habilitado en el proyecto.
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let cancelled = false;
+
+    const load = async () => {
+      const { data, error } = await supabase
+        .from('leaderboard_global')
+        .select('user_id, username, cps_total, level, avatar_url, rank')
+        .order('cps_total', { ascending: false })
+        .limit(50);
+      if (cancelled) return;
+      if (error) {
+        console.error('[Leaderboard] Failed to load:', error);
+        return;
+      }
+      setEntries(data ?? []);
+    };
+
+    void load();
+
+    const channel = supabase
+      .channel('leaderboard_global_changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'leaderboard_global' },
+        () => {
+          void load();
+        }
+      )
+      .subscribe();
+
+    const poll = setInterval(() => {
+      void load();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      clearInterval(poll);
+      void supabase.removeChannel(channel);
+    };
+  }, []);
 
   const leaderboardPlayers: Player[] = useMemo(() => {
-    const entries = leaderboardData?.entries ?? [];
     if (entries.length === 0) return mockPlayers;
     return entries.map((entry, index) => ({
-      id: entry.id,
-      name: entry.displayName || 'Jugador',
-      avatar: entry.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.userId}`,
-      score: entry.score,
-      millas: entry.millasEarned,
-      distance: entry.distance,
-      level: 1,
+      id: index + 1,
+      name: entry.username || 'Jugador',
+      avatar: entry.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.user_id}`,
+      score: Math.floor(entry.cps_total),
+      millas: 0,
+      distance: 0,
+      level: entry.level,
       trend: 'same',
       trendValue: 0,
     }));
-  }, [leaderboardData]);
+  }, [entries]);
 
   const sortedPlayers = useMemo(() => {
     return [...leaderboardPlayers].sort((a, b) => getCategoryValue(b, category) - getCategoryValue(a, category));
@@ -609,7 +654,7 @@ export default function Leaderboard() {
 
       {/* Your Rank Card */}
       <div className="mt-4">
-        <YourRankCard category={category} />
+        <YourRankCard category={category} players={sortedPlayers} />
       </div>
 
       {/* Rankings List */}
