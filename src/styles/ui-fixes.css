@@ -1278,3 +1278,48 @@
   color: white;
   text-shadow: 0 3px 6px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 215, 0, 0.5);
 }
+
+/* ---------- V18: Streak perdido ---------- */
+.streak-lost-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(231, 76, 60, 0.3);
+  z-index: 9998;
+  animation: streakFlash 0.5s ease;
+}
+
+@keyframes streakFlash {
+  0%, 100% { opacity: 0; }
+  50% { opacity: 1; }
+}
+
+.streak-lost-text {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 9999;
+  font-family: 'Inter', sans-serif;
+  font-weight: 900;
+  font-size: 42px;
+  color: #E74C3C;
+  text-shadow: 0 0 20px rgba(231, 76, 60, 0.8), 0 3px 6px rgba(0, 0, 0, 0.5);
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* ---------- V18: Barra con colores de advertencia ---------- */
+.milestone-v8-fill--warning {
+  background: linear-gradient(90deg, #FF9800, #F57C00, #FF9800) !important;
+  box-shadow: 0 0 15px rgba(255, 152, 0, 0.5) !important;
+}
+
+.milestone-v8-fill--danger {
+  background: linear-gradient(90deg, #E74C3C, #C0392B, #E74C3C) !important;
+  box-shadow: 0 0 15px rgba(231, 76, 60, 0.6) !important;
+  animation: dangerPulse 0.8s ease-in-out infinite;
+}
+
+@keyframes dangerPulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(231, 76, 60, 0.6); }
+  50% { box-shadow: 0 0 25px rgba(231, 76, 60, 0.9); }
+}

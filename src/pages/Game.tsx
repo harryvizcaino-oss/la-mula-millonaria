@@ -213,6 +213,8 @@ export default function Game() {
   const [barTargetIdx, setBarTargetIdx] = useState<number | null>(null);
   // V16: anuncio épico al activar multiplicador
   const [epicAnnouncement, setEpicAnnouncement] = useState<{ label: string; id: number } | null>(null);
+  // V18: streak perdido cuando la barra llega a 0%
+  const [streakLost, setStreakLost] = useState<{ id: number } | null>(null);
 
   const comboTier = useComboStore((s) => s.comboTier);
   const comboActive = useComboStore((s) => s.comboActive);
@@ -308,10 +310,20 @@ export default function Game() {
   }, []);
 
   // V17: la barra THICK decae 2%/s cuando pasa 1s sin clicks
+  // V18: si la barra llega a 0%, se pierde la racha y el target resetea a x2
   useEffect(() => {
     const iv = setInterval(() => {
       if (Date.now() - lastBarClickRef.current < 1000) return;
-      setBarCharge((prev) => Math.max(0, prev - 0.2));
+      setBarCharge((prev) => {
+        const next = Math.max(0, prev - 0.2);
+        if (next === 0 && prev > 0) {
+          // STREAK LOST: la barra llegó a 0%
+          setBarTargetIdx(0);
+          setStreakLost({ id: Date.now() });
+          setTimeout(() => setStreakLost(null), 2000);
+        }
+        return next;
+      });
     }, 100);
     return () => clearInterval(iv);
   }, []);
@@ -1449,6 +1461,30 @@ export default function Game() {
               )}
             </AnimatePresence>
 
+            {/* V18: streak perdido cuando la barra llega a 0% */}
+            <AnimatePresence>
+              {streakLost && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="streak-lost-backdrop"
+                  />
+                  <motion.div
+                    key={streakLost.id}
+                    initial={{ opacity: 0, scale: 0.5, x: '-50%', y: '-50%' }}
+                    animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
+                    exit={{ opacity: 0, scale: 1.3, x: '-50%', y: '-50%' }}
+                    transition={{ duration: 0.3, ease: 'easeOut' }}
+                    className="streak-lost-text"
+                  >
+                    ¡STREAK PERDIDO!
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+
             {/* Floating collectibles (golden tickets) */}
             <AnimatePresence>
               {collectibles.map((c) => (
@@ -1503,7 +1539,12 @@ export default function Game() {
                 <div className="milestone-v8-bar-wrap">
                   <div className={cn('milestone-v8-bar', (milestoneHit || epicAnnouncement) && 'milestone-flash')}>
                     <div
-                      className={cn('milestone-v8-fill', truckBump && 'milestone-v8-fill--pulse')}
+                      className={cn(
+                        'milestone-v8-fill',
+                        truckBump && 'milestone-v8-fill--pulse',
+                        barCharge <= 5 && 'milestone-v8-fill--danger',
+                        barCharge > 5 && barCharge <= 15 && 'milestone-v8-fill--warning'
+                      )}
                       style={{ width: `${barCharge}%` }}
                     />
                   </div>
