@@ -2,11 +2,11 @@
    EPIC FEATURES — Combos, Críticos, Ascensión, Eventos,
    Desbloqueos, Racha Diaria, Power-ups
    Solo transform/opacity para animaciones.
-   Fuente display: 'Baloo 2' (cargada en index.html).
+   Fuente display: 'Fredoka' (cargada en index.html).
    ============================================================ */
 
 .font-baloo {
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: 'Fredoka', sans-serif;
 }
 
 /* ───────────── FEATURE 1: COMBOS ───────────── */
@@ -24,7 +24,7 @@
 }
 
 .combo-mult {
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: 'Fredoka', sans-serif;
   font-weight: 800;
   font-size: 20px;
   line-height: 1;
@@ -43,7 +43,7 @@
 }
 
 .combo-label {
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: 'Fredoka', sans-serif;
   font-weight: 800;
   font-size: 10px;
   letter-spacing: 0.25em;
@@ -135,7 +135,7 @@
   position: absolute;
   z-index: 46;
   transform: translate(-50%, -50%);
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: 'Fredoka', sans-serif;
   font-weight: 800;
   font-size: 48px;
   line-height: 1;
@@ -228,7 +228,7 @@
 }
 
 .ascend-count {
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: 'Fredoka', sans-serif;
   font-weight: 800;
   font-size: 80px;
   color: #FACC15;
@@ -551,7 +551,7 @@
 }
 
 .legend-text {
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: 'Fredoka', sans-serif;
   font-weight: 800;
   font-size: 64px;
   letter-spacing: 0.08em;
@@ -877,7 +877,7 @@
 .time-warp-amount {
   position: relative;
   z-index: 2;
-  font-family: 'Baloo 2', 'Fredoka', cursive;
+  font-family: 'Fredoka', sans-serif;
   font-weight: 800;
   font-size: 44px;
   color: #FDE047;

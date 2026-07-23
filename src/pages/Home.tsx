@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Footer from '@/components/Footer';
+import { fetchVtexProducts } from '@/lib/vtexCatalog';
 import { useMillas } from '@/providers/MillasProvider';
 import { useClickerStore } from '@/store/clickerStore';
 import { GameTutorial } from '@/components/GameTutorial';
@@ -460,24 +461,48 @@ function MarketplacePreviewSection() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-20%' });
   const navigate = useNavigate();
+  const { millas } = useMillas();
+  const [products, setProducts] = useState<PreviewProduct[] | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  const products = [
-    { name: 'Audifonos Bluetooth', millas: 8500, image: '/product-audifonos.jpg' },
-    { name: 'Mochila Transporte', millas: 12000, image: '/product-mochila.jpg' },
-    { name: 'Botella Termica', millas: 4200, image: '/product-botella.jpg' },
-    { name: 'Gift Card $20,000', millas: 20000, image: '/product-giftcard.jpg' },
-  ];
+  // Carga productos reales del catálogo VTEX; si falla, cae a los 4 mocks.
+  useEffect(() => {
+    let cancelled = false;
+    fetchVtexProducts({ from: 0, to: 3 }).then((res) => {
+      if (cancelled) return;
+      if (res && res.products.length > 0) {
+        setProducts(
+          res.products.map((p) => ({
+            id: p.id,
+            name: p.name,
+            brand: p.brand || 'redpostventa.com',
+            image: p.image ?? '/product-giftcard.jpg',
+            priceCOP: p.price,
+            millasCost: p.price != null ? Math.round(p.price * 10_000) : 0,
+            redeemable: p.price != null,
+          }))
+        );
+      } else {
+        setProducts(MOCK_PREVIEW_PRODUCTS);
+      }
+      setLoading(false);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   return (
-    <section ref={ref} className="py-6">
+    <section ref={ref} className="py-6 px-4">
       {/* Header */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={isInView ? { opacity: 1 } : {}}
         transition={{ duration: 0.5 }}
-        className="flex items-center justify-between px-4 mb-4"
+        className="flex items-center justify-between mb-4"
       >
-        <h2 className="font-fredoka font-bold text-xl text-white">Redime tus TicaMillas</h2>
+        <div>
+          <h2 className="font-fredoka font-bold text-xl text-white">Catálogo de premios</h2>
+          <p className="text-slate-400 text-xs mt-0.5">Toca, acumula y redime</p>
+        </div>
         <button
           onClick={() => navigate('/marketplace')}
           className="text-[#F59E0B] text-sm font-medium flex items-center gap-0.5 hover:opacity-80"
@@ -487,51 +512,92 @@ function MarketplacePreviewSection() {
         </button>
       </motion.div>
 
-      {/* Product Carousel */}
+      {/* Preview cards (stack horizontal) */}
       <motion.div
-        variants={staggerContainer}
-        initial="hidden"
-        animate={isInView ? 'visible' : 'hidden'}
-        className="flex gap-3 overflow-x-auto snap-x snap-mandatory px-4 pb-2 custom-scrollbar"
+        initial={{ opacity: 0, y: 16 }}
+        animate={isInView ? { opacity: 1, y: 0 } : {}}
+        transition={{ duration: 0.4 }}
+        className="space-y-3"
       >
-        {products.map((product) => (
-          <motion.div
-            key={product.name}
-            variants={staggerItem}
-            onClick={() => navigate('/marketplace')}
-            className="flex-shrink-0 w-40 cursor-pointer active:scale-95 transition-transform"
-          >
-            <div className="home-section-card relative rounded-2xl overflow-hidden">
-              <div className="relative">
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="h-[76px] rounded-2xl bg-white/5 animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          products?.slice(0, 3).map((product) => (
+            <button
+              key={product.id}
+              onClick={() => navigate('/marketplace')}
+              className="w-full text-left bg-white rounded-2xl p-3 flex items-center gap-3 shadow-sm active:scale-[0.98] transition-transform hover:shadow-md"
+            >
+              <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0">
                 <img
                   src={product.image}
                   alt={product.name}
-                  className="w-full aspect-square object-cover"
+                  className="w-full h-full object-cover"
                   loading="lazy"
                 />
-                {/* Millas Badge */}
-                <div
-                  className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] font-bold text-slate-900"
-                  style={{ background: 'linear-gradient(135deg, #F59E0B 0%, #F97316 100%)' }}
-                >
-                  {product.millas.toLocaleString('es-CO')} M
-                </div>
               </div>
-              <div className="p-3">
-                <h3 className="font-inter font-semibold text-white text-sm leading-tight line-clamp-2">
+              <div className="flex-1 min-w-0">
+                <h3 className="font-semibold text-slate-900 text-sm leading-tight line-clamp-2">
                   {product.name}
                 </h3>
-                <p className="text-[#F59E0B] text-xs font-bold mt-1">
-                  {product.millas.toLocaleString('es-CO')} TicaMillas
-                </p>
+                <p className="text-slate-500 text-[11px] mt-0.5">{product.brand}</p>
+                <div className="flex items-center gap-2 mt-1">
+                  {product.redeemable ? (
+                    <>
+                      {product.priceCOP != null && (
+                        <span className="text-slate-400 text-[11px] line-through">
+                          ${product.priceCOP.toLocaleString('es-CO')}
+                        </span>
+                      )}
+                      <span className="text-[#ff3131] font-bold text-sm">
+                        {product.millasCost.toLocaleString('es-CO')} M
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-[#ff3131] text-xs font-bold">Solo en redpostventa.com</span>
+                  )}
+                </div>
               </div>
-            </div>
-          </motion.div>
-        ))}
+              <div className="flex-shrink-0 text-right pl-2">
+                {product.redeemable && millas >= product.millasCost ? (
+                  <span className="text-[10px] font-bold text-[#10B981]">Puedes redimirlo!</span>
+                ) : product.redeemable ? (
+                  <span className="text-[10px] text-slate-500">
+                    Te faltan<br />{Math.max(0, product.millasCost - millas).toLocaleString('es-CO')} M
+                  </span>
+                ) : null}
+                <div className="mt-1.5 w-8 h-8 rounded-full bg-gradient-to-br from-[#ff3131] to-[#b91c1c] flex items-center justify-center shadow-md">
+                  <ArrowRight size={14} className="text-white" />
+                </div>
+              </div>
+            </button>
+          ))
+        )}
       </motion.div>
     </section>
   );
 }
+
+interface PreviewProduct {
+  id: string;
+  name: string;
+  brand: string;
+  image: string;
+  priceCOP?: number | null;
+  millasCost: number;
+  redeemable: boolean;
+}
+
+const MOCK_PREVIEW_PRODUCTS: PreviewProduct[] = [
+  { id: 'mock-1', name: 'Audífonos Bluetooth', brand: 'redpostventa.com', image: '/product-audifonos.jpg', millasCost: 8_500, redeemable: true },
+  { id: 'mock-2', name: 'Mochila Transporte', brand: 'redpostventa.com', image: '/product-mochila.jpg', millasCost: 12_000, redeemable: true },
+  { id: 'mock-3', name: 'Botella Térmica', brand: 'redpostventa.com', image: '/product-botella.jpg', millasCost: 4_200, redeemable: true },
+  { id: 'mock-4', name: 'Gift Card $20,000', brand: 'redpostventa.com', image: '/product-giftcard.jpg', millasCost: 20_000, redeemable: true },
+];
 
 function BrandPartnersSection() {
   const ref = useRef(null);

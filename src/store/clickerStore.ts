@@ -10,6 +10,11 @@ import {
 } from '@/data/sponsorPowers';
 import { DEFAULT_FLEET_ID, getFleetMultiplier, getFleetVehicle } from '@/data/fleetVehicles';
 import { loadGameState, rowToHydration, scheduleSave } from '@/lib/gameSync';
+import { getTalentPowerBonus, getTalentCritBonus } from '@/store/talentStore';
+import { useRouteStore } from '@/store/routeStore';
+import { computeRouteBonus } from '@/data/routes';
+import { useCustomizationStore } from '@/store/customizationStore';
+import { computeCustomizationBonus } from '@/data/truckSkins';
 import { useLeagueStore } from '@/store/leagueStore';
 import { useFriendsStore } from '@/store/friendsStore';
 
@@ -57,6 +62,7 @@ export interface ClickerState {
   addAscension: () => void;
   getCriticalChance: () => number;
   addEarnings: (amount: number) => void;
+  spendStars: (amount: number) => boolean;
   hydrate: (saved: ClickerHydration) => void;
   // Sincronización con Supabase (debounce 5s); el estado local sigue mandando offline
   debouncedSave: (userId: string) => void;
@@ -83,6 +89,8 @@ type ClickerComputed = Omit<
     | 'addAscension'
     | 'getCriticalChance'
     | 'addEarnings'
+    | 'spendStars'
+    | 'spendGoldenTickets'
     | 'hydrate'
     | 'debouncedSave'
     | 'loadFromSupabase'
@@ -149,6 +157,15 @@ function calculateClickPower(state: ClickerComputed): number {
 
   // Prestige stars: +1% per star
   mult *= 1 + state.stars * 0.01;
+
+  // Talentos del camionero (rama Poder): +5% por nivel
+  mult *= 1 + getTalentPowerBonus();
+
+  // F7: bonus permanente de las ciudades desbloqueadas en el mapa de rutas
+  mult *= computeRouteBonus(useRouteStore.getState().unlockedCityIds);
+
+  // F8: bonus pequeño de las piezas de personalización equipadas
+  mult *= computeCustomizationBonus(useCustomizationStore.getState().equipped);
 
   // Wave 3 (F10): bonus de caravana — +1% por amigo activo (tope +5%)
   mult *= 1 + useFriendsStore.getState().getCaravanBonus();
@@ -316,9 +333,10 @@ export const useClickerStore = create<ClickerState>()(
         const state = get();
         // Base 5% + 0.5% por nivel del upgrade 'precision' (Precisión del Conductor).
         // El upgrade aún no existe en el catálogo; se soporta por id para futuro.
+        // Los talentos de la rama Crítico suman +2% por nivel (tope total 35%).
         const precisionLevel =
           (state.powerLevels['precision'] || 0) + (state.upgrades['precision'] ? 1 : 0);
-        return Math.min(0.25, 0.05 + 0.005 * precisionLevel);
+        return Math.min(0.35, 0.05 + 0.005 * precisionLevel + getTalentCritBonus());
       },
 
       addEarnings: (amount: number) => {
@@ -330,6 +348,14 @@ export const useClickerStore = create<ClickerState>()(
         }));
         // Wave 3 (F9): todo ingreso CPS cuenta para la semana de liga
         useLeagueStore.getState().addWeeklyCps(amount);
+      },
+
+      // Gasto de estrellas de prestigio (árbol de talentos)
+      spendStars: (amount: number) => {
+        const state = get();
+        if (amount <= 0 || state.stars < amount) return false;
+        set({ stars: state.stars - amount });
+        return true;
       },
 
       // El autoclick se compra con CPS (balance).

@@ -14,6 +14,8 @@ export interface Product {
   imageUrl?: string;    // foto real; si falta se usa el placeholder con gradiente `image`
   redeemable?: boolean; // false = sin precio curado en vtexPrices → no redimible
   link?: string;        // URL del producto en redpostventa.com
+  skuId?: string;       // itemId de VTEX — para armar link al carrito
+  sellerId?: string;    // seller de VTEX
 }
 
 export const categories = [

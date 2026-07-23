@@ -1,6 +1,12 @@
 import { create } from 'zustand';
+import { getTalentComboWindowMs } from '@/store/talentStore';
 
 export const COMBO_WINDOW_MS = 2000;
+
+/** Ventana de combo efectiva: base 2s + 0.5s por nivel del talento (rama Combo). */
+export function getComboWindowMs(): number {
+  return COMBO_WINDOW_MS + getTalentComboWindowMs();
+}
 
 export interface ComboTierDef {
   min: number;
@@ -34,6 +40,8 @@ export interface ComboState {
   incrementCombo: () => void;
   breakCombo: () => void;
   resetCombo: () => void;
+  /** Restaura un combo roto (p. ej. tras ver un anuncio de "Revivir combo"). */
+  restoreCombo: (count: number) => void;
 }
 
 export const useComboStore = create<ComboState>()((set, get) => ({
@@ -46,7 +54,7 @@ export const useComboStore = create<ComboState>()((set, get) => ({
   incrementCombo: () => {
     const now = Date.now();
     const state = get();
-    const withinWindow = state.comboActive && now - state.lastClickAt <= COMBO_WINDOW_MS;
+    const withinWindow = state.comboActive && now - state.lastClickAt <= getComboWindowMs();
     const comboCount = withinWindow ? state.comboCount + 1 : 1;
     const tierDef = comboTierFor(comboCount);
     set({
@@ -64,5 +72,17 @@ export const useComboStore = create<ComboState>()((set, get) => ({
 
   resetCombo: () => {
     set({ comboCount: 0, comboMultiplier: 1, comboTier: 0, lastClickAt: 0, comboActive: false });
+  },
+
+  restoreCombo: (count: number) => {
+    if (count <= 0) return;
+    const tierDef = comboTierFor(count);
+    set({
+      comboCount: count,
+      comboMultiplier: tierDef.mult,
+      comboTier: tierDef.tier,
+      lastClickAt: Date.now(),
+      comboActive: true,
+    });
   },
 }));

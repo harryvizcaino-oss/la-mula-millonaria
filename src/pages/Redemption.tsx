@@ -27,7 +27,9 @@ import { getGradientClass } from '@/data/mockProducts';
 import type { Product } from '@/data/mockProducts';
 import { useAuth } from '@/hooks/useAuth';
 import { useMillas } from '@/providers/MillasProvider';
+import { useSeasonStore } from '@/store/seasonStore';
 import { recordTransaction } from '@/lib/transactions';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import confetti from 'canvas-confetti';
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -483,10 +485,12 @@ function ProcessingScreen({ onCancel }: { onCancel: () => void }) {
 function SuccessScreen({
   product,
   giftCardCode,
+  vtexEmail,
   onGoToMarketplace,
 }: {
   product: Product;
   giftCardCode: string;
+  vtexEmail: string | null;
   onGoToMarketplace: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -560,6 +564,11 @@ function SuccessScreen({
       navigator.clipboard.writeText(text).catch(() => {});
     }
   }, [product]);
+
+  const canAddToCart = !!product.skuId && !!vtexEmail;
+  const vtexCartUrl = canAddToCart
+    ? `https://www.redpostventa.com/checkout/cart/add?sku=${product.skuId}&qtd=1&seller=${product.sellerId ?? '1'}&redirect=true&sc=1&coupon=${encodeURIComponent(giftCardCode)}`
+    : (product.link || 'https://www.redpostventa.com');
 
   return (
     <motion.div
@@ -657,16 +666,30 @@ function SuccessScreen({
         className="w-full space-y-2.5"
         style={{ maxWidth: '380px' }}
       >
-        <PrimaryButton
-          variant="secondary"
-          icon={<ExternalLink size={16} />}
-          onClick={() => {
-            // TODO: VTEX - Open VTEX checkout with gift card pre-applied
-            window.open('https://example.vtex.com/checkout', '_blank');
-          }}
-        >
-          IR AL MARKETPLACE VTEX
-        </PrimaryButton>
+        {canAddToCart ? (
+          <PrimaryButton
+            variant="secondary"
+            icon={<ExternalLink size={16} />}
+            onClick={() => window.open(vtexCartUrl, '_blank', 'noopener,noreferrer')}
+          >
+            LLEVAR AL CARRITO VTEX
+          </PrimaryButton>
+        ) : (
+          <>
+            <PrimaryButton
+              variant="secondary"
+              icon={<ExternalLink size={16} />}
+              onClick={() => window.open(vtexCartUrl, '_blank', 'noopener,noreferrer')}
+            >
+              IR A REDPOSTVENTA.COM
+            </PrimaryButton>
+            <p className="text-slate-500 text-xs text-center">
+              {product.skuId
+                ? 'Vincula tu cuenta VTEX en el perfil para llevar el producto al carrito automaticamente.'
+                : 'Usa el codigo de gift card manualmente en el checkout de redpostventa.com.'}
+            </p>
+          </>
+        )}
 
         <PrimaryButton
           variant="outline"
@@ -887,11 +910,30 @@ export default function Redemption() {
   const [step, setStep] = useState<RedemptionStep>('review');
   const [giftCardCode, setGiftCardCode] = useState('');
   const [, setErrorMessage] = useState('');
+  const [vtexEmail, setVtexEmail] = useState<string | null>(null);
 
   // Get product(s) from navigation state
   const product = location.state?.product as Product | undefined;
   const cart = location.state?.cart as Product[] | undefined;
   const userMillas = (location.state?.userMillas as number) || 0;
+
+  // Carga el email vinculado de redpostventa.com para ofrecer (o no) el link al carrito
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let cancelled = false;
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user || cancelled) return;
+      supabase
+        .from('profiles')
+        .select('vtex_email')
+        .eq('id', user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (!cancelled) setVtexEmail(data?.vtex_email ?? null);
+        });
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   // Redención client-side (mismo patrón que la redención de efectivo en
   // Marketplace): deduce millas del MillasProvider y genera el gift card
@@ -914,6 +956,7 @@ export default function Redemption() {
 
     setStep('processing');
     addMillas(-totalCost);
+    useSeasonStore.getState().addXp(50); // F6: XP del pase por redención
     setGiftCardCode(generateGiftCardCode());
     void recordTransaction({
       type: 'spend',
@@ -988,6 +1031,7 @@ export default function Redemption() {
           key="success"
           product={product}
           giftCardCode={giftCardCode}
+          vtexEmail={vtexEmail}
           onGoToMarketplace={handleGoToMarketplace}
         />
       )}

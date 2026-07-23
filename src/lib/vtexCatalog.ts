@@ -19,6 +19,8 @@ export interface VtexProduct {
   available: number | null;
   category: string;
   link: string;
+  skuId: string | null; // itemId de VTEX — para armar link al carrito
+  sellerId: string | null;
 }
 
 export interface VtexCategory {

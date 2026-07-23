@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
-import { getBrandTier, type SponsorPower } from '@/data/sponsorPowers';
+import { getBrandTier, MAX_SPONSOR_LEVEL, type SponsorPower } from '@/data/sponsorPowers';
 import { ProductBadge } from '@/components/game/ProductBadge';
 
 function formatFull(n: number): string {
@@ -57,11 +57,12 @@ interface SponsorPowerCardProps {
 /**
  * Tarjeta de poder patrocinado V8 — HORIZONTAL glossy (90px):
  * - Fondo gradiente #FAFBFC → #F0F2F5, radius 16px, sombra suave.
- * - 5 elementos: badge glossy circular 56px (ProductBadge + colores del tier)
+ * - 6 elementos: badge glossy circular 56px (ProductBadge + colores del tier)
  *   | título del poder 14px bold #1a1a2e | MARCA HERO 22px 900 uppercase
  *   (TEXT_BADGE con el color del tier — los logos de marca NO existen como
- *   imágenes) | stats "+N verdes" (verde Space Mono) + costo compacto |
- *   botón BUY glossy circular verde 48px ("+").
+ *   imágenes) | stats "+N verdes" (verde Fredoka) + costo compacto |
+ *   círculo de NIVEL glossy 40px (color del tier, "Nv" + número, pulsa al
+ *   comprar) | botón BUY glossy circular verde 48px ("+").
  * - Al subir de tier: gold flash 300ms → marca escribe letra por letra →
  *   transición de color del badge → confetti dorado → toast (padre, onTierUp).
  */
@@ -190,7 +191,21 @@ export function SponsorPowerCard({
         </div>
       </div>
 
-      {/* 5) Botón BUY glossy circular verde 48px */}
+      {/* 5) Círculo de NIVEL glossy 40px (color del tier) — cada compra = +1 */}
+      <motion.div
+        key={level}
+        initial={{ scale: 1.35 }}
+        animate={{ scale: 1 }}
+        transition={{ duration: 0.25, ease: 'easeOut' }}
+        className="level-circle-v8"
+        style={{ color: contrastTextColor(tier.color) }}
+        title={`Nivel ${level}/${MAX_SPONSOR_LEVEL}`}
+      >
+        <span className="level-circle-v8-label">Nv</span>
+        <span className="level-circle-v8-num">{level}</span>
+      </motion.div>
+
+      {/* 6) Botón BUY glossy circular verde 48px */}
       <button
         onClick={(e) => onBuy(power.id, e.currentTarget as HTMLElement)}
         disabled={!canAfford || isMaxed}
