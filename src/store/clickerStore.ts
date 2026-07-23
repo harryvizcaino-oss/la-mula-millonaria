@@ -17,6 +17,9 @@ import { useCustomizationStore } from '@/store/customizationStore';
 import { computeCustomizationBonus } from '@/data/truckSkins';
 import { useLeagueStore } from '@/store/leagueStore';
 import { useFriendsStore } from '@/store/friendsStore';
+import { useCollectibleStore } from '@/store/collectibleStore';
+import { computeAlbumBonus } from '@/data/collectibles';
+import { useGlobalChallengeStore } from '@/store/globalChallengeStore';
 
 const CLICKER_STORAGE_KEY = 'truckSurfers_clicker_v5';
 const OFFLINE_CAP_SECONDS = 8 * 60 * 60; // max 8 hours of offline progress
@@ -170,6 +173,9 @@ function calculateClickPower(state: ClickerComputed): number {
   // Wave 3 (F10): bonus de caravana — +1% por amigo activo (tope +5%)
   mult *= 1 + useFriendsStore.getState().getCaravanBonus();
 
+  // Wave 4 (F14): bonus permanente de los sets del álbum completados (+1-3% c/u)
+  mult *= computeAlbumBonus(useCollectibleStore.getState().owned);
+
   return sum * mult;
 }
 
@@ -218,6 +224,9 @@ export const useClickerStore = create<ClickerState>()(
         });
         // Wave 3 (F9): el CPS semanal alimenta la liga
         useLeagueStore.getState().addWeeklyCps(power);
+        // Wave 4 (F15): cada click aporta a los desafíos globales de la semana
+        useGlobalChallengeStore.getState().contribute('clicks', 1);
+        useGlobalChallengeStore.getState().contribute('cps', power);
         return { cps: power, millas: power };
       },
 
@@ -286,6 +295,8 @@ export const useClickerStore = create<ClickerState>()(
 
       addGoldenTickets: (amount: number) => {
         set((state) => ({ goldenTickets: state.goldenTickets + amount }));
+        // Wave 4 (F15): los tickets ganados alimentan el desafío global de tickets
+        if (amount > 0) useGlobalChallengeStore.getState().contribute('tickets', amount);
       },
 
       // Gasto puro de tickets (minijuegos, etc.): NO convierte a millas.

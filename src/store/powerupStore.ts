@@ -44,6 +44,11 @@ export const POWERUP_DEFS: Record<PowerupId, PowerupDef> = {
 
 export const POWERUP_IDS: PowerupId[] = ['nitro', 'convoy', 'gold_rain', 'time_warp'];
 
+/** Power-up aleatorio del catálogo (recompensas). */
+export function randomPowerupId(): PowerupId {
+  return POWERUP_IDS[Math.floor(Math.random() * POWERUP_IDS.length)];
+}
+
 const POWERUP_STORAGE_KEY = 'truckSurfers_powerups_v1';
 
 export interface PowerupState {

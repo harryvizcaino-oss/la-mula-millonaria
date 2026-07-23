@@ -30,7 +30,7 @@ import {
 import { pickRandomEvent, type ClickerGameEvent } from '@/data/clickerEvents';
 import { GameTutorial } from '@/components/GameTutorial';
 import { useComboStore, getComboWindowMs } from '@/store/comboStore';
-import { usePowerupStore, POWERUP_DEFS, type PowerupId } from '@/store/powerupStore';
+import { usePowerupStore, POWERUP_DEFS, randomPowerupId, type PowerupId } from '@/store/powerupStore';
 import { useUnlockStore } from '@/store/unlockStore';
 import { useEventStore } from '@/store/eventStore';
 import { useFriendsStore } from '@/store/friendsStore';
@@ -65,6 +65,11 @@ import { useRouteStore } from '@/store/routeStore';
 import { TruckCustomization } from '@/components/game/TruckCustomization';
 import { useCustomizationStore } from '@/store/customizationStore';
 import { getTruckVisual } from '@/data/truckSkins';
+// Wave 4: recompensas de sesión (F13), álbum (F14) y pase cosmético (F16)
+import { SessionRewardsPanel } from '@/components/game/SessionRewardsPanel';
+import { useCollectibleStore } from '@/store/collectibleStore';
+import { useCosmeticPassStore } from '@/store/cosmeticPassStore';
+import type { SessionRewardSet } from '@/data/sessionRewards';
 
 import { useTruckHorn } from '@/hooks/useTruckHorn';
 import { getTruckAsset } from '@/data/truckAssets';
@@ -247,6 +252,8 @@ export default function Game() {
   // Wave 1: misiones, talentos, logros y cajas de loot
   const [showQuests, setShowQuests] = useState(false);
   const [showLootBox, setShowLootBox] = useState(false);
+  // Wave 4 (F13): panel de recompensas por tiempo de sesión
+  const [showSessionRewards, setShowSessionRewards] = useState(false);
   const [achievementQueue, setAchievementQueue] = useState<AchievementDef[]>([]);
   // F5: oferta de revivir el combo roto viendo un anuncio (opt-in)
   const [reviveOffer, setReviveOffer] = useState<{ count: number; id: number } | null>(null);
@@ -476,6 +483,8 @@ export default function Game() {
     addMillas(lastEventResult.rewardMillas);
     store.addEarnings(lastEventResult.rewardMillas);
     if (lastEventResult.rewardTickets > 0) store.addGoldenTickets(lastEventResult.rewardTickets);
+    // Wave 4 (F14): los eventos globales pueden soltar coleccionables
+    rollCollectibleDrop(lastEventResult.success ? 0.5 : 0.15);
     showToast(
       lastEventResult.success
         ? `¡Evento completado! +${formatNumber(lastEventResult.rewardMillas)}`
@@ -718,6 +727,18 @@ export default function Game() {
     setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 2000);
   };
 
+  // Wave 4 (F14): drop de coleccionable con probabilidad `chance`; avisa por toast
+  const rollCollectibleDrop = (chance: number) => {
+    const drop = useCollectibleStore.getState().rollDrop(chance);
+    if (!drop) return;
+    if (drop.isNew) {
+      showToast(`¡Coleccionable nuevo: ${drop.def.emoji} ${drop.def.name}!`, '#EC4899');
+    }
+    if (drop.setCompleted) {
+      showToast('¡Set del álbum completado! +5 ⭐ pase', '#F472B6');
+    }
+  };
+
   const spawnFlyItem = (emoji: string, startEl: HTMLElement, img?: string) => {
     const arena = clickAreaRef.current?.getBoundingClientRect();
     if (!arena) return;
@@ -882,6 +903,9 @@ export default function Game() {
       useQuestStore.getState().progress('clicks', 1);
       useQuestStore.getState().progress('comboTier', useComboStore.getState().comboTier);
 
+      // Wave 4 (F14): probabilidad baja de coleccionable por click
+      rollCollectibleDrop(0.004);
+
       // Evento global: cada click aporta al progreso comunitario
       useEventStore.getState().updateProgress(1);
 
@@ -1006,6 +1030,8 @@ export default function Game() {
       const power = SPONSOR_POWERS.find((p) => p.id === id);
       if (power) spawnFlyItem(power.emoji, el);
       useQuestStore.getState().progress('buyPower', 1);
+      // Wave 4 (F14): comprar poder puede soltar un coleccionable
+      rollCollectibleDrop(0.05);
       setBoom({ id: Date.now(), tierUp: false });
       triggerHaptic('flash');
     }
@@ -1014,6 +1040,8 @@ export default function Game() {
   // Toast + celebración BOOM cuando un poder cambia de marca (tier)
   const handleTierUp = (_power: SponsorPower, brand: string, _pctGain: number) => {
     setBoom({ id: Date.now(), tierUp: true });
+    // Wave 4 (F14): subir de tier tiene buena probabilidad de coleccionable
+    rollCollectibleDrop(0.5);
     showToast(`Nueva marca desbloqueada: ${brand}!`, '#FFD700');
   };
 
@@ -1032,6 +1060,9 @@ export default function Game() {
     setPrestigeResult(result);
     if (result.success) {
       store.addAscension();
+      // Wave 4: ascensión = coleccionable garantizado (F14) + 10 ⭐ del pase (F16)
+      rollCollectibleDrop(1);
+      useCosmeticPassStore.getState().addStars(10);
       showToast(`¡Ascendiste! +${result.starsGained} ⭐`, '#FACC15');
       triggerHaptic('shake');
       setTimeout(() => setPrestigeResult(null), 3000);
@@ -1303,6 +1334,14 @@ export default function Game() {
                 >
                   <Gamepad2 size={15} />
                 </button>
+                {/* Wave 4 (F13): recompensas por tiempo de sesión */}
+                <button
+                  onClick={() => setShowSessionRewards(true)}
+                  className="w-8 h-8 rounded-full bg-[#0D0E14]/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#22D3EE] shadow-lg active:scale-90 transition-transform"
+                  title="Recompensas por tiempo de sesión"
+                >
+                  <Clock size={15} />
+                </button>
               </div>
             </div>
 
@@ -1445,6 +1484,16 @@ export default function Game() {
                 >
                   {/* Truck shadow */}
                   <div className="truck-shadow" />
+                  {/* F16: estela equipada (pase cosmético) */}
+                  {truckVisual.trailColor && (
+                    <div
+                      className="absolute -bottom-3 left-1/2 -translate-x-1/2 w-44 h-7 rounded-full pointer-events-none z-0 opacity-80"
+                      style={{
+                        background: `radial-gradient(ellipse at center, ${truckVisual.trailColor} 0%, transparent 70%)`,
+                        filter: 'blur(5px)',
+                      }}
+                    />
+                  )}
                   {/* F8: remolque equipado (detrás del camión) */}
                   {truckVisual.trailerEmoji && (
                     <span className="absolute -right-10 bottom-2 text-4xl opacity-90 pointer-events-none z-0">
@@ -2109,7 +2158,24 @@ export default function Game() {
           if (reward.cps) store.addEarnings(reward.cps);
           if (reward.tickets) store.addGoldenTickets(reward.tickets);
           if (reward.millas) addMillas(reward.millas);
+          // Wave 4 (F14): completar misiones puede soltar coleccionables
+          rollCollectibleDrop(0.25);
           showToast('¡Misión reclamada!', '#F59E0B');
+        }}
+      />
+
+      {/* Wave 4 (F13): recompensas por tiempo de sesión */}
+      <SessionRewardsPanel
+        open={showSessionRewards}
+        onClose={() => setShowSessionRewards(false)}
+        onClaimReward={(reward: SessionRewardSet) => {
+          if (reward.cps) store.addEarnings(reward.cps);
+          if (reward.tickets) store.addGoldenTickets(reward.tickets);
+          if (reward.millas) addMillas(reward.millas);
+          if (reward.randomPowerup) {
+            usePowerupStore.getState().addPowerup(randomPowerupId(), 1);
+          }
+          showToast('¡Recompensa de sesión reclamada!', '#22D3EE');
         }}
       />
 

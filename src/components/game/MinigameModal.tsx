@@ -5,6 +5,7 @@ import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
 import { useClickerStore, calculateClickPower } from '@/store/clickerStore';
 import { usePowerupStore, POWERUP_IDS } from '@/store/powerupStore';
+import { useCollectibleStore, type CollectibleDrop } from '@/store/collectibleStore';
 import { useMillas } from '@/providers/MillasProvider';
 
 /**
@@ -210,9 +211,12 @@ export function MinigameModal({ open, onClose }: { open: boolean; onClose: () =>
 
   const [view, setView] = useState<View>('menu');
   const [reward, setReward] = useState<MinigameReward | null>(null);
+  // Wave 4 (F14): coleccionable ganado en la partida (si cayó)
+  const [drop, setDrop] = useState<CollectibleDrop | null>(null);
 
   useEffect(() => {
     if (open) {
+      setDrop(null);
       setView('menu');
       setReward(null);
     }
@@ -230,6 +234,8 @@ export function MinigameModal({ open, onClose }: { open: boolean; onClose: () =>
       if (r.cps > 0) store.addEarnings(r.cps);
       if (r.tickets > 0) store.addGoldenTickets(r.tickets);
       if (r.powerup) addPowerup(r.powerup as (typeof POWERUP_IDS)[number], 1);
+      // Wave 4 (F14): los minijuegos pueden soltar coleccionables
+      setDrop(useCollectibleStore.getState().rollDrop(0.35));
       if (r.tickets > 0 || r.powerup) {
         confetti({
           particleCount: 50,
@@ -376,6 +382,14 @@ export function MinigameModal({ open, onClose }: { open: boolean; onClose: () =>
                     <div className="bg-slate-800/60 rounded-xl p-2">
                       <p className="font-fredoka font-bold text-[#A855F7]">+1 Power-up</p>
                       <p className="text-[10px] text-slate-400">{reward.powerup}</p>
+                    </div>
+                  )}
+                  {drop?.isNew && (
+                    <div className="bg-slate-800/60 rounded-xl p-2">
+                      <p className="font-fredoka font-bold text-[#EC4899]">
+                        {drop.def.emoji} {drop.def.name}
+                      </p>
+                      <p className="text-[10px] text-slate-400">¡Coleccionable nuevo!</p>
                     </div>
                   )}
                 </div>
