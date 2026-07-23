@@ -15,6 +15,8 @@ import { useRouteStore } from '@/store/routeStore';
 import { computeRouteBonus } from '@/data/routes';
 import { useCustomizationStore } from '@/store/customizationStore';
 import { computeCustomizationBonus } from '@/data/truckSkins';
+import { useLeagueStore } from '@/store/leagueStore';
+import { useFriendsStore } from '@/store/friendsStore';
 
 const CLICKER_STORAGE_KEY = 'truckSurfers_clicker_v5';
 const OFFLINE_CAP_SECONDS = 8 * 60 * 60; // max 8 hours of offline progress
@@ -52,6 +54,7 @@ export interface ClickerState {
   redeemCps: (amount: number) => { success: boolean };
   buyUpgrade: (id: string, currentMillas: number) => { success: boolean; cost: number };
   addGoldenTickets: (amount: number) => void;
+  spendGoldenTickets: (amount: number) => { success: boolean };
   redeemGoldenTickets: (amount: number) => { success: boolean; millasGained: number };
   prestige: () => { success: boolean; starsGained: number };
   clearOfflineEarnings: () => void;
@@ -60,7 +63,6 @@ export interface ClickerState {
   getCriticalChance: () => number;
   addEarnings: (amount: number) => void;
   spendStars: (amount: number) => boolean;
-  spendGoldenTickets: (amount: number) => boolean;
   hydrate: (saved: ClickerHydration) => void;
   // Sincronización con Supabase (debounce 5s); el estado local sigue mandando offline
   debouncedSave: (userId: string) => void;
@@ -79,6 +81,7 @@ type ClickerComputed = Omit<
     | 'redeemCps'
     | 'buyUpgrade'
     | 'addGoldenTickets'
+    | 'spendGoldenTickets'
     | 'redeemGoldenTickets'
     | 'prestige'
     | 'clearOfflineEarnings'
@@ -164,6 +167,9 @@ function calculateClickPower(state: ClickerComputed): number {
   // F8: bonus pequeño de las piezas de personalización equipadas
   mult *= computeCustomizationBonus(useCustomizationStore.getState().equipped);
 
+  // Wave 3 (F10): bonus de caravana — +1% por amigo activo (tope +5%)
+  mult *= 1 + useFriendsStore.getState().getCaravanBonus();
+
   return sum * mult;
 }
 
@@ -210,6 +216,8 @@ export const useClickerStore = create<ClickerState>()(
           cpsTotal: state.cpsTotal + power,
           totalEarned: state.totalEarned + power,
         });
+        // Wave 3 (F9): el CPS semanal alimenta la liga
+        useLeagueStore.getState().addWeeklyCps(power);
         return { cps: power, millas: power };
       },
 
@@ -280,6 +288,14 @@ export const useClickerStore = create<ClickerState>()(
         set((state) => ({ goldenTickets: state.goldenTickets + amount }));
       },
 
+      // Gasto puro de tickets (minijuegos, etc.): NO convierte a millas.
+      spendGoldenTickets: (amount: number) => {
+        const state = get();
+        if (amount <= 0 || state.goldenTickets < amount) return { success: false };
+        set({ goldenTickets: state.goldenTickets - amount });
+        return { success: true };
+      },
+
       redeemGoldenTickets: (amount: number) => {
         const state = get();
         if (amount <= 0 || state.goldenTickets < amount) return { success: false, millasGained: 0 };
@@ -330,6 +346,8 @@ export const useClickerStore = create<ClickerState>()(
           cpsTotal: state.cpsTotal + amount,
           totalEarned: state.totalEarned + amount,
         }));
+        // Wave 3 (F9): todo ingreso CPS cuenta para la semana de liga
+        useLeagueStore.getState().addWeeklyCps(amount);
       },
 
       // Gasto de estrellas de prestigio (árbol de talentos)
@@ -337,14 +355,6 @@ export const useClickerStore = create<ClickerState>()(
         const state = get();
         if (amount <= 0 || state.stars < amount) return false;
         set({ stars: state.stars - amount });
-        return true;
-      },
-
-      // Gasto de Golden Tickets sin conversión (cajas de loot)
-      spendGoldenTickets: (amount: number) => {
-        const state = get();
-        if (amount <= 0 || state.goldenTickets < amount) return false;
-        set({ goldenTickets: state.goldenTickets - amount });
         return true;
       },
 

@@ -8,6 +8,7 @@ import {
   Sparkles,
   MousePointerClick,
   Clock,
+  Gamepad2,
   ClipboardList,
   Gift,
   GitBranch,
@@ -32,6 +33,13 @@ import { useComboStore, getComboWindowMs } from '@/store/comboStore';
 import { usePowerupStore, POWERUP_DEFS, type PowerupId } from '@/store/powerupStore';
 import { useUnlockStore } from '@/store/unlockStore';
 import { useEventStore } from '@/store/eventStore';
+import { useFriendsStore } from '@/store/friendsStore';
+import { useDailyStore } from '@/store/dailyStore';
+import {
+  notifyComboLost,
+  notifyDailyReady,
+  notifyGlobalEvent,
+} from '@/lib/pushNotifications';
 import { useQuestStore, type QuestReward } from '@/store/questStore';
 import { useTalentStore, getTalentTicketBonus, type TalentDef } from '@/store/talentStore';
 import { useAchievementStore, type AchievementDef } from '@/store/achievementStore';
@@ -46,6 +54,7 @@ import { SponsorPowerCard } from '@/components/game/SponsorPowerCard';
 import { FleetVehicleCard } from '@/components/game/FleetVehicleCard';
 import { FloatingNumber } from '@/components/game/FloatingNumber';
 import { BoomEffect } from '@/components/game/BoomEffect';
+import { MinigameModal } from '@/components/game/MinigameModal';
 import { QuestPanel } from '@/components/game/QuestPanel';
 import { TalentTree } from '@/components/game/TalentTree';
 import { AchievementToast } from '@/components/game/AchievementToast';
@@ -226,6 +235,7 @@ export default function Game() {
   const [goldCoins, setGoldCoins] = useState<{ id: number; x: number; reward: number }[]>([]);
   const [milestoneHit, setMilestoneHit] = useState<{ label: string; id: number } | null>(null);
   const [boom, setBoom] = useState<{ id: number; tierUp: boolean } | null>(null);
+  const [showMinigame, setShowMinigame] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
   // V9: barra THICK cargada por clicks (0-100), multiplicador activo y flash "×N ACTIVADO!"
   const [barCharge, setBarCharge] = useState(0);
@@ -288,9 +298,12 @@ export default function Game() {
   // F8: piezas equipadas (bonus + apariencia del camión)
   const equippedParts = useCustomizationStore((s) => s.equipped);
   const truckVisual = useMemo(() => getTruckVisual(equippedParts), [equippedParts]);
+  // Wave 3 (F10): recalcular el poder por click cuando cambia la caravana
+  const friendsList = useFriendsStore((s) => s.friends);
+  const incomingConvite = useFriendsStore((s) => s.incomingConvite);
   const clickPower = useMemo(
     () => calculateClickPower(useClickerStore.getState()),
-    [powerLevels, storeUpgrades, stars, selectedFleet, talentLevels, unlockedCityIds, equippedParts]
+    [powerLevels, storeUpgrades, stars, selectedFleet, talentLevels, unlockedCityIds, equippedParts, friendsList]
   );
   // V9: objetivo de la barra THICK — arranca en el próximo milestone del CPS por
   // click y avanza al siguiente target con cada activación (×3, ×4, ×5, ×10...)
@@ -384,12 +397,40 @@ export default function Game() {
     const iv = setInterval(() => {
       const s = useComboStore.getState();
       if (s.comboActive && Date.now() - s.lastClickAt > getComboWindowMs()) {
+        const lostCount = s.comboCount;
         // F5: si el combo roto era tier ≥1 (6+ clicks), ofrece revivirlo con anuncio
         if (s.comboCount >= 6) setReviveOffer({ count: s.comboCount, id: Date.now() });
         s.breakCombo();
+        // Wave 3 (F11): aviso push cuando se pierde un combo decente
+        if (lostCount >= 6) notifyComboLost(lostCount);
       }
     }, 250);
     return () => clearInterval(iv);
+  }, []);
+
+  // Wave 3 (F11): aviso push cuando arranca un evento global
+  useEffect(() => {
+    if (activeGlobalEvent) notifyGlobalEvent(activeGlobalEvent.name);
+  }, [activeGlobalEvent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Wave 3 (F10): presencia simulada de amigos + toast de convite entrante
+  useEffect(() => {
+    useFriendsStore.getState().refreshActivity();
+    const iv = setInterval(() => useFriendsStore.getState().refreshActivity(), 60_000);
+    return () => clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    if (!incomingConvite) return;
+    showToast(`🚛 ${incomingConvite.friendName} te envió un convite de caravana`, '#3B82F6');
+    useFriendsStore.getState().clearIncomingConvite();
+  }, [incomingConvite]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Wave 3 (F11): aviso push si la racha diaria de hoy está lista
+  useEffect(() => {
+    const today = new Date();
+    const dayKey = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+    if (useDailyStore.getState().lastLoginDate !== dayKey) notifyDailyReady();
   }, []);
 
   // Misiones: rotación diaria (fecha local) y semanal (lunes) + re-chequeo cada minuto
@@ -1229,7 +1270,7 @@ export default function Game() {
                 <span>+{formatNumber(clickPower * activeClickMultiplier)}</span>
               </div>
 
-              {/* 👑 Rank + accesos rápidos (misiones / caja) */}
+              {/* 👑 Rank + accesos rápidos (misiones / caja / minijuegos) */}
               <div className="pointer-events-auto flex items-center gap-1.5">
                 {store.ascensions > 0 && (
                   <div className="ascension-badge" title={`Ascensión ${store.ascensions}`}>
@@ -1253,6 +1294,14 @@ export default function Game() {
                   title="Caja sorpresa (1 🎟️)"
                 >
                   <Gift size={15} />
+                </button>
+                {/* Wave 3 (F12): acceso a minijuegos */}
+                <button
+                  onClick={() => setShowMinigame(true)}
+                  className="w-8 h-8 rounded-full bg-[#0D0E14]/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#EF4444] shadow-lg active:scale-90 transition-transform"
+                  title="Minijuegos (1 🎟️ por partida)"
+                >
+                  <Gamepad2 size={15} />
                 </button>
               </div>
             </div>
@@ -2080,6 +2129,9 @@ export default function Game() {
         rewardLabel={`Vuelve tu racha de ${reviveOffer?.count ?? 0} clicks`}
         onComplete={handleReviveAdComplete}
       />
+
+      {/* Wave 3 (F12): minijuegos (Derrape / Cambio de neumático) */}
+      <MinigameModal open={showMinigame} onClose={() => setShowMinigame(false)} />
 
       <GameTutorial forceOpen={showTutorial} onClose={() => setShowTutorial(false)} />
     </div>

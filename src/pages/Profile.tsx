@@ -29,6 +29,7 @@ import {
   X,
   Mail,
   Phone,
+  Bell,
   Link2,
   Check,
 } from 'lucide-react';
@@ -39,6 +40,14 @@ import { useClickerStore } from '@/store/clickerStore';
 import { useAchievementStore, ACHIEVEMENTS, type AchievementReward } from '@/store/achievementStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { fetchTransactions, type TransactionRow } from '@/lib/transactions';
+import { FriendsSection } from '@/components/FriendsSection';
+import {
+  getPushPermission,
+  getPushSettings,
+  isPushSupported,
+  requestPushPermission,
+  savePushSettings,
+} from '@/lib/pushNotifications';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -321,6 +330,9 @@ export default function Profile() {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  // Wave 3 (F11): master switch de notificaciones push del navegador
+  const [pushEnabled, setPushEnabled] = useState(() => getPushSettings().enabled);
+  const [pushPermission, setPushPermission] = useState(() => getPushPermission());
 
   /* Computed */
   const initials = (displayName || 'C').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
@@ -365,6 +377,20 @@ export default function Profile() {
 
   const toggleNotification = (id: string) => {
     setNotifications((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Wave 3 (F11): al activar, pide permiso del navegador; si lo niega, queda off
+  const handlePushToggle = async (enabled: boolean) => {
+    if (enabled) {
+      const permission = await requestPushPermission();
+      setPushPermission(permission);
+      const granted = permission === 'granted';
+      setPushEnabled(granted);
+      savePushSettings({ ...getPushSettings(), enabled: granted });
+      return;
+    }
+    setPushEnabled(false);
+    savePushSettings({ ...getPushSettings(), enabled: false });
   };
 
   const handleSaveVtexEmail = async () => {
@@ -515,7 +541,13 @@ export default function Profile() {
         </div>
       </Section>
 
-      {/* ============ Section 2.5: Logros ============ */}
+      {/* ============ Section 2.5: Amigos y Caravanas (Wave 3, F10) ============ */}
+      <Section className="px-4 mt-6" delay={0.25}>
+        <h2 className="font-fredoka font-bold text-xl text-slate-900 mb-2">Amigos y Caravanas</h2>
+        <FriendsSection />
+      </Section>
+
+      {/* ============ Section 2.6: Logros ============ */}
       <Section className="px-4 mt-6" delay={0.25}>
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-fredoka font-bold text-xl text-slate-900">Logros</h2>
@@ -684,6 +716,28 @@ export default function Profile() {
       <Section className="px-4 mt-6" delay={0.5}>
         <h2 className="font-fredoka font-bold text-xl text-slate-900 mb-3">Notificaciones</h2>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-[0_2px_12px_rgba(0,0,0,0.2)]">
+          {/* Wave 3 (F11): master switch de push del navegador */}
+          <div className="flex items-center gap-3 py-3.5 border-b border-slate-200">
+            <div className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0">
+              <Bell size={18} className="text-[#F59E0B]" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-slate-900 text-sm font-semibold">Notificaciones push</p>
+              <p className="text-slate-500 text-xs">
+                {!isPushSupported()
+                  ? 'Tu navegador no soporta notificaciones (se usan avisos internos)'
+                  : pushPermission === 'denied'
+                    ? 'Bloqueadas por el navegador — habilitalas en los ajustes del sitio'
+                    : 'Racha diaria, combos, eventos y recompensas de liga'}
+              </p>
+            </div>
+            <Switch
+              checked={pushEnabled}
+              onCheckedChange={(v) => void handlePushToggle(v)}
+              disabled={!isPushSupported() || pushPermission === 'denied'}
+              className="data-[state=checked]:bg-[#F59E0B]"
+            />
+          </div>
           {[
             { id: 'games', icon: Trophy, iconColor: 'text-[#F59E0B]', title: 'Resumen de partidas', subtitle: 'Recibe un resumen despues de cada juego' },
             { id: 'redemptions', icon: ShoppingBag, iconColor: 'text-[#10B981]', title: 'Estado de redenciones', subtitle: 'Notificaciones cuando tu producto se envia' },
