@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDailyStore, DAILY_REWARDS } from '@/store/dailyStore';
+import { AdRewardModal } from '@/components/game/AdRewardModal';
 import { cn } from '@/lib/utils';
 
 function dayKey(d: Date = new Date()): string {
@@ -8,9 +9,11 @@ function dayKey(d: Date = new Date()): string {
 
 interface DailyStreakProps {
   onClaim?: (reward: number, day: number) => void;
+  /** Se invoca cuando el usuario ve un anuncio completo para duplicar la recompensa. */
+  onDoubleClaim?: (reward: number, day: number) => void;
 }
 
-export function DailyStreak({ onClaim }: DailyStreakProps) {
+export function DailyStreak({ onClaim, onDoubleClaim }: DailyStreakProps) {
   const currentStreak = useDailyStore((s) => s.currentStreak);
   const lastLoginDate = useDailyStore((s) => s.lastLoginDate);
   const claimedDays = useDailyStore((s) => s.claimedDays);
@@ -21,6 +24,9 @@ export function DailyStreak({ onClaim }: DailyStreakProps) {
 
   const [claiming, setClaiming] = useState(false);
   const [claimFx, setClaimFx] = useState<{ day: number; reward: number } | null>(null);
+  // F5: doble recompensa viendo un anuncio (opt-in), una vez por reclamo
+  const [doubleOffer, setDoubleOffer] = useState<{ day: number; reward: number } | null>(null);
+  const [showAd, setShowAd] = useState(false);
 
   useEffect(() => {
     checkStreak();
@@ -56,6 +62,7 @@ export function DailyStreak({ onClaim }: DailyStreakProps) {
     if (result.success) {
       setClaimFx({ day: result.day, reward: result.reward });
       onClaim?.(result.reward, result.day);
+      if (onDoubleClaim) setDoubleOffer({ day: result.day, reward: result.reward });
       setTimeout(() => {
         setClaimFx(null);
         setClaiming(false);
@@ -63,6 +70,14 @@ export function DailyStreak({ onClaim }: DailyStreakProps) {
     } else {
       setClaiming(false);
     }
+  };
+
+  const handleAdComplete = (watched: boolean) => {
+    setShowAd(false);
+    if (watched && doubleOffer) {
+      onDoubleClaim?.(doubleOffer.reward, doubleOffer.day);
+    }
+    setDoubleOffer(null);
   };
 
   return (
@@ -161,6 +176,22 @@ export function DailyStreak({ onClaim }: DailyStreakProps) {
           +{claimFx.reward.toLocaleString('es-CO')}
         </p>
       )}
+
+      {doubleOffer && !showAd && (
+        <button
+          onClick={() => setShowAd(true)}
+          className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-b from-[#FACC15] to-[#D97706] text-[#451a03] font-black text-xs tracking-wide border-b-4 border-[#92400E] active:translate-y-0.5 active:border-b-0 flex items-center justify-center gap-1.5"
+        >
+          📺 DOBLE RECOMPENSA (+{doubleOffer.reward.toLocaleString('es-CO')})
+        </button>
+      )}
+
+      <AdRewardModal
+        open={showAd}
+        title="Doble recompensa"
+        rewardLabel={`+${(doubleOffer?.reward ?? 0).toLocaleString('es-CO')} extra del día ${doubleOffer?.day ?? ''}`}
+        onComplete={handleAdComplete}
+      />
     </div>
   );
 }

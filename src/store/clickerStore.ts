@@ -11,6 +11,10 @@ import {
 import { DEFAULT_FLEET_ID, getFleetMultiplier, getFleetVehicle } from '@/data/fleetVehicles';
 import { loadGameState, rowToHydration, scheduleSave } from '@/lib/gameSync';
 import { getTalentPowerBonus, getTalentCritBonus } from '@/store/talentStore';
+import { useRouteStore } from '@/store/routeStore';
+import { computeRouteBonus } from '@/data/routes';
+import { useCustomizationStore } from '@/store/customizationStore';
+import { computeCustomizationBonus } from '@/data/truckSkins';
 
 const CLICKER_STORAGE_KEY = 'truckSurfers_clicker_v5';
 const OFFLINE_CAP_SECONDS = 8 * 60 * 60; // max 8 hours of offline progress
@@ -153,6 +157,12 @@ function calculateClickPower(state: ClickerComputed): number {
 
   // Talentos del camionero (rama Poder): +5% por nivel
   mult *= 1 + getTalentPowerBonus();
+
+  // F7: bonus permanente de las ciudades desbloqueadas en el mapa de rutas
+  mult *= computeRouteBonus(useRouteStore.getState().unlockedCityIds);
+
+  // F8: bonus pequeño de las piezas de personalización equipadas
+  mult *= computeCustomizationBonus(useCustomizationStore.getState().equipped);
 
   return sum * mult;
 }

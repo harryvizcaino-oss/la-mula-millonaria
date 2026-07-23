@@ -11,6 +11,8 @@ import {
   ClipboardList,
   Gift,
   GitBranch,
+  MapPin,
+  Wrench,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
@@ -33,6 +35,7 @@ import { useEventStore } from '@/store/eventStore';
 import { useQuestStore, type QuestReward } from '@/store/questStore';
 import { useTalentStore, getTalentTicketBonus, type TalentDef } from '@/store/talentStore';
 import { useAchievementStore, type AchievementDef } from '@/store/achievementStore';
+import { useSeasonStore } from '@/store/seasonStore';
 
 import { CriticalHit, type CritState } from '@/components/game/CriticalHit';
 import { AscensionCinematic } from '@/components/game/AscensionCinematic';
@@ -47,6 +50,12 @@ import { QuestPanel } from '@/components/game/QuestPanel';
 import { TalentTree } from '@/components/game/TalentTree';
 import { AchievementToast } from '@/components/game/AchievementToast';
 import { LootBoxModal } from '@/components/game/LootBoxModal';
+import { AdRewardModal } from '@/components/game/AdRewardModal';
+import { RouteMap } from '@/components/game/RouteMap';
+import { useRouteStore } from '@/store/routeStore';
+import { TruckCustomization } from '@/components/game/TruckCustomization';
+import { useCustomizationStore } from '@/store/customizationStore';
+import { getTruckVisual } from '@/data/truckSkins';
 
 import { useTruckHorn } from '@/hooks/useTruckHorn';
 import { getTruckAsset } from '@/data/truckAssets';
@@ -188,7 +197,7 @@ export default function Game() {
   const { addMillas } = useMillas();
   const store = useClickerStore();
 
-  const [activeTab, setActiveTab] = useState<'buildings' | 'upgrades' | 'prestige' | 'talents'>('upgrades');
+  const [activeTab, setActiveTab] = useState<'buildings' | 'upgrades' | 'prestige' | 'talents' | 'ruta' | 'taller'>('upgrades');
   const [floatingNumbers, setFloatingNumbers] = useState<FloatingNumberEntry[]>([]);
   const [particles, setParticles] = useState<ClickParticle[]>([]);
   const [truckBump, setTruckBump] = useState(false);
@@ -229,6 +238,9 @@ export default function Game() {
   const [showQuests, setShowQuests] = useState(false);
   const [showLootBox, setShowLootBox] = useState(false);
   const [achievementQueue, setAchievementQueue] = useState<AchievementDef[]>([]);
+  // F5: oferta de revivir el combo roto viendo un anuncio (opt-in)
+  const [reviveOffer, setReviveOffer] = useState<{ count: number; id: number } | null>(null);
+  const [showReviveAd, setShowReviveAd] = useState(false);
 
   const comboTier = useComboStore((s) => s.comboTier);
   const comboActive = useComboStore((s) => s.comboActive);
@@ -269,10 +281,16 @@ export default function Game() {
   const storeUpgrades = useClickerStore((s) => s.upgrades);
   const stars = useClickerStore((s) => s.stars);
   const selectedFleet = useClickerStore((s) => s.selectedFleet);
+  // Wave 1: talentos alimentan CPS por click
   const talentLevels = useTalentStore((s) => s.levels);
+  // F7: el bonus de rutas también alimenta el CPS por click
+  const unlockedCityIds = useRouteStore((s) => s.unlockedCityIds);
+  // F8: piezas equipadas (bonus + apariencia del camión)
+  const equippedParts = useCustomizationStore((s) => s.equipped);
+  const truckVisual = useMemo(() => getTruckVisual(equippedParts), [equippedParts]);
   const clickPower = useMemo(
     () => calculateClickPower(useClickerStore.getState()),
-    [powerLevels, storeUpgrades, stars, selectedFleet, talentLevels]
+    [powerLevels, storeUpgrades, stars, selectedFleet, talentLevels, unlockedCityIds, equippedParts]
   );
   // V9: objetivo de la barra THICK — arranca en el próximo milestone del CPS por
   // click y avanza al siguiente target con cada activación (×3, ×4, ×5, ×10...)
@@ -365,7 +383,11 @@ export default function Game() {
   useEffect(() => {
     const iv = setInterval(() => {
       const s = useComboStore.getState();
-      if (s.comboActive && Date.now() - s.lastClickAt > getComboWindowMs()) s.breakCombo();
+      if (s.comboActive && Date.now() - s.lastClickAt > getComboWindowMs()) {
+        // F5: si el combo roto era tier ≥1 (6+ clicks), ofrece revivirlo con anuncio
+        if (s.comboCount >= 6) setReviveOffer({ count: s.comboCount, id: Date.now() });
+        s.breakCombo();
+      }
     }, 250);
     return () => clearInterval(iv);
   }, []);
@@ -376,6 +398,17 @@ export default function Game() {
     const iv = setInterval(() => useQuestStore.getState().ensureQuests(), 60_000);
     return () => clearInterval(iv);
   }, []);
+
+  // La oferta de revivir expira a los 6s o si el jugador inicia un combo nuevo
+  useEffect(() => {
+    if (!reviveOffer) return;
+    if (comboActive) {
+      setReviveOffer(null);
+      return;
+    }
+    const t = setTimeout(() => setReviveOffer(null), 6000);
+    return () => clearTimeout(t);
+  }, [reviveOffer, comboActive]);
 
   // Eventos globales simulados: arranque + progreso comunitario pasivo
   useEffect(() => {
@@ -414,8 +447,7 @@ export default function Game() {
   // Desbloqueos épicos por hitos
   useEffect(() => {
     const u = useUnlockStore.getState();
-    if (store.cpsTotal >= 1000) {
-      u.triggerUnlock('km-1k', {
+    if (store.cpsTotal >= 1000) {      u.triggerUnlock('km-1k', {
         type: 'small',
         title: 'Primeros 1.000 CPS',
         reward: 'Desbloquea segundo vehículo de flota',
@@ -473,6 +505,15 @@ export default function Game() {
       unsubCombo();
     };
   }, []);
+
+  // F7: desbloqueo de ciudades del mapa de rutas según el CPS total histórico
+  useEffect(() => {
+    const newly = useRouteStore.getState().checkUnlocks(store.cpsTotal);
+    for (const city of newly) {
+      showToast(`¡Nueva ciudad: ${city.name}! +${city.bonusPct}% por click`, '#16A34A');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [store.cpsTotal]);
 
   // Aviso cuando se agota el nitro
   useEffect(() => {
@@ -803,6 +844,9 @@ export default function Game() {
       // Evento global: cada click aporta al progreso comunitario
       useEventStore.getState().updateProgress(1);
 
+      // F6: cada click suma 1 XP al pase de temporada
+      useSeasonStore.getState().addXp(1);
+
       // Crítico: 5% base + bonus por 'precision' (tope 25%)
       const isCrit = Math.random() < store.getCriticalChance();
 
@@ -991,6 +1035,17 @@ export default function Game() {
       spawnParticlesPercent(coin.x, 50);
       return prev.filter((c) => c.id !== coinId);
     });
+  };
+
+  // F5: revivir combo — la recompensa solo se entrega si el anuncio se vio completo
+  const handleReviveAdComplete = (watched: boolean) => {
+    setShowReviveAd(false);
+    if (watched && reviveOffer) {
+      useComboStore.getState().restoreCombo(reviveOffer.count);
+      showToast(`¡Combo revivido! (${reviveOffer.count} clicks)`, '#F59E0B');
+      triggerHaptic('flash');
+    }
+    setReviveOffer(null);
   };
 
   const potentialStars = useMemo(() => {
@@ -1341,13 +1396,26 @@ export default function Game() {
                 >
                   {/* Truck shadow */}
                   <div className="truck-shadow" />
+                  {/* F8: remolque equipado (detrás del camión) */}
+                  {truckVisual.trailerEmoji && (
+                    <span className="absolute -right-10 bottom-2 text-4xl opacity-90 pointer-events-none z-0">
+                      {truckVisual.trailerEmoji}
+                    </span>
+                  )}
                   <img
                     src={getTruckAsset(store.selectedFleet)}
                     alt={`${activeVehicle.brand} ${activeVehicle.model}`}
                     title={`${activeVehicle.brand} ${activeVehicle.model} · x${activeVehicle.multiplier}`}
                     className={cn('truck-image', shake && 'truck-shake')}
+                    style={truckVisual.filter ? { filter: truckVisual.filter } : undefined}
                     draggable={false}
                   />
+                  {/* F8: sticker equipado (sobre el camión) */}
+                  {truckVisual.stickerEmoji && (
+                    <span className="absolute top-1 right-4 text-3xl pointer-events-none z-20 drop-shadow-lg">
+                      {truckVisual.stickerEmoji}
+                    </span>
+                  )}
                 </motion.div>
               </div>
 
@@ -1411,6 +1479,22 @@ export default function Game() {
                   </span>
                   AUTO {Math.ceil(autoclickRemaining / 1000)}s
                 </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* F5: oferta de revivir el combo roto viendo un anuncio */}
+            <AnimatePresence>
+              {reviveOffer && !showReviveAd && (
+                <motion.button
+                  key={reviveOffer.id}
+                  initial={{ opacity: 0, y: 10, scale: 0.9 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  onClick={() => setShowReviveAd(true)}
+                  className="absolute top-[58%] left-1/2 -translate-x-1/2 z-[7] bg-gradient-to-r from-[#F59E0B] to-[#F97316] text-[#0D0E14] px-4 py-2 rounded-full font-fredoka font-black text-sm shadow-lg border-2 border-white whitespace-nowrap"
+                >
+                  📺 ¡Combo roto! Revivir x{reviveOffer.count} con anuncio
+                </motion.button>
               )}
             </AnimatePresence>
 
@@ -1637,6 +1721,8 @@ export default function Game() {
                   { id: 'upgrades', label: 'Poderes', icon: Zap },
                   { id: 'buildings', label: 'Flota', icon: Truck },
                   { id: 'talents', label: 'Talentos', icon: GitBranch },
+                  { id: 'ruta', label: 'Ruta', icon: MapPin },
+                  { id: 'taller', label: 'Taller', icon: Wrench },
                   { id: 'prestige', label: 'Ascensión', icon: Star },
                 ].map((tab) => (
                   <button
@@ -1731,6 +1817,17 @@ export default function Game() {
             store.addEarnings(reward);
             if (day === 5) store.addGoldenTickets(5); // caja especial
             if (day === 7) store.addGoldenTickets(20); // item legendario
+            useSeasonStore.getState().addXp(25); // F6: XP del pase
+            triggerHaptic('flash');
+          }}
+          onDoubleClaim={(reward, day) => {
+            // F5: duplica la recompensa de la racha tras ver el anuncio completo
+            addMillas(reward);
+            store.addEarnings(reward);
+            if (day === 5) store.addGoldenTickets(5);
+            if (day === 7) store.addGoldenTickets(20);
+            useSeasonStore.getState().addXp(25);
+            showToast(`¡Doble recompensa! +${formatNumber(reward)}`, '#FACC15');
             triggerHaptic('flash');
           }}
         />
@@ -1793,6 +1890,10 @@ export default function Game() {
             }}
           />
         )}
+
+        {activeTab === 'ruta' && <RouteMap cpsTotal={store.cpsTotal} />}
+
+        {activeTab === 'taller' && <TruckCustomization onToast={showToast} />}
 
         {activeTab === 'prestige' && (
           <div className="relative rounded-[2rem] p-6 border-[4px] border-[#FACC15] text-center overflow-hidden bg-gradient-to-br from-[#451a03] via-[#78350F] to-[#451a03] shadow-[0_8px_32px_rgba(245,158,11,0.25)]">
@@ -1971,6 +2072,14 @@ export default function Game() {
 
       {/* Caja sorpresa con Golden Tickets */}
       <LootBoxModal open={showLootBox} onClose={() => setShowLootBox(false)} />
+
+      {/* F5: anuncio para revivir el combo roto */}
+      <AdRewardModal
+        open={showReviveAd}
+        title="Revivir combo"
+        rewardLabel={`Vuelve tu racha de ${reviveOffer?.count ?? 0} clicks`}
+        onComplete={handleReviveAdComplete}
+      />
 
       <GameTutorial forceOpen={showTutorial} onClose={() => setShowTutorial(false)} />
     </div>

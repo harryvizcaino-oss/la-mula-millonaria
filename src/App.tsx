@@ -9,6 +9,7 @@ import Marketplace from './pages/Marketplace'
 import Redemption from './pages/Redemption'
 import Leaderboard from './pages/Leaderboard'
 import Profile from './pages/Profile'
+import SeasonPass from './pages/SeasonPass'
 import Garage from './pages/Garage'
 import Brands from './pages/Brands'
 import Login from "./pages/Login"
@@ -17,9 +18,15 @@ import AuthCallback from "./pages/AuthCallback"
 import NotFound from "./pages/NotFound"
 import { ClickerEngine } from './components/ClickerEngine'
 import { useClickerSync } from './hooks/useClickerSync'
+import { useSeasonSync } from './hooks/useSeasonSync'
 
 function ClickerSync() {
   useClickerSync()
+  return null
+}
+
+function SeasonSync() {
+  useSeasonSync()
   return null
 }
 
@@ -42,6 +49,7 @@ function AnimatedRoutes() {
             <Route path="/marketplace" element={<Marketplace />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/profile" element={<Profile />} />
+            <Route path="/season" element={<SeasonPass />} />
             <Route path="/garage" element={<Garage />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/redemption" element={<Redemption />} />
@@ -62,6 +70,7 @@ export default function App() {
     <>
       <ClickerEngine />
       <ClickerSync />
+      <SeasonSync />
       <AnimatedRoutes />
     </>
   )

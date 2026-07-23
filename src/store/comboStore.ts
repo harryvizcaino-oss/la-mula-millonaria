@@ -40,6 +40,8 @@ export interface ComboState {
   incrementCombo: () => void;
   breakCombo: () => void;
   resetCombo: () => void;
+  /** Restaura un combo roto (p. ej. tras ver un anuncio de "Revivir combo"). */
+  restoreCombo: (count: number) => void;
 }
 
 export const useComboStore = create<ComboState>()((set, get) => ({
@@ -70,5 +72,17 @@ export const useComboStore = create<ComboState>()((set, get) => ({
 
   resetCombo: () => {
     set({ comboCount: 0, comboMultiplier: 1, comboTier: 0, lastClickAt: 0, comboActive: false });
+  },
+
+  restoreCombo: (count: number) => {
+    if (count <= 0) return;
+    const tierDef = comboTierFor(count);
+    set({
+      comboCount: count,
+      comboMultiplier: tierDef.mult,
+      comboTier: tierDef.tier,
+      lastClickAt: Date.now(),
+      comboActive: true,
+    });
   },
 }));

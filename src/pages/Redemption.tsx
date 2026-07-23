@@ -27,6 +27,7 @@ import { getGradientClass } from '@/data/mockProducts';
 import type { Product } from '@/data/mockProducts';
 import { useAuth } from '@/hooks/useAuth';
 import { useMillas } from '@/providers/MillasProvider';
+import { useSeasonStore } from '@/store/seasonStore';
 import { recordTransaction } from '@/lib/transactions';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import confetti from 'canvas-confetti';
@@ -955,6 +956,7 @@ export default function Redemption() {
 
     setStep('processing');
     addMillas(-totalCost);
+    useSeasonStore.getState().addXp(50); // F6: XP del pase por redención
     setGiftCardCode(generateGiftCardCode());
     void recordTransaction({
       type: 'spend',
