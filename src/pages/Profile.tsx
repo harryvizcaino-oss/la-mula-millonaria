@@ -29,10 +29,13 @@ import {
   X,
   Mail,
   Phone,
+  Check,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { useMillas } from '@/providers/MillasProvider';
+import { useClickerStore } from '@/store/clickerStore';
+import { useAchievementStore, ACHIEVEMENTS, type AchievementReward } from '@/store/achievementStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { fetchTransactions, type TransactionRow } from '@/lib/transactions';
 import { Switch } from '@/components/ui/switch';
@@ -120,8 +123,16 @@ function getTransactionTitle(type: string, description: string | null): string {
   }
 }
 
-const FAQ_ITEMS = [
-  { q: 'Como gano CPS?', a: 'Toca tu camion en La Mula Millonaria, compra poderes de marca con CPS y multiplica todo con tu flota de camiones reales.' },
+function formatAchievementReward(reward: AchievementReward): string {
+  const parts: string[] = [];
+  if (reward.cps) parts.push(`+${reward.cps.toLocaleString('es-CO')} ⚡`);
+  if (reward.tickets) parts.push(`+${reward.tickets} 🎟️`);
+  if (reward.millas) parts.push(`+${reward.millas.toLocaleString('es-CO')} M`);
+  if (reward.title) parts.push(`Título "${reward.title}"`);
+  return parts.join('  ');
+}
+
+const FAQ_ITEMS = [  { q: 'Como gano CPS?', a: 'Toca tu camion en La Mula Millonaria, compra poderes de marca con CPS y multiplica todo con tu flota de camiones reales.' },
   { q: 'Como redimo mis TicaMillas?', a: 'Ve a la tienda, selecciona un producto y presiona "Redimir". Se descontaran tus TicaMillas y recibiras un codigo de gift card de VTEX.' },
   { q: 'Cuanto valen las TicaMillas?', a: '1 TicaMilla = $1 COP. Si un producto cuesta $50,000 COP, necesitas 50,000 TicaMillas para redimirlo.' },
   { q: 'Puedo vincular mi cuenta de VTEX?', a: 'Si. En configuracion de cuenta selecciona "Cuenta VTEX" y sigue el proceso de vinculacion.' },
@@ -223,9 +234,21 @@ function SettingsItem({
 /* ------------------------------------------------------------------ */
 export default function Profile() {
   const { user, isLoading, logout } = useAuth();
-  const { millas } = useMillas();
+  const { millas, addMillas } = useMillas();
+  const unlockedAchievements = useAchievementStore((s) => s.unlocked);
+  const claimedAchievements = useAchievementStore((s) => s.claimed);
   const [txRows, setTxRows] = useState<TransactionRow[]>([]);
   const [userStats, setUserStats] = useState({ totalClicks: 0, totalEarned: 0, rank: 0 });
+
+  // Reclama la recompensa de un logro y la aplica a las economías del juego
+  const claimAchievement = (id: string) => {
+    const reward = useAchievementStore.getState().claim(id);
+    if (!reward) return;
+    const clicker = useClickerStore.getState();
+    if (reward.cps) clicker.addEarnings(reward.cps);
+    if (reward.tickets) clicker.addGoldenTickets(reward.tickets);
+    if (reward.millas) addMillas(reward.millas);
+  };
 
   // Transacciones desde Supabase (tabla `transactions`, más recientes primero)
   useEffect(() => {
@@ -463,6 +486,60 @@ export default function Profile() {
                 </span>
                 <span className="text-slate-500 text-[10px]">{stat.label}</span>
               </motion.div>
+            );
+          })}
+        </div>
+      </Section>
+
+      {/* ============ Section 2.5: Logros ============ */}
+      <Section className="px-4 mt-6" delay={0.25}>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="font-fredoka font-bold text-xl text-slate-900">Logros</h2>
+          <span className="text-slate-500 text-xs font-semibold">
+            {claimedAchievements.length + unlockedAchievements.length}/{ACHIEVEMENTS.length}
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {ACHIEVEMENTS.map((a) => {
+            const claimed = claimedAchievements.includes(a.id);
+            const unlocked = unlockedAchievements.includes(a.id);
+            return (
+              <div
+                key={a.id}
+                className={cn(
+                  'rounded-2xl border p-3 bg-white shadow-[0_2px_12px_rgba(0,0,0,0.08)]',
+                  claimed
+                    ? 'border-emerald-200'
+                    : unlocked
+                      ? 'border-[#F59E0B] shadow-[0_0_16px_rgba(245,158,11,0.2)]'
+                      : 'border-slate-200 opacity-60'
+                )}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">{claimed || unlocked ? a.emoji : '🔒'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-slate-900 text-xs font-bold truncate">{a.title}</p>
+                    <p className="text-slate-500 text-[10px] truncate">{a.description}</p>
+                  </div>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <span className="text-[#F59E0B] text-[9px] font-semibold leading-tight">
+                    {formatAchievementReward(a.reward)}
+                  </span>
+                  {claimed ? (
+                    <span className="flex items-center gap-0.5 text-emerald-600 text-[10px] font-bold flex-shrink-0">
+                      <Check size={11} /> Listo
+                    </span>
+                  ) : unlocked ? (
+                    <button
+                      onClick={() => claimAchievement(a.id)}
+                      className="flex-shrink-0 h-6 px-2 rounded-lg bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] text-[#0D0E14] text-[10px] font-black"
+                    >
+                      Reclamar
+                    </button>
+                  ) : null}
+                </div>
+              </div>
             );
           })}
         </div>

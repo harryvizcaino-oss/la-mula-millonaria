@@ -8,6 +8,9 @@ import {
   Sparkles,
   MousePointerClick,
   Clock,
+  ClipboardList,
+  Gift,
+  GitBranch,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
@@ -23,10 +26,13 @@ import {
 } from '@/data/sponsorPowers';
 import { pickRandomEvent, type ClickerGameEvent } from '@/data/clickerEvents';
 import { GameTutorial } from '@/components/GameTutorial';
-import { useComboStore } from '@/store/comboStore';
+import { useComboStore, getComboWindowMs } from '@/store/comboStore';
 import { usePowerupStore, POWERUP_DEFS, type PowerupId } from '@/store/powerupStore';
 import { useUnlockStore } from '@/store/unlockStore';
 import { useEventStore } from '@/store/eventStore';
+import { useQuestStore, type QuestReward } from '@/store/questStore';
+import { useTalentStore, getTalentTicketBonus, type TalentDef } from '@/store/talentStore';
+import { useAchievementStore, type AchievementDef } from '@/store/achievementStore';
 
 import { CriticalHit, type CritState } from '@/components/game/CriticalHit';
 import { AscensionCinematic } from '@/components/game/AscensionCinematic';
@@ -37,6 +43,10 @@ import { SponsorPowerCard } from '@/components/game/SponsorPowerCard';
 import { FleetVehicleCard } from '@/components/game/FleetVehicleCard';
 import { FloatingNumber } from '@/components/game/FloatingNumber';
 import { BoomEffect } from '@/components/game/BoomEffect';
+import { QuestPanel } from '@/components/game/QuestPanel';
+import { TalentTree } from '@/components/game/TalentTree';
+import { AchievementToast } from '@/components/game/AchievementToast';
+import { LootBoxModal } from '@/components/game/LootBoxModal';
 
 import { useTruckHorn } from '@/hooks/useTruckHorn';
 import { getTruckAsset } from '@/data/truckAssets';
@@ -178,7 +188,7 @@ export default function Game() {
   const { addMillas } = useMillas();
   const store = useClickerStore();
 
-  const [activeTab, setActiveTab] = useState<'buildings' | 'upgrades' | 'prestige'>('upgrades');
+  const [activeTab, setActiveTab] = useState<'buildings' | 'upgrades' | 'prestige' | 'talents'>('upgrades');
   const [floatingNumbers, setFloatingNumbers] = useState<FloatingNumberEntry[]>([]);
   const [particles, setParticles] = useState<ClickParticle[]>([]);
   const [truckBump, setTruckBump] = useState(false);
@@ -215,6 +225,10 @@ export default function Game() {
   const [epicAnnouncement, setEpicAnnouncement] = useState<{ label: string; id: number } | null>(null);
   // V18: streak perdido cuando la barra llega a 0%
   const [streakLost, setStreakLost] = useState<{ id: number } | null>(null);
+  // Wave 1: misiones, talentos, logros y cajas de loot
+  const [showQuests, setShowQuests] = useState(false);
+  const [showLootBox, setShowLootBox] = useState(false);
+  const [achievementQueue, setAchievementQueue] = useState<AchievementDef[]>([]);
 
   const comboTier = useComboStore((s) => s.comboTier);
   const comboActive = useComboStore((s) => s.comboActive);
@@ -255,9 +269,10 @@ export default function Game() {
   const storeUpgrades = useClickerStore((s) => s.upgrades);
   const stars = useClickerStore((s) => s.stars);
   const selectedFleet = useClickerStore((s) => s.selectedFleet);
+  const talentLevels = useTalentStore((s) => s.levels);
   const clickPower = useMemo(
     () => calculateClickPower(useClickerStore.getState()),
-    [powerLevels, storeUpgrades, stars, selectedFleet]
+    [powerLevels, storeUpgrades, stars, selectedFleet, talentLevels]
   );
   // V9: objetivo de la barra THICK — arranca en el próximo milestone del CPS por
   // click y avanza al siguiente target con cada activación (×3, ×4, ×5, ×10...)
@@ -346,12 +361,19 @@ export default function Game() {
   const goldRainActive = (activePowerupEffects.gold_rain ?? 0) > nowMs;
   const caravanaActive = activeGlobalEvent?.id === 'caravana';
 
-  // El combo se rompe si pasan 2s sin clicks
+  // El combo se rompe si pasa la ventana sin clicks (2s base + talentos de Combo)
   useEffect(() => {
     const iv = setInterval(() => {
       const s = useComboStore.getState();
-      if (s.comboActive && Date.now() - s.lastClickAt > 2000) s.breakCombo();
+      if (s.comboActive && Date.now() - s.lastClickAt > getComboWindowMs()) s.breakCombo();
     }, 250);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Misiones: rotación diaria (fecha local) y semanal (lunes) + re-chequeo cada minuto
+  useEffect(() => {
+    useQuestStore.getState().ensureQuests();
+    const iv = setInterval(() => useQuestStore.getState().ensureQuests(), 60_000);
     return () => clearInterval(iv);
   }, []);
 
@@ -421,6 +443,36 @@ export default function Game() {
       });
     }
   }, [store.cpsTotal, store.fleetOwned, store.ascensions]);
+
+  // Logros: checkea ante cada cambio de los stores (suscripciones externas)
+  // y encola toasts solo para los desbloqueados DESPUÉS del chequeo inicial.
+  useEffect(() => {
+    const snapshot = () => {
+      const s = useClickerStore.getState();
+      return {
+        powerLevels: s.powerLevels,
+        fleetOwned: s.fleetOwned,
+        cpsTotal: s.cpsTotal,
+        totalClicks: s.totalClicks,
+        ascensions: s.ascensions,
+        comboTier: useComboStore.getState().comboTier,
+      };
+    };
+    // Chequeo inicial: marca logros ya cumplidos sin toast (vienen de la partida cargada)
+    useAchievementStore.getState().checkAchievements(snapshot());
+    const onChange = () => {
+      const fresh = useAchievementStore.getState().checkAchievements(snapshot());
+      if (fresh.length > 0) {
+        setAchievementQueue((prev) => [...prev, ...fresh].slice(0, 5));
+      }
+    };
+    const unsubClicker = useClickerStore.subscribe(onChange);
+    const unsubCombo = useComboStore.subscribe(onChange);
+    return () => {
+      unsubClicker();
+      unsubCombo();
+    };
+  }, []);
 
   // Aviso cuando se agota el nitro
   useEffect(() => {
@@ -569,6 +621,7 @@ export default function Game() {
       const item = prev.find((c) => c.id === id);
       if (!item) return prev;
       store.addGoldenTickets(1);
+      useQuestStore.getState().progress('collectTickets', 1);
       showToast('+1 Golden Ticket', '#FACC15');
       spawnParticlesPercent(item.x, item.y);
       setTicketBurst(true);
@@ -733,7 +786,7 @@ export default function Game() {
       // V17: cada click carga la barra THICK — siempre 2% (50 clicks para llenar)
       lastBarClickRef.current = Date.now();
       setBarCharge((prev) => Math.min(100, prev + 2));
-      const chance = Math.min(0.25, clicksSinceTicketRef.current * 0.0075);
+      const chance = Math.min(0.25, clicksSinceTicketRef.current * 0.0075) * (1 + getTalentTicketBonus());
       if (Math.random() < chance) {
         spawnCollectible();
         clicksSinceTicketRef.current = 0;
@@ -742,6 +795,10 @@ export default function Game() {
       // Combo: cada click alimenta la racha (ventana de 2s)
       useComboStore.getState().incrementCombo();
       const comboMult = useComboStore.getState().comboMultiplier;
+
+      // Misiones: progreso de clicks y mejor tier de combo
+      useQuestStore.getState().progress('clicks', 1);
+      useQuestStore.getState().progress('comboTier', useComboStore.getState().comboTier);
 
       // Evento global: cada click aporta al progreso comunitario
       useEventStore.getState().updateProgress(1);
@@ -764,6 +821,8 @@ export default function Game() {
       // Los multiplicadores (combo, nitro, crítico...) también suman al balance CPS
       const extraCps = Math.floor(result.cps * (multiplier - 1));
       if (extraCps > 0) store.addEarnings(extraCps);
+      // Misiones: CPS ganados por este click (con multiplicadores)
+      useQuestStore.getState().progress('earnCps', Math.floor(amount));
 
       if (isCrit) {
         const cId = ++critIdRef.current;
@@ -845,6 +904,7 @@ export default function Game() {
     if (result.success) {
       const vehicle = getFleetVehicle(id);
       if (vehicle) spawnFlyItem(vehicle.emoji, el, getTruckAsset(vehicle.id));
+      if (result.cost > 0) useQuestStore.getState().progress('buyFleet', 1);
       showToast(
         result.cost > 0
           ? `¡${vehicle?.brand ?? 'Vehículo'} en tu flota! x${vehicle?.multiplier}`
@@ -860,6 +920,7 @@ export default function Game() {
     if (result.success) {
       const power = SPONSOR_POWERS.find((p) => p.id === id);
       if (power) spawnFlyItem(power.emoji, el);
+      useQuestStore.getState().progress('buyPower', 1);
       setBoom({ id: Date.now(), tierUp: false });
       triggerHaptic('flash');
     }
@@ -1113,7 +1174,7 @@ export default function Game() {
                 <span>+{formatNumber(clickPower * activeClickMultiplier)}</span>
               </div>
 
-              {/* 👑 Rank */}
+              {/* 👑 Rank + accesos rápidos (misiones / caja) */}
               <div className="pointer-events-auto flex items-center gap-1.5">
                 {store.ascensions > 0 && (
                   <div className="ascension-badge" title={`Ascensión ${store.ascensions}`}>
@@ -1124,6 +1185,20 @@ export default function Game() {
                   <span>👑</span>
                   <span>#{rankPosition}</span>
                 </div>
+                <button
+                  onClick={() => setShowQuests(true)}
+                  className="w-8 h-8 rounded-full bg-[#0D0E14]/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#F59E0B] shadow-lg active:scale-90 transition-transform"
+                  title="Misiones diarias y semanales"
+                >
+                  <ClipboardList size={15} />
+                </button>
+                <button
+                  onClick={() => setShowLootBox(true)}
+                  className="w-8 h-8 rounded-full bg-[#0D0E14]/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#A855F7] shadow-lg active:scale-90 transition-transform"
+                  title="Caja sorpresa (1 🎟️)"
+                >
+                  <Gift size={15} />
+                </button>
               </div>
             </div>
 
@@ -1561,6 +1636,7 @@ export default function Game() {
                 {[
                   { id: 'upgrades', label: 'Poderes', icon: Zap },
                   { id: 'buildings', label: 'Flota', icon: Truck },
+                  { id: 'talents', label: 'Talentos', icon: GitBranch },
                   { id: 'prestige', label: 'Ascensión', icon: Star },
                 ].map((tab) => (
                   <button
@@ -1703,6 +1779,19 @@ export default function Game() {
               />
             ))}
           </>
+        )}
+
+        {activeTab === 'talents' && (
+          <TalentTree
+            onBuy={(_talent: TalentDef, result: { success: boolean; reason?: string }) => {
+              if (result.success) {
+                showToast(`¡Talento desbloqueado: ${_talent.name}!`, '#F59E0B');
+                triggerHaptic('flash');
+              } else if (result.reason) {
+                showToast(result.reason, '#94A3B8');
+              }
+            }}
+          />
         )}
 
         {activeTab === 'prestige' && (
@@ -1861,6 +1950,27 @@ export default function Game() {
 
       {/* Efecto BOOM al comprar poderes / cambiar de tier */}
       <BoomEffect trigger={boom} />
+
+      {/* Misiones diarias / semanales */}
+      <QuestPanel
+        open={showQuests}
+        onClose={() => setShowQuests(false)}
+        onClaimReward={(reward: QuestReward) => {
+          if (reward.cps) store.addEarnings(reward.cps);
+          if (reward.tickets) store.addGoldenTickets(reward.tickets);
+          if (reward.millas) addMillas(reward.millas);
+          showToast('¡Misión reclamada!', '#F59E0B');
+        }}
+      />
+
+      {/* Toast de logro desbloqueado */}
+      <AchievementToast
+        achievement={achievementQueue[0] ?? null}
+        onDone={() => setAchievementQueue((prev) => prev.slice(1))}
+      />
+
+      {/* Caja sorpresa con Golden Tickets */}
+      <LootBoxModal open={showLootBox} onClose={() => setShowLootBox(false)} />
 
       <GameTutorial forceOpen={showTutorial} onClose={() => setShowTutorial(false)} />
     </div>
