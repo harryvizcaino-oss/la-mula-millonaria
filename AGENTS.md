@@ -4,11 +4,12 @@
 
 - **App name:** La Mula Millonaria
 - **Repository:** `Documents/trucker-surfers/app`
-- **Stack:** React 19 + TypeScript + Vite 7 + Tailwind CSS + Zustand + Framer Motion
+- **Stack:** React 19 + TypeScript + Vite 7 + Tailwind CSS + Zustand + Framer Motion + Supabase (auth + Postgres)
 - **Router:** `BrowserRouter` → routes like `/game`
 - **Local dev:** `npm run dev` (serves on `http://localhost:3000/`)
-- **Build:** `npm run build` (also runs `tsc` implicitly via Vite transform)
-- **Type-check:** `npx tsc --noEmit`
+- **Build:** `npm run build` (Vite build estático a `dist/public`)
+- **Start (Railway):** `npm start` → `vite preview` sirviendo `dist/public` (frontend 100% estático; no hay servidor de API)
+- **Type-check:** `npx tsc -b` (limpio, 0 errores)
 
 ## Game Logic (Clicker)
 
@@ -118,17 +119,15 @@ After changing keys, users must hard-refresh (`Cmd + Shift + R`) to discard old 
 | `src/pages/Marketplace.tsx` | Store + cash redemption (Gift Card) + VTEX gift cards (CPS) |
 | `src/pages/Profile.tsx` | User profile page |
 | `src/components/Navbar.tsx` | Bottom nav: Inicio, Ranking, Jugar, Tienda, Perfil |
-| `api/lib/clicker.ts` | Server-side copy of the CPS formula |
-| `api/trpc/routers/game.ts` | tRPC: clicker saveState/getState + leaderboard score = cpsTotal |
 
 ## Server Sync (Supabase)
 
 - **Auth:** Supabase Auth (OAuth Google/Apple, PKCE) reemplazó a Clerk en el frontend. `src/lib/auth.ts` expone `signInWithGoogle/signInWithApple/getCurrentUser/signOut`; `src/hooks/useAuth.ts` mantiene la interfaz `{ user: { id, name, email, avatar }, isAuthenticated, isLoading, logout, refresh }` que consumen las páginas. Callback OAuth en `/auth/callback` (`src/pages/AuthCallback.tsx`). Perfil + `game_state` se crean con el trigger `handle_new_user` (fallback client-side: `ensureUserRecords`).
-- **Backend:** Supabase Postgres. Esquema en `supabase/migrations/001_initial_schema.sql`: `profiles`, `game_state`, `leaderboard_global`, `transactions`, `friends` (RLS en todas) + función `update_leaderboard()` (RPC) y trigger que la corre en cada cambio de `cps_total`. Env vars: `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (sin ellas la app corre offline/anónima).
+- **Backend:** Supabase Postgres. Esquema en `supabase/migrations/001_initial_schema.sql`: `profiles`, `game_state`, `leaderboard_global`, `transactions`, `friends` (RLS en todas) + función `update_leaderboard()` (RPC) y trigger que la corre en cada cambio de `cps_total`. Env vars: `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` (sin ellas la app corre offline/anónima). El backend legacy tRPC/MySQL/Clerk (`api/`, `db/`, drizzle) fue eliminado por completo (T3/T4); el frontend es 100% estático + Supabase.
 - **Game sync (`src/lib/gameSync.ts` + `useClickerSync`):** upsert del snapshot a `game_state` con **debounce de 5s** (`store.debouncedSave`), carga al iniciar sesión (`store.loadFromSupabase` → `hydrate`), flush en `beforeunload`/`visibilitychange`. Mapping: `cps` = cpsBalance, `cps_total` = cpsTotal (ranking, nunca baja — el servidor conserva `greatest()`), `power_levels`, `fleet_unlocked`, `active_fleet_id`, `upgrades`, `total_clicks`, `total_earned`, `stars`, `ascensions`, `autoclick_level`, `last_tick_at`, `streak_days`, `last_claim_date`. La columna `millas` la escribe solo MillasProvider (upsert parcial, mismo debounce 5s).
 - **Offline:** Zustand/localStorage es la fuente de verdad en tiempo real. Los guardados que fallan se encolan en localStorage (`truckSurfers_sync_queue_v1`, coalesced por usuario+kind, `src/lib/offlineQueue.ts`) y se reenvían con el evento `online`.
 - **Leaderboard:** `src/pages/Leaderboard.tsx` lee `leaderboard_global` (top 50 por `cps_total`) con suscripción Realtime (`postgres_changes`) + poll de 30s de respaldo; cae a `mockPlayers` si está vacío/no configurado.
-- **Legacy:** el servidor tRPC/MySQL en `api/` sigue sirviendo features no migradas (`Profile` transactions/stats, `Redemption` redeem). `src/providers/trpc.tsx` ahora adjunta el access token de Supabase (el backend viejo verificaba Clerk, así que esas llamadas responden no-autenticado hasta migrarlas).
+- **Transactions (`src/lib/transactions.ts`):** helper único sobre la tabla `transactions` (RLS: el dueño lee/inserta las suyas). `fetchTransactions(userId, limit)` (orden `created_at` desc) y `recordTransaction({ type, amount, description })` (best-effort: no-op sin config/sesión). Convención: `amount` positivo y el signo lo da `type` (`'spend'` = gasto; `'earn'/'reward'/'iap'/'ad'` = ingreso). `Profile` lee su historial y stats (`game_state.total_clicks/total_earned` + rank de `leaderboard_global`) desde Supabase; `Redemption` deduce millas vía MillasProvider, genera el gift card code en cliente y registra el `spend`.
 
 ## Marketplace / Tienda
 
@@ -141,13 +140,12 @@ After changing keys, users must hard-refresh (`Cmd + Shift + R`) to discard old 
   - Grays: Tailwind `slate` scale
   - White
 - **Layout order (top to bottom):**
-  1. Balance strip: TicaMillas, Golden Tickets, CPS, COP available.
-  2. Cash redemption card: "Redime tu dinero".
-  3. VTEX gift cards card (CPS).
-  4. Search bar (sticky at `top-14`).
-  5. Category tabs.
-  6. Promo banners.
-  7. Product grid.
+  1. Balance pill row: fila compacta de pills (~36px) bajo el título "Tienda" — TicaMillas (M roja), 🎟️ Golden Tickets, ⚡ CPS, $ COP disponible (valores en formato compacto es-CO vía `formatCompact`).
+  2. Card única "Redime" con tabs pill (activo rojo sólido, inactivo gris): tab "Efectivo" (redención de efectivo) y tab "Gift Cards CPS" (grid VTEX).
+  3. Search bar (sticky at `top-14`).
+  4. Category tabs.
+  5. Product grid: cards horizontales densas (1 por fila en mobile, `sm:grid-cols-2`) — foto 68px a la izquierda, nombre/marca/precio (COP tachado + millas rojas) al centro, indicador compacto de asequibilidad a la derecha y barra fina de progreso (3px) al pie.
+  6. Promo banners (después del grid para que el catálogo real aparezca en la primera pantalla).
 - **VTEX gift cards (redpostventa.com):** $10 (100K CPS), $25 (250K), $50 (500K), $100 (1M), $250 (2.5M). Redeeming calls `store.redeemCps(cost)` — only `cpsBalance` decreases; `cpsTotal` (ranking) is untouched.
 - **Cash redemption:**
   - Conversion: `100.000.000 TicaMillas = $10.000 COP`.
@@ -155,6 +153,8 @@ After changing keys, users must hard-refresh (`Cmd + Shift + R`) to discard old 
   - User inputs how many Millas and/or Tickets to redeem.
   - System deducts the selected amounts and generates a Gift Card code shown in a modal.
 - Product redemption still exists below; tapping a product opens the detail bottom sheet and then `/redemption`.
+- **Real VTEX catalog:** the product grid is fed by the real redpostventa.com catalog via `src/lib/vtexCatalog.ts` (Supabase Edge Function `vtex-catalog`). If Supabase is not configured or the function fails, it falls back to `mockProducts` silently (no console errors). Search → `ft=`, category tabs → VTEX level-1 tree (`categoryId`).
+- TicaMillas cost for real products is **derived from the COP price at the cash redemption rate** (`MILLAS_PER_COP = 10_000` in `Marketplace.tsx` → a $2M COP tire costs ~20.000M millas). Business decision (2026-07-22, supersedes the earlier hand-curated map): real products are long-term aspirational goals that drive retention (revenue comes from ads), NOT quick redemptions; in-game currency is primarily spent on in-game consumables. Products without a COP price are shown but NOT redeemable (CTA "Solo en redpostventa.com").
 
 ## Navigation (Bottom Navbar)
 
@@ -166,6 +166,8 @@ Items in order:
 5. Perfil (`/profile`)
 
 **Mi Empresa was removed.** The previous `/empresa` route, page, terrain data, and store state no longer exist. The terrain/building feature was deleted.
+
+**Navbar oscura glass (V9):** la barra es oscura en TODAS las páginas — `bg-[#0D0E14]/85 backdrop-blur-xl border-t border-white/10`. Ítems inactivos `text-slate-400` (`.nav-item-inactive` #94A3B8, hover slate-200), activo dorado #F59E0B (ícono + label + dot `.nav-dot` con glow dorado). Botón central Jugar conserva el gradiente dorado y glow; su label es `text-slate-400`.
 
 ## UI Conventions
 
@@ -189,8 +191,8 @@ Items in order:
 - `formatFull` floors numbers; use `Math.max(1, ...)` for displayed card values.
 - Marketplace colors must stay within red/white/gray/black only.
 - Cash redemption rate is `100_000_000 millas = 10_000 COP`.
-- Always run `npx tsc --noEmit && npm run build` before declaring done.
-- `npm run check` (`tsc -b`) has pre-existing errors in untouched files (unused vars, `api/clerk/auth.ts`, `Profile.tsx`); do not add new ones.
+- Always run `npx tsc -b && npm run build` before declaring done.
+- `npx tsc -b` está limpio (0 errores); mantenerlo así. `npm run lint` tiene errores pre-existentes de reglas react-hooks/react-compiler en archivos no relacionados; no añadir nuevos.
 
 ## Epic Features (`src/store/` + `src/components/game/` + `src/styles/epic-features.css`)
 

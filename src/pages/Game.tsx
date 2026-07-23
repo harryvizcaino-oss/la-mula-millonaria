@@ -12,7 +12,7 @@ import {
 import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
 import { useMillas } from '@/providers/MillasProvider';
-import { useClickerStore, calculateClickPower, calculatePlayerLevel } from '@/store/clickerStore';
+import { useClickerStore, calculateClickPower } from '@/store/clickerStore';
 import { FLEET_VEHICLES, getFleetVehicle } from '@/data/fleetVehicles';
 import { mockPlayers } from '@/data/mockLeaderboard';
 import {
@@ -259,8 +259,6 @@ export default function Game() {
     () => calculateClickPower(useClickerStore.getState()),
     [powerLevels, storeUpgrades, stars, selectedFleet]
   );
-  const playerLevel = useMemo(() => calculatePlayerLevel(store), [store.powerLevels]);
-
   // V9: objetivo de la barra THICK — arranca en el próximo milestone del CPS por
   // click y avanza al siguiente target con cada activación (×3, ×4, ×5, ×10...)
   const barMilestoneIdx = Math.max(barTargetIdx ?? 0, getDerivedMilestoneIdx(clickPower));

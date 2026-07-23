@@ -10,6 +10,10 @@ export interface Product {
   featured?: boolean;
   rating?: number;
   reviewCount?: number;
+  // Campos del catalogo VTEX real (ausentes en mocks)
+  imageUrl?: string;    // foto real; si falta se usa el placeholder con gradiente `image`
+  redeemable?: boolean; // false = sin precio curado en vtexPrices → no redimible
+  link?: string;        // URL del producto en redpostventa.com
 }
 
 export const categories = [

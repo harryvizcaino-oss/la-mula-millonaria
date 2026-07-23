@@ -27,7 +27,7 @@ import { getGradientClass } from '@/data/mockProducts';
 import type { Product } from '@/data/mockProducts';
 import { useAuth } from '@/hooks/useAuth';
 import { useMillas } from '@/providers/MillasProvider';
-import { trpc } from '@/providers/trpc';
+import { recordTransaction } from '@/lib/transactions';
 import confetti from 'canvas-confetti';
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -882,7 +882,7 @@ export default function Redemption() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isLoading: authLoading } = useAuth();
-  const { setMillas } = useMillas();
+  const { millas, addMillas } = useMillas();
 
   const [step, setStep] = useState<RedemptionStep>('review');
   const [giftCardCode, setGiftCardCode] = useState('');
@@ -893,40 +893,37 @@ export default function Redemption() {
   const cart = location.state?.cart as Product[] | undefined;
   const userMillas = (location.state?.userMillas as number) || 0;
 
-  const redeemMutation = trpc.game.points.redeemProduct.useMutation({
-    onSuccess: (data) => {
-      setMillas(data.newBalance);
-      setGiftCardCode(generateGiftCardCode());
-      setStep('success');
-    },
-    onError: (err) => {
-      console.error('[Redemption] Failed:', err);
-      setErrorMessage(err.message || 'Error en la redencion');
-      setStep('error');
-    },
-  });
-
+  // Redención client-side (mismo patrón que la redención de efectivo en
+  // Marketplace): deduce millas del MillasProvider y genera el gift card
+  // code local. La escritura en `transactions` de Supabase es best-effort.
   const handleConfirm = useCallback(() => {
     if (!product && (!cart || cart.length === 0)) return;
 
-    setStep('processing');
+    const totalCost = product
+      ? product.millasCost
+      : cart!.reduce((sum, p) => sum + p.millasCost, 0);
+    const productName = product
+      ? product.name
+      : `${cart![0].name}${cart!.length > 1 ? ` (+${cart!.length - 1} mas)` : ''}`;
 
-    if (product) {
-      redeemMutation.mutate({
-        productName: product.name,
-        productImage: product.image,
-        millasCost: product.millasCost,
-      });
-    } else if (cart && cart.length > 0) {
-      // Redeem first product only for now; cart multi-redemption not supported yet
-      const first = cart[0];
-      redeemMutation.mutate({
-        productName: `${first.name} (+${cart.length - 1} mas)`,
-        productImage: first.image,
-        millasCost: cart.reduce((sum, p) => sum + p.millasCost, 0),
-      });
+    if (millas < totalCost) {
+      setErrorMessage('Saldo insuficiente');
+      setStep('error');
+      return;
     }
-  }, [product, cart, redeemMutation]);
+
+    setStep('processing');
+    addMillas(-totalCost);
+    setGiftCardCode(generateGiftCardCode());
+    void recordTransaction({
+      type: 'spend',
+      amount: totalCost,
+      description: `Redencion: ${productName}`,
+    });
+    // La redención es local e instantánea (patrón Marketplace): pasamos
+    // directo a success; 'processing' queda como paso intermedio visual.
+    setTimeout(() => setStep('success'), 1200);
+  }, [product, cart, millas, addMillas]);
 
   const handleRetry = useCallback(() => {
     setStep('review');

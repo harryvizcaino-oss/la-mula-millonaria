@@ -23,12 +23,14 @@ import {
   Shirt,
   Watch,
   Gift,
-  Ticket,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import PrimaryButton from '@/components/PrimaryButton';
 import { mockProducts, categories, getGradientClass } from '@/data/mockProducts';
 import type { Product } from '@/data/mockProducts';
+import { fetchVtexProducts, fetchVtexCategories } from '@/lib/vtexCatalog';
+import type { VtexProduct } from '@/lib/vtexCatalog';
 import { useAuth } from '@/hooks/useAuth';
 import { useMillas } from '@/providers/MillasProvider';
 import { useClickerStore } from '@/store/clickerStore';
@@ -36,8 +38,6 @@ import { useClickerStore } from '@/store/clickerStore';
 /* ═══════════════════════════════════════════════════════════════════
    Constants & Helpers
    ═══════════════════════════════════════════════════════════════════ */
-
-const USER_MILLAS = 15420;
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 15 },
@@ -64,6 +64,48 @@ function getCategoryIconComponent(iconName: string) {
 
 function formatMillas(n: number): string {
   return n.toLocaleString('es-CO');
+}
+
+/* Formato compacto es-CO para las pills de balance (1,2 M, 350 mil, etc.) */
+function formatCompact(n: number): string {
+  return new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
+}
+
+/* ── Catálogo VTEX real (redpostventa.com) ──
+   Si la Edge Function responde, el grid usa productos reales; si no,
+   cae a mockProducts sin ruido. El costo en TicaMillas se deriva del
+   precio COP a la tasa de redención de efectivo (100M millas = $10.000
+   COP → 1 COP = 10.000 millas): los productos reales son objetivos
+   aspiracionales de muy largo plazo, NO canjes rápidos. */
+const MILLAS_PER_COP = 10_000;
+
+function mapVtexProduct(p: VtexProduct): Product {
+  const millasCost = p.price != null ? Math.round(p.price * MILLAS_PER_COP) : 0;
+  return {
+    id: p.id,
+    name: p.name,
+    brand: p.brand || 'redpostventa.com',
+    category: p.category || 'Catalogo',
+    image: 'gradient-red',
+    imageUrl: p.image ?? undefined,
+    priceCOP: p.price ?? 0,
+    millasCost,
+    description: `${p.name} de ${p.brand || 'redpostventa.com'}. Producto del catalogo real de redpostventa.com.`,
+    redeemable: p.price != null,
+    link: p.link,
+  };
+}
+
+function getProductCategoryIcon(category: string) {
+  return getCategoryIconComponent(
+    category === 'Electronica' ? 'Headphones'
+      : category === 'Hogar' ? 'Home'
+        : category === 'Deportes' ? 'Dumbbell'
+          : category === 'Moda' ? 'Shirt'
+            : category === 'Accesorios' ? 'Briefcase'
+              : category === 'Gift Cards' ? 'Gift'
+                : 'Package'
+  );
 }
 
 /* ───────────────── Cash Redemption Helpers ───────────────── */
@@ -311,8 +353,11 @@ function ProductCard({ product, index, userMillas, onSelect }: {
   userMillas: number;
   onSelect: (p: Product) => void;
 }) {
-  const canAfford = userMillas >= product.millasCost;
-  const CategoryIcon = getCategoryIconComponent(product.category === 'Electronica' ? 'Headphones' : product.category === 'Hogar' ? 'Home' : product.category === 'Deportes' ? 'Dumbbell' : product.category === 'Moda' ? 'Shirt' : product.category === 'Accesorios' ? 'Briefcase' : 'Gift');
+  const canAfford = product.redeemable !== false && userMillas >= product.millasCost;
+  const CategoryIcon = getProductCategoryIcon(product.category);
+  const progress = product.redeemable !== false && product.millasCost > 0
+    ? Math.min(100, (userMillas / product.millasCost) * 100)
+    : 0;
 
   return (
     <motion.div
@@ -320,70 +365,75 @@ function ProductCard({ product, index, userMillas, onSelect }: {
       variants={fadeInUp}
       initial="hidden"
       animate="visible"
-      className="bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden cursor-pointer transition-all duration-200 hover:border-[#ff3131]/20 hover:shadow-lg active:scale-[0.98]"
+      className="relative bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden cursor-pointer transition-all duration-200 hover:border-[#ff3131]/30 hover:shadow-lg active:scale-[0.99]"
       onClick={() => onSelect(product)}
     >
-      {/* Image */}
-      <div className="relative overflow-hidden">
-        <ProductPlaceholder gradient={getGradientClass(product.image)} icon={CategoryIcon} />
-        <MillasBadgeOverlay millas={product.millasCost} />
-        {product.featured && (
-          <div className="absolute top-2 left-2 bg-[#ff3131] text-[#0D0E14] text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full">
-            Destacado
-          </div>
-        )}
-      </div>
-
-      {/* Content */}
-      <div className="p-3 space-y-1.5">
-        <h3 className="text-slate-900 text-sm font-semibold line-clamp-2 leading-tight min-h-[2.5rem]">
-          {product.name}
-        </h3>
-        <p className="text-slate-500 text-[11px]">{product.brand}</p>
-        {product.rating && <StarRating rating={product.rating} count={product.reviewCount} />}
-
-        <div className="flex items-center gap-2 pt-1">
-          <span className="text-slate-500 text-xs line-through">${formatMillas(product.priceCOP)}</span>
-          <span className="text-[#ff3131] font-fredoka font-bold text-sm">{formatMillas(product.millasCost)} M</span>
+      <div className="flex items-center gap-3 p-3">
+        {/* Imagen 68px */}
+        <div className="relative w-[68px] h-[68px] rounded-xl overflow-hidden flex-shrink-0">
+          {product.imageUrl ? (
+            <img
+              src={product.imageUrl}
+              alt={product.name}
+              loading="lazy"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className={cn('w-full h-full bg-gradient-to-br flex items-center justify-center', getGradientClass(product.image))}>
+              <CategoryIcon size={24} className="text-slate-400" />
+            </div>
+          )}
+          {product.featured && (
+            <div className="absolute top-1 left-1 bg-[#ff3131] text-white text-[8px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full">
+              Destacado
+            </div>
+          )}
         </div>
 
-        {/* Affordability indicator */}
-        {canAfford ? (
-          <div className="flex items-center gap-1 text-[#ff4c4c] text-[10px]">
-            <Check size={10} />
-            <span>Puedes redimirlo!</span>
+        {/* Info central */}
+        <div className="flex-1 min-w-0">
+          <h3 className="text-slate-900 text-sm font-semibold line-clamp-2 leading-tight">
+            {product.name}
+          </h3>
+          <p className="text-slate-500 text-[11px] mt-0.5">{product.brand}</p>
+          <div className="flex items-center gap-2 mt-1">
+            {product.redeemable !== false ? (
+              <>
+                <span className="text-slate-400 text-[11px] line-through">${formatMillas(product.priceCOP)}</span>
+                <span className="text-[#ff3131] font-fredoka font-bold text-sm">{formatMillas(product.millasCost)} M</span>
+              </>
+            ) : (
+              <span className="text-slate-500 text-[11px] font-bold">Solo en redpostventa.com</span>
+            )}
           </div>
-        ) : (
-          <div className="space-y-1">
-            <div className="flex items-center justify-between text-[10px]">
-              <span className="text-[#ff3131]">Te faltan {formatMillas(product.millasCost - userMillas)} M</span>
-              <span className="text-slate-500">{Math.round((userMillas / product.millasCost) * 100)}%</span>
-            </div>
-            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-[#ff3131] to-[#ff4c4c] rounded-full transition-all duration-500"
-                style={{ width: `${Math.min(100, (userMillas / product.millasCost) * 100)}%` }}
-              />
-            </div>
+        </div>
+
+        {/* Asequibilidad compacta */}
+        {product.redeemable !== false && (
+          <div className="flex-shrink-0 text-right max-w-[90px]">
+            {canAfford ? (
+              <span className="inline-flex items-center gap-1 text-[#ff4c4c] text-[10px] font-bold">
+                <Check size={12} className="flex-shrink-0" />
+                Puedes redimirlo!
+              </span>
+            ) : (
+              <span className="text-[#ff3131] text-[10px] font-bold leading-tight">
+                Te faltan {formatCompact(product.millasCost - userMillas)}
+              </span>
+            )}
           </div>
         )}
-
-        {/* Redimir button */}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onSelect(product);
-          }}
-          className={cn(
-            'w-full mt-1 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-150',
-            canAfford
-              ? 'bg-gradient-to-r from-[#ff3131] to-[#ff4c4c] text-white shadow-[0_4px_20px_rgba(255,49,49,0.4)] active:scale-[0.97]'
-              : 'bg-slate-100 text-slate-500 cursor-not-allowed opacity-60'
-          )}
-        >
-          {canAfford ? 'REDIMIR' : 'JUEGA PARA GANAR'}
-        </button>
       </div>
+
+      {/* Barra fina de progreso al pie */}
+      {product.redeemable !== false && !canAfford && (
+        <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-slate-100">
+          <div
+            className="h-full bg-gradient-to-r from-[#ff3131] to-[#ff4c4c] transition-all duration-500"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      )}
     </motion.div>
   );
 }
@@ -392,8 +442,9 @@ function ProductCard({ product, index, userMillas, onSelect }: {
    Product Detail Bottom Sheet
    ═══════════════════════════════════════════════════════════════════ */
 
-function ProductDetailSheet({ product, userMillas, isOpen, onClose, onRedeem }: {
+function ProductDetailSheet({ product, products, userMillas, isOpen, onClose, onRedeem }: {
   product: Product | null;
+  products: Product[];
   userMillas: number;
   isOpen: boolean;
   onClose: () => void;
@@ -401,8 +452,8 @@ function ProductDetailSheet({ product, userMillas, isOpen, onClose, onRedeem }: 
 }) {
   if (!product) return null;
 
-  const canAfford = userMillas >= product.millasCost;
-  const CategoryIcon = getCategoryIconComponent(product.category === 'Electronica' ? 'Headphones' : product.category === 'Hogar' ? 'Home' : product.category === 'Deportes' ? 'Dumbbell' : product.category === 'Moda' ? 'Shirt' : product.category === 'Accesorios' ? 'Briefcase' : 'Gift');
+  const canAfford = product.redeemable !== false && userMillas >= product.millasCost;
+  const CategoryIcon = getProductCategoryIcon(product.category);
 
   return (
     <AnimatePresence>
@@ -442,8 +493,16 @@ function ProductDetailSheet({ product, userMillas, isOpen, onClose, onRedeem }: 
 
             {/* Product Image */}
             <div className="relative mx-4 rounded-2xl overflow-hidden">
-              <ProductPlaceholder gradient={getGradientClass(product.image)} icon={CategoryIcon} />
-              <MillasBadgeOverlay millas={product.millasCost} />
+              {product.imageUrl ? (
+                <img
+                  src={product.imageUrl}
+                  alt={product.name}
+                  className="w-full aspect-square object-cover"
+                />
+              ) : (
+                <ProductPlaceholder gradient={getGradientClass(product.image)} icon={CategoryIcon} />
+              )}
+              {product.redeemable !== false && <MillasBadgeOverlay millas={product.millasCost} />}
             </div>
 
             {/* Product Info */}
@@ -461,8 +520,9 @@ function ProductDetailSheet({ product, userMillas, isOpen, onClose, onRedeem }: 
 
               <p className="text-slate-500 text-sm leading-relaxed">{product.description}</p>
 
-              {/* Millas display */}
-              <div className="bg-white rounded-2xl p-4 space-y-3">
+              {/* Millas display (o precio COP de referencia si no es redimible) */}
+              {product.redeemable !== false ? (
+                <div className="bg-white rounded-2xl p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-slate-500 text-sm">Costo en TicaMillas</span>
                   <div className="flex items-center gap-2">
@@ -502,13 +562,21 @@ function ProductDetailSheet({ product, userMillas, isOpen, onClose, onRedeem }: 
                     <p className="text-[#ff3131] text-xs">Te faltan {formatMillas(product.millasCost - userMillas)} TicaMillas. Sigue jugando!</p>
                   )}
                 </div>
-              </div>
+                </div>
+              ) : (
+                <div className="bg-white rounded-2xl p-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-500 text-sm">Precio en redpostventa.com</span>
+                    <span className="text-slate-900 font-fredoka font-bold text-2xl">${formatMillas(product.priceCOP)}</span>
+                  </div>
+                </div>
+              )}
 
               {/* Related products row */}
               <div>
                 <h4 className="text-slate-900 font-semibold text-sm mb-2">Productos similares</h4>
                 <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4">
-                  {mockProducts
+                  {products
                     .filter(p => p.category === product.category && p.id !== product.id)
                     .slice(0, 4)
                     .map((rp) => (
@@ -517,12 +585,18 @@ function ProductDetailSheet({ product, userMillas, isOpen, onClose, onRedeem }: 
                         onClick={() => {/* could navigate to related */}}
                         className="flex-shrink-0 w-28 bg-white rounded-xl overflow-hidden border border-slate-200 text-left"
                       >
-                        <div className={cn('h-20 bg-gradient-to-br flex items-center justify-center', getGradientClass(rp.image))}>
-                          <Package size={20} className="text-slate-400" />
-                        </div>
+                        {rp.imageUrl ? (
+                          <img src={rp.imageUrl} alt={rp.name} loading="lazy" className="h-20 w-full object-cover" />
+                        ) : (
+                          <div className={cn('h-20 bg-gradient-to-br flex items-center justify-center', getGradientClass(rp.image))}>
+                            <Package size={20} className="text-slate-400" />
+                          </div>
+                        )}
                         <div className="p-2">
                           <p className="text-slate-900 text-[10px] font-medium line-clamp-2 leading-tight">{rp.name}</p>
-                          <p className="text-[#ff3131] text-[10px] font-bold mt-0.5">{formatMillas(rp.millasCost)} M</p>
+                          {rp.redeemable !== false && (
+                            <p className="text-[#ff3131] text-[10px] font-bold mt-0.5">{formatMillas(rp.millasCost)} M</p>
+                          )}
                         </div>
                       </button>
                     ))}
@@ -531,14 +605,26 @@ function ProductDetailSheet({ product, userMillas, isOpen, onClose, onRedeem }: 
 
               {/* Action buttons */}
               <div className="space-y-2 pt-2">
-                <PrimaryButton
-                  variant={canAfford ? 'primary' : 'secondary'}
-                  icon={canAfford ? <Zap size={18} /> : <TruckIcon size={18} />}
-                  disabled={!canAfford}
-                  onClick={() => onRedeem(product)}
-                >
-                  {canAfford ? 'REDIMIR AHORA' : 'JUEGA PARA GANAR TicaMillas'}
-                </PrimaryButton>
+                {product.redeemable !== false ? (
+                  <PrimaryButton
+                    variant={canAfford ? 'primary' : 'secondary'}
+                    icon={canAfford ? <Zap size={18} /> : <TruckIcon size={18} />}
+                    disabled={!canAfford}
+                    onClick={() => onRedeem(product)}
+                  >
+                    {canAfford ? 'REDIMIR AHORA' : 'JUEGA PARA GANAR TicaMillas'}
+                  </PrimaryButton>
+                ) : (
+                  <a
+                    href={product.link || 'https://www.redpostventa.com'}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-2 w-full h-14 rounded-2xl font-bold uppercase tracking-wider text-base bg-slate-200 text-slate-500"
+                  >
+                    <ExternalLink size={18} />
+                    Solo en redpostventa.com
+                  </a>
+                )}
                 <PrimaryButton variant="outline" icon={<Heart size={18} />}>
                   AGREGAR A DESEADOS
                 </PrimaryButton>
@@ -701,10 +787,10 @@ export default function Marketplace() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [displayCount, setDisplayCount] = useState(8);
   const [redemptionCart] = useState<Product[]>([]);
-  const [ticketAmount, setTicketAmount] = useState(1);
   const [ticketToasts, setTicketToasts] = useState<{ id: number; text: string; color: string }[]>([]);
   const [cashMillasAmount, setCashMillasAmount] = useState(0);
   const [cashTicketAmount, setCashTicketAmount] = useState(0);
+  const [redeemTab, setRedeemTab] = useState<'cash' | 'cps'>('cash');
   const [cashModalOpen, setCashModalOpen] = useState(false);
   const [cashGiftCard, setCashGiftCard] = useState<{ code: string; cop: number } | null>(null);
   const [vtexGiftCard, setVtexGiftCard] = useState<{ code: string; usd: number } | null>(null);
@@ -713,8 +799,54 @@ export default function Marketplace() {
   const isInView = useInView(loadMoreRef, { margin: '200px' });
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // TODO: VTEX - fetch products from catalog
-  // const { data: vtexProducts, isLoading: productsLoading } = trpc.catalog.products.useQuery({ ... });
+  /* ── Catálogo VTEX real (fallback silencioso a mocks) ── */
+  const [catalogOk, setCatalogOk] = useState(false);
+  const [catalogLoading, setCatalogLoading] = useState(true);
+  const [vtexProducts, setVtexProducts] = useState<Product[]>([]);
+  const [vtexTabs, setVtexTabs] = useState<{ id: string; label: string; icon: string }[] | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchVtexCategories().then((tree) => {
+      if (cancelled || !tree || tree.length === 0) return;
+      setVtexTabs([
+        { id: 'all', label: 'Todos', icon: 'Grid3x3' },
+        ...tree.map((c) => ({ id: String(c.id), label: c.name, icon: 'Package' })),
+      ]);
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Buscador (ft=) y categoría (fq=C:/id/) server-side, debounce 400ms.
+  // Si la función no responde → catalogOk=false y se usan mocks como hoy.
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      setCatalogLoading(true);
+      const isVtexTab = activeCategory !== 'all' && !!vtexTabs?.some((t) => t.id === activeCategory);
+      void fetchVtexProducts({
+        query: searchQuery.trim() || undefined,
+        categoryId: isVtexTab ? activeCategory : undefined,
+        from: 0,
+        to: 49,
+      }).then((res) => {
+        if (cancelled) return;
+        if (res) {
+          setVtexProducts(res.products.map(mapVtexProduct));
+          setCatalogOk(true);
+        } else {
+          setCatalogOk(false);
+        }
+        setCatalogLoading(false);
+      });
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [searchQuery, activeCategory, vtexTabs]);
+
+  // Tabs: árbol VTEX nivel 1; si el árbol falla pero el catálogo responde,
+  // solo "Todos"; con mocks, las tabs de siempre.
+  const tabs: ReadonlyArray<{ id: string; label: string; icon: string }> =
+    vtexTabs ?? (catalogOk ? [{ id: 'all', label: 'Todos', icon: 'Grid3x3' }] : categories);
 
   /* ── Infinite scroll ── */
   useEffect(() => {
@@ -725,21 +857,24 @@ export default function Marketplace() {
 
   /* ── Filter & sort products ── */
   const filteredProducts = useMemo(() => {
-    let products = [...mockProducts];
-    // TODO: VTEX - replace with fetched products from catalog
+    // Con catálogo VTEX activo el filtrado por texto/categoría ya lo hizo
+    // el servidor (ft= / categoryId); con mocks se filtra local como hoy.
+    let products = catalogOk ? [...vtexProducts] : [...mockProducts];
 
-    if (activeCategory !== 'all') {
-      products = products.filter((p) => p.category === activeCategory);
-    }
+    if (!catalogOk) {
+      if (activeCategory !== 'all') {
+        products = products.filter((p) => p.category === activeCategory);
+      }
 
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      products = products.filter(
-        (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.brand.toLowerCase().includes(q) ||
-          p.category.toLowerCase().includes(q)
-      );
+      if (searchQuery.trim()) {
+        const q = searchQuery.toLowerCase();
+        products = products.filter(
+          (p) =>
+            p.name.toLowerCase().includes(q) ||
+            p.brand.toLowerCase().includes(q) ||
+            p.category.toLowerCase().includes(q)
+        );
+      }
     }
 
     switch (sortBy) {
@@ -758,7 +893,7 @@ export default function Marketplace() {
     }
 
     return products;
-  }, [activeCategory, searchQuery, sortBy]);
+  }, [catalogOk, vtexProducts, activeCategory, searchQuery, sortBy]);
 
   const visibleProducts = filteredProducts.slice(0, displayCount);
   const hasMore = displayCount < filteredProducts.length;
@@ -774,14 +909,6 @@ export default function Marketplace() {
     // Navigate to redemption page with product data
     navigate('/redemption', { state: { product, userMillas: millas } });
   }, [navigate, millas]);
-
-  const handleRedeemTickets = () => {
-    const result = clicker.redeemGoldenTickets(ticketAmount);
-    if (result.success) {
-      addMillas(result.millasGained);
-      showTicketToast(`+${formatMillas(result.millasGained)} TicaMillas`, '#ff4c4c');
-    }
-  };
 
   const handleCashRedemption = () => {
     const cop = convertToCop(cashMillasAmount, cashTicketAmount);
@@ -824,50 +951,86 @@ export default function Marketplace() {
   }
 
   return (
-    <div className="min-h-[100dvh] bg-white pb-4">
-      {/* ─── Millas Balance Strip ─── */}
+    <div className="min-h-[100dvh] bg-white pt-14 pb-4">
+      {/* ─── Balances: pill row compacta bajo el título "Tienda" ─── */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mx-4 mt-3 bg-white rounded-xl border-l-[3px] border-[#ff3131] p-3 flex items-center justify-between"
+        className="mx-4 mt-3 flex items-center gap-1.5 overflow-x-auto scrollbar-hide"
       >
-        <div className="flex items-center gap-2">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" className="text-[#ff3131]">
+        <span className="flex items-center gap-1 h-9 px-3 rounded-full bg-[#ff3131]/10 border border-[#ff3131]/30 whitespace-nowrap flex-shrink-0">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="text-[#ff3131]">
             <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.2" />
             <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="2" />
             <text x="12" y="16" textAnchor="middle" fill="currentColor" fontSize="10" fontWeight="bold" fontFamily="Fredoka, sans-serif">M</text>
           </svg>
-          <div>
-            <p className="text-[#ff3131] font-fredoka font-bold text-sm">{formatMillas(millas)} TicaMillas</p>
-            <p className="text-[#b91c1c] text-[10px] font-bold">🎟️ {clicker.goldenTickets} Golden Tickets</p>
-            <p className="text-[#0D0E14] text-[10px] font-black">⚡ {formatMillas(Math.floor(clicker.cpsBalance))} CPS</p>
-          </div>
-        </div>
-        <div className="text-right">
-          <p className="text-[#b91c1c] text-xs font-black">${formatMillas(convertToCop(millas, clicker.goldenTickets))} COP</p>
-          <p className="text-[#b91c1c] text-[9px] font-bold">disponibles en gift card</p>
-        </div>
+          <span className="text-[#ff3131] font-fredoka font-bold text-xs">{formatCompact(millas)}</span>
+        </span>
+        <span className="flex items-center gap-1 h-9 px-3 rounded-full bg-slate-100 border border-slate-200 whitespace-nowrap flex-shrink-0">
+          <span className="text-xs">🎟️</span>
+          <span className="text-slate-900 font-fredoka font-bold text-xs">{formatCompact(clicker.goldenTickets)}</span>
+        </span>
+        <span className="flex items-center gap-1 h-9 px-3 rounded-full bg-slate-100 border border-slate-200 whitespace-nowrap flex-shrink-0">
+          <span className="text-xs">⚡</span>
+          <span className="text-slate-900 font-fredoka font-bold text-xs">{formatCompact(Math.floor(clicker.cpsBalance))}</span>
+        </span>
+        <span className="flex items-center gap-1 h-9 px-3 rounded-full bg-[#0D0E14] border border-[#232433] whitespace-nowrap flex-shrink-0">
+          <span className="text-[#ff4c4c] font-fredoka font-bold text-xs">$</span>
+          <span className="text-white font-fredoka font-bold text-xs">{formatCompact(convertToCop(millas, clicker.goldenTickets))} COP</span>
+        </span>
       </motion.div>
 
-      {/* ─── Cash Redemption ─── */}
+      {/* ─── Redime: card única con tabs Efectivo / Gift Cards CPS ─── */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="mx-4 mt-3 bg-gradient-to-br from-[#ff4c4c] to-[#ff3131] rounded-2xl border-2 border-[#b91c1c] p-3 shadow-[0_6px_20px_rgba(255,49,49,0.35)]"
+        className="mx-4 mt-3 bg-white rounded-2xl border border-slate-200 p-3 shadow-sm"
       >
         <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-full bg-white/90 flex items-center justify-center text-[#b91c1c] shadow-sm">
+          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#ff4c4c] to-[#ff3131] flex items-center justify-center text-white shadow-sm">
             <Gift size={16} />
           </div>
           <div>
-            <p className="text-white font-black text-sm">Redime tu dinero</p>
-            <p className="text-red-100 text-[10px] font-bold">Cada 100.000.000 M = $10.000 COP</p>
+            <p className="text-slate-900 font-black text-sm">Redime</p>
+            <p className="text-slate-500 text-[10px] font-bold">
+              {redeemTab === 'cash'
+                ? 'Cada 100.000.000 M = $10.000 COP'
+                : 'redpostventa.com · Redime con CPS · No afecta tu ranking'}
+            </p>
           </div>
         </div>
 
+        {/* Tabs pill (activo rojo sólido, inactivo gris) */}
+        <div className="flex gap-1 p-1 mb-3 rounded-full bg-slate-100">
+          <button
+            onClick={() => setRedeemTab('cash')}
+            className={cn(
+              'flex-1 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider transition-all',
+              redeemTab === 'cash'
+                ? 'bg-[#ff3131] text-white shadow-[0_2px_8px_rgba(255,49,49,0.35)]'
+                : 'text-slate-500'
+            )}
+          >
+            Efectivo
+          </button>
+          <button
+            onClick={() => setRedeemTab('cps')}
+            className={cn(
+              'flex-1 py-1.5 rounded-full text-[11px] font-black uppercase tracking-wider transition-all',
+              redeemTab === 'cps'
+                ? 'bg-[#ff3131] text-white shadow-[0_2px_8px_rgba(255,49,49,0.35)]'
+                : 'text-slate-500'
+            )}
+          >
+            Gift Cards CPS
+          </button>
+        </div>
+
+        {redeemTab === 'cash' ? (
+        <>
         <div className="space-y-2 mb-3">
           <div className="flex items-center gap-2">
-            <div className="flex-1 bg-white/90 rounded-xl px-3 py-2">
+            <div className="flex-1 bg-slate-100 rounded-xl px-3 py-2">
               <p className="text-[10px] text-slate-500 font-bold uppercase">TicaMillas</p>
               <div className="flex items-center gap-2">
                 <input
@@ -886,7 +1049,7 @@ export default function Marketplace() {
                 </button>
               </div>
             </div>
-            <div className="flex-1 bg-white/90 rounded-xl px-3 py-2">
+            <div className="flex-1 bg-slate-100 rounded-xl px-3 py-2">
               <p className="text-[10px] text-slate-500 font-bold uppercase">Golden Tickets</p>
               <div className="flex items-center gap-2">
                 <input
@@ -907,9 +1070,9 @@ export default function Marketplace() {
             </div>
           </div>
 
-          <div className="flex items-center justify-between bg-white/20 rounded-xl px-3 py-2">
-            <p className="text-white text-xs font-bold">Total en pesos</p>
-            <p className="text-white font-fredoka font-black text-lg">
+          <div className="flex items-center justify-between bg-[#ff3131]/10 rounded-xl px-3 py-2">
+            <p className="text-[#b91c1c] text-xs font-bold">Total en pesos</p>
+            <p className="text-[#b91c1c] font-fredoka font-black text-lg">
               ${formatMillas(convertToCop(cashMillasAmount, cashTicketAmount))} COP
             </p>
           </div>
@@ -921,32 +1084,15 @@ export default function Marketplace() {
           className={cn(
             'w-full h-10 rounded-xl text-xs font-black uppercase tracking-wider transition-all border-2',
             convertToCop(cashMillasAmount, cashTicketAmount) > 0
-              ? 'bg-white text-[#b91c1c] border-white shadow-md active:scale-95'
-              : 'bg-white/30 text-white/50 border-white/20 cursor-not-allowed'
+              ? 'bg-gradient-to-r from-[#ff3131] to-[#ff4c4c] text-white border-transparent shadow-[0_4px_16px_rgba(255,49,49,0.35)] active:scale-95'
+              : 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
           )}
         >
           Generar Gift Card
         </button>
-      </motion.div>
-
-      {/* ─── VTEX Gift Cards (CPS) ─── */}
-      <motion.div
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="mx-4 mt-3 bg-white rounded-2xl border border-slate-200 p-3 shadow-sm"
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-8 h-8 rounded-full bg-[#0D0E14] flex items-center justify-center text-white shadow-sm">
-            <Gift size={16} />
-          </div>
-          <div>
-            <p className="text-slate-900 font-black text-sm">Gift Cards VTEX</p>
-            <p className="text-slate-500 text-[10px] font-bold">
-              redpostventa.com · Redime con CPS · No afecta tu ranking
-            </p>
-          </div>
-        </div>
-
+        </>
+        ) : (
+        <>
         <div className="grid grid-cols-2 gap-2">
           {VTEX_GIFT_CARDS.map((gc, i) => {
             const canAfford = clicker.cpsBalance >= gc.cps;
@@ -979,6 +1125,8 @@ export default function Marketplace() {
             );
           })}
         </div>
+        </>
+        )}
       </motion.div>
 
       {/* ─── Search Bar (sticky) ─── */}
@@ -1021,7 +1169,7 @@ export default function Marketplace() {
       {/* ─── Category Tabs ─── */}
       <div className="mt-3 px-4">
         <div className="flex gap-2 overflow-x-auto pb-2 -mx-4 px-4 snap-x snap-mandatory scrollbar-hide">
-          {categories.map((cat) => {
+          {tabs.map((cat) => {
             const Icon = getCategoryIconComponent(cat.icon);
             const isActive = activeCategory === cat.id;
             return (
@@ -1043,23 +1191,14 @@ export default function Marketplace() {
         </div>
       </div>
 
-      {/* ─── Featured Banner (only on 'all') ─── */}
-      <AnimatePresence>
-        {activeCategory === 'all' && !searchQuery && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            className="mt-3"
-          >
-            <FeaturedBanner />
-          </motion.div>
-        )}
-      </AnimatePresence>
-
       {/* ─── Product Grid ─── */}
       <div className="px-4 mt-4">
-        {visibleProducts.length > 0 ? (
+        {catalogLoading ? (
+          /* ─── Loading State ─── */
+          <div className="flex justify-center py-16">
+            <Loader2 size={24} className="text-[#ff3131] animate-spin" />
+          </div>
+        ) : visibleProducts.length > 0 ? (
           <>
             <div className="flex items-center justify-between mb-3">
               <p className="text-slate-500 text-xs">
@@ -1070,7 +1209,7 @@ export default function Marketplace() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               {visibleProducts.map((product, index) => (
                 <ProductCard
                   key={product.id}
@@ -1117,9 +1256,24 @@ export default function Marketplace() {
         )}
       </div>
 
+      {/* ─── Featured Banner (después del grid, solo en 'all') ─── */}
+      <AnimatePresence>
+        {activeCategory === 'all' && !searchQuery && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="mt-4"
+          >
+            <FeaturedBanner />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* ─── Product Detail Bottom Sheet ─── */}
       <ProductDetailSheet
         product={selectedProduct}
+        products={filteredProducts}
         userMillas={millas}
         isOpen={detailOpen}
         onClose={() => setDetailOpen(false)}

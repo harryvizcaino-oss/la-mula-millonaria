@@ -7,7 +7,6 @@ export function ClickerEngine() {
   const tick = useClickerStore((s) => s.tick);
   const offlineEarnings = useClickerStore((s) => s.offlineEarnings);
   const clearOfflineEarnings = useClickerStore((s) => s.clearOfflineEarnings);
-  const lastTimeRef = useRef<number>(0);
   const appliedOfflineRef = useRef(false);
 
   // Apply offline earnings once on mount

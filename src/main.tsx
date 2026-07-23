@@ -6,16 +6,13 @@ import './styles/tier2-atmosphere.css'
 import './styles/tier3-polish.css'
 import './styles/epic-features.css'
 import './styles/ui-fixes.css'
-import { TRPCProvider } from "@/providers/trpc"
 import { MillasProvider } from "@/providers/MillasProvider"
 import App from './App.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <BrowserRouter>
-    <TRPCProvider>
-      <MillasProvider>
-        <App />
-      </MillasProvider>
-    </TRPCProvider>
+    <MillasProvider>
+      <App />
+    </MillasProvider>
   </BrowserRouter>,
 )

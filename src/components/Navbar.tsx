@@ -24,7 +24,7 @@ export default function Navbar() {
     <nav
       className={cn(
         'sticky bottom-0 left-0 right-0 z-50',
-        'backdrop-blur-xl bg-white/95 border-t border-slate-200',
+        'backdrop-blur-xl bg-[#0D0E14]/85 border-t border-white/10',
         'h-16 pb-[env(safe-area-inset-bottom)]',
         'flex items-center justify-around'
       )}
@@ -49,7 +49,7 @@ export default function Navbar() {
               >
                 <Gamepad2 size={24} className="text-slate-900" strokeWidth={2.5} />
               </NavLink>
-              <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[10px] font-medium text-slate-500">
+              <span className="absolute -bottom-4 left-1/2 -translate-x-1/2 text-[10px] font-medium text-slate-400">
                 Jugar
               </span>
             </div>
@@ -66,7 +66,7 @@ export default function Navbar() {
                 'nav-item flex flex-col items-center justify-center gap-0.5',
                 'w-16 h-full relative',
                 'transition-colors duration-200',
-                isActive ? 'nav-item-active' : 'nav-item-inactive hover:text-slate-800'
+                isActive ? 'nav-item-active' : 'nav-item-inactive hover:text-slate-200'
               )
             }
           >

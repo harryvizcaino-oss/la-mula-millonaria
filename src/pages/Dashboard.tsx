@@ -4,12 +4,10 @@ import { motion, useInView } from 'framer-motion';
 import {
   Gamepad2,
   Route,
-  Trophy,
   Truck,
   ShoppingBag,
   Award,
   Zap,
-  Shield,
   Coins,
   Flame,
   Grid3X3,

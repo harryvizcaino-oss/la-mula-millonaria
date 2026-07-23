@@ -10,8 +10,6 @@ import {
   Link2,
   ChevronRight,
   ShoppingBag,
-  Award,
-  Users,
   TrendingUp,
   Tag,
   Target,
@@ -35,7 +33,8 @@ import {
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { useMillas } from '@/providers/MillasProvider';
-import { trpc } from '@/providers/trpc';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { fetchTransactions, type TransactionRow } from '@/lib/transactions';
 import { Switch } from '@/components/ui/switch';
 import { Slider } from '@/components/ui/slider';
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
@@ -56,7 +55,7 @@ import {
 /* ------------------------------------------------------------------ */
 interface Transaction {
   id: string;
-  type: 'game' | 'redemption' | 'daily' | 'achievement' | 'referral';
+  type: string;
   title: string;
   date: string;
   amount: number;
@@ -85,12 +84,15 @@ function formatTransactionDate(date: Date | string | null): string {
 
 function getTransactionIcon(type: string) {
   switch (type) {
+    case 'earn':
+    case 'reward':
     case 'earned_game':
     case 'earned_daily':
     case 'earned_streak':
     case 'earned_challenge':
     case 'bonus':
       return { icon: Gamepad2, iconColor: 'text-[#F59E0B]', iconBg: 'bg-[#F59E0B]/10' };
+    case 'spend':
     case 'redeemed_product':
     case 'redeemed_giftcard':
       return { icon: ShoppingBag, iconColor: 'text-[#EF4444]', iconBg: 'bg-[#EF4444]/10' };
@@ -102,6 +104,11 @@ function getTransactionIcon(type: string) {
 function getTransactionTitle(type: string, description: string | null): string {
   if (description) return description;
   switch (type) {
+    case 'earn': return 'Ganado';
+    case 'spend': return 'Redencion';
+    case 'reward': return 'Recompensa';
+    case 'iap': return 'Compra';
+    case 'ad': return 'Anuncio';
     case 'earned_game': return 'Ganado en juego';
     case 'earned_daily': return 'Bonus diario';
     case 'earned_streak': return 'Bonus de racha';
@@ -217,8 +224,43 @@ function SettingsItem({
 export default function Profile() {
   const { user, isLoading, logout } = useAuth();
   const { millas } = useMillas();
-  const { data: txData } = trpc.game.points.getTransactions.useQuery({ limit: 50 });
-  const { data: statsData } = trpc.game.game.getUserStats.useQuery();
+  const [txRows, setTxRows] = useState<TransactionRow[]>([]);
+  const [userStats, setUserStats] = useState({ totalClicks: 0, totalEarned: 0, rank: 0 });
+
+  // Transacciones desde Supabase (tabla `transactions`, más recientes primero)
+  useEffect(() => {
+    if (!user?.id) {
+      setTxRows([]);
+      return;
+    }
+    let cancelled = false;
+    fetchTransactions(user.id, 50).then((rows) => {
+      if (!cancelled) setTxRows(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
+
+  // Stats del usuario desde `game_state` + rank de `leaderboard_global`
+  useEffect(() => {
+    if (!user?.id || !isSupabaseConfigured) return;
+    let cancelled = false;
+    Promise.all([
+      supabase.from('game_state').select('total_clicks, total_earned').eq('id', user.id).maybeSingle(),
+      supabase.from('leaderboard_global').select('rank').eq('user_id', user.id).maybeSingle(),
+    ]).then(([gs, lb]) => {
+      if (cancelled) return;
+      setUserStats({
+        totalClicks: Number(gs.data?.total_clicks ?? 0),
+        totalEarned: Number(gs.data?.total_earned ?? 0),
+        rank: lb.data?.rank ?? 0,
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   /* Local state */
   const [displayName, setDisplayName] = useState(user?.name || 'Camionero');
@@ -256,20 +298,28 @@ export default function Profile() {
   const isSocialAuth = !!user?.email;
   const vtexLinked = true;
 
-  const transactions: Transaction[] = (txData?.transactions ?? []).map((tx) => {
-    const { icon, iconColor, iconBg } = getTransactionIcon(tx.type);
-    return {
-      id: String(tx.id),
-      type: tx.type,
-      title: getTransactionTitle(tx.type, tx.description),
-      date: formatTransactionDate(tx.createdAt),
-      amount: tx.amount,
-      balanceAfter: Number(tx.balanceAfter),
-      icon,
-      iconColor,
-      iconBg,
-    };
-  });
+  // `amount` viene positivo de la tabla; el signo lo da `type` ('spend' = gasto).
+  // balanceAfter se reconstruye hacia atrás desde el balance actual de millas.
+  const transactions: Transaction[] = (() => {
+    let balance = millas;
+    return txRows.map((tx) => {
+      const signed = tx.type === 'spend' ? -Math.abs(tx.amount) : Math.abs(tx.amount);
+      const { icon, iconColor, iconBg } = getTransactionIcon(tx.type);
+      const row: Transaction = {
+        id: String(tx.id),
+        type: tx.type,
+        title: getTransactionTitle(tx.type, tx.description),
+        date: formatTransactionDate(tx.created_at),
+        amount: signed,
+        balanceAfter: balance,
+        icon,
+        iconColor,
+        iconBg,
+      };
+      balance -= signed;
+      return row;
+    });
+  })();
 
   const filteredTransactions = transactions.filter((tx) => {
     if (txFilter === 'earned') return tx.amount >= 0;
@@ -277,10 +327,9 @@ export default function Profile() {
     return true;
   });
 
-  const userStats = statsData?.stats;
-  const totalRuns = userStats?.totalRuns ?? 0;
-  const totalDistance = Math.floor((userStats?.totalDistance ?? 0) / 1000);
-  const bestScore = userStats?.bestScore ?? 0;
+  const totalRuns = userStats.totalClicks;
+  const totalDistance = Math.floor(userStats.totalEarned / 1000);
+  const bestScore = userStats.rank;
 
   const toggleNotification = (id: string) => {
     setNotifications((prev) => ({ ...prev, [id]: !prev[id] }));

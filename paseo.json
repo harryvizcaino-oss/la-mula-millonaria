@@ -1,0 +1,38 @@
+{
+  "worktree": {
+    "setup": "npm install && mkdir -p public/assets && echo \"Setup complete\"",
+    "teardown": "echo \"No teardown needed for Next.js project\""
+  },
+  "scripts": {
+    "dev": {
+      "type": "service",
+      "command": "npm run dev"
+    },
+    "build": {
+      "command": "npm run build"
+    },
+    "lint": {
+      "command": "npm run lint"
+    },
+    "sync-mobile": {
+      "command": "npx cap sync"
+    },
+    "open-ios": {
+      "command": "npx cap open ios"
+    },
+    "open-android": {
+      "command": "npx cap open android"
+    }
+  },
+  "metadataGeneration": {
+    "branchName": {
+      "instructions": "feat/ para nuevas funcionalidades (ej: feat/supabase-auth, feat/ranking-realtime)\nfix/ para correcciones de bugs (ej: fix/barra-decay, fix/sync-offline)\nmb/ para ramas personales de experimentacion\nchore/ para tareas de mantenimiento (ej: chore/assets, chore/docs)"
+    },
+    "commitMessage": {
+      "instructions": "Use conventional commits with scope. Format: type(scope): description in Spanish.\n\nTypes:\n- feat: nueva funcionalidad\n- fix: correccion de bug\n- docs: documentacion\n- style: cambios de formato/CSS sin afectar logica\n- refactor: refactorizacion de codigo\n- perf: mejora de rendimiento\n- test: agregar o corregir tests\n- chore: tareas de mantenimiento\n\nExamples:\n- feat(auth): agregar login con Google OAuth\n- fix(game): corregir calculo de multiplicador en barra\n- perf(ranking): optimizar query de leaderboard con index\n- chore(assets): agregar PNGs de camiones y fondos"
+    },
+    "pullRequest": {
+      "instructions": "## Resumen\nBreve descripcion de los cambios en un parrafo.\n\n## Plan de prueba\n- [ ] Probar en ambiente local (npm run dev)\n- [ ] Verificar que el juego carga correctamente\n- [ ] Probar flujo de autenticacion (si aplica)\n- [ ] Probar ranking en tiempo real (si aplica)\n- [ ] Verificar sincronizacion offline/online (si aplica)\n- [ ] Ejecutar npm run lint sin errores\n- [ ] Ejecutar npm run build sin errores\n\n## Cambios incluidos\n- Lista de archivos modificados\n- Nueva funcionalidad agregada\n- Bugs corregidos\n\n## Screenshots / Evidencia\nAdjuntar imagenes si hay cambios visuales"
+    }
+  }
+}

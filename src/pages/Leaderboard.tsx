@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Crown,
@@ -6,7 +6,8 @@ import {
   ChevronDown,
   Minus,
   Users,
-  Share2,
+  Copy,
+  Check,
   Award,
   Medal,
   Sparkles,
@@ -14,16 +15,30 @@ import {
   TrendingDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { mockPlayers, mockCurrentUser, mockFriends, weeklyPrizes } from '@/data/mockLeaderboard';
+import { mockPlayers, mockCurrentUser, weeklyPrizes } from '@/data/mockLeaderboard';
 import type { Player } from '@/data/mockLeaderboard';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { useClickerStore } from '@/store/clickerStore';
+import { useClickerStore, calculatePlayerLevel } from '@/store/clickerStore';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  getMyInviteCode,
+  findUserByInviteCode,
+  sendFriendRequest,
+  getPendingRequests,
+  acceptFriendRequest,
+  declineFriendRequest,
+  getFriends,
+  type PendingRequest,
+  type FriendEntry,
+} from '@/lib/friends';
 
-/** Fila de la tabla `leaderboard_global` (migración 001). */
+/** Fila de la tabla `leaderboard_global` (migraciones 001 + 003).
+ *  `score` es un alias de la columna del período activo (ver PERIOD_COLUMN). */
 interface LeaderboardEntry {
   user_id: string;
   username: string | null;
   cps_total: number;
+  score?: number;
   level: number;
   avatar_url: string | null;
   rank: number | null;
@@ -35,6 +50,13 @@ type ScopeFilter = 'Global' | 'Amigos';
 
 const timeFilters: TimeFilter[] = ['Semanal', 'Mensual', 'Global'];
 const categoryFilters: CategoryFilter[] = ['Puntaje', 'TicaMillas', 'Distancia'];
+
+/** Columna de `leaderboard_global` por tab temporal (migración 003). */
+const PERIOD_COLUMN: Record<TimeFilter, 'cps_week' | 'cps_month' | 'cps_total'> = {
+  Semanal: 'cps_week',
+  Mensual: 'cps_month',
+  Global: 'cps_total',
+};
 
 const getCategoryValue = (player: Player, category: CategoryFilter): number => {
   switch (category) {
@@ -342,117 +364,242 @@ function RankRow({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Friends Section                                                    */
+/*  Friends Panel (scope "Amigos", datos reales de `friends`)          */
 /* ------------------------------------------------------------------ */
-function FriendsSection({ category }: { category: CategoryFilter }) {
-  const [activeSubTab, setActiveSubTab] = useState<'Ranking' | 'Lista'>('Ranking');
-  const sortedFriends = useMemo(() => {
-    return [...mockFriends].sort((a, b) => getCategoryValue(b, category) - getCategoryValue(a, category));
-  }, [category]);
+function FriendsPanel({ category }: { category: CategoryFilter }) {
+  const { user, isAuthenticated, isLoading } = useAuth();
+  const cpsTotal = useClickerStore((s) => s.cpsTotal);
+  const playerLevel = useClickerStore((s) => calculatePlayerLevel(s));
+
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [addCode, setAddCode] = useState('');
+  const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
+  const [pending, setPending] = useState<PendingRequest[]>([]);
+  const [friends, setFriends] = useState<FriendEntry[]>([]);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    if (!user) return;
+    const [code, requests, list] = await Promise.all([
+      getMyInviteCode(user.id),
+      getPendingRequests(user.id),
+      getFriends(user.id),
+    ]);
+    setInviteCode(code);
+    setPending(requests);
+    setFriends(list);
+  }, [user]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const handleCopy = async () => {
+    if (!inviteCode) return;
+    try {
+      await navigator.clipboard.writeText(inviteCode);
+    } catch {
+      // clipboard no disponible (permiso/contexto): igual mostramos feedback
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleAdd = async () => {
+    if (!user || !addCode.trim() || busy) return;
+    setBusy(true);
+    setFeedback(null);
+    try {
+      const found = await findUserByInviteCode(addCode);
+      if (!found) {
+        setFeedback({ ok: false, text: 'Codigo no encontrado' });
+        return;
+      }
+      const result = await sendFriendRequest(user.id, found.id);
+      switch (result) {
+        case 'sent':
+          setFeedback({ ok: true, text: `Solicitud enviada a ${found.username ?? 'jugador'}` });
+          setAddCode('');
+          break;
+        case 'self':
+          setFeedback({ ok: false, text: 'Ese es tu propio codigo' });
+          break;
+        case 'already-friends':
+          setFeedback({ ok: false, text: 'Ya son amigos' });
+          break;
+        case 'already-pending':
+          setFeedback({ ok: false, text: 'Ya hay una solicitud pendiente' });
+          break;
+        default:
+          setFeedback({ ok: false, text: 'No se pudo enviar la solicitud' });
+      }
+      await refresh();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleAccept = async (rowId: string) => {
+    await acceptFriendRequest(rowId);
+    await refresh();
+  };
+
+  const handleDecline = async (rowId: string) => {
+    await declineFriendRequest(rowId);
+    await refresh();
+  };
+
+  // Ranking de amigos (incluyéndome) por la categoría activa.
+  const friendPlayers: Player[] = useMemo(() => {
+    if (!user) return [];
+    const others: Player[] = friends.map((f, i) => ({
+      id: i + 1,
+      name: f.username ?? 'Jugador',
+      avatar: f.avatar_url ?? `https://api.dicebear.com/7.x/avataaars/svg?seed=${f.user_id}`,
+      score: Math.floor(f.cps_total),
+      millas: 0,
+      distance: 0,
+      level: f.level ?? 1,
+      trend: 'same',
+      trendValue: 0,
+    }));
+    const me: Player = {
+      id: 999,
+      name: user.name ?? 'Tu',
+      avatar: user.avatar ?? `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`,
+      score: Math.floor(cpsTotal),
+      millas: 0,
+      distance: 0,
+      level: playerLevel,
+      trend: 'same',
+      trendValue: 0,
+    };
+    return [...others, me].sort((a, b) => getCategoryValue(b, category) - getCategoryValue(a, category));
+  }, [user, friends, cpsTotal, playerLevel, category]);
+
+  // Sin sesión (o sin Supabase configurado): mensaje sobrio en vez del mock.
+  if (!isSupabaseConfigured || (!isLoading && !isAuthenticated)) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+        className="mt-4 mx-4 bg-white rounded-2xl p-6 text-center"
+      >
+        <Users size={28} className="mx-auto text-[#F59E0B] mb-2" />
+        <p className="text-sm text-slate-500">Inicia sesion para ver a tus amigos</p>
+      </motion.div>
+    );
+  }
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: 0.6 }}
-      className="mt-6 mx-4 bg-white rounded-t-2xl rounded-b-2xl p-4"
+      transition={{ duration: 0.3 }}
+      className="mt-4 mx-4 space-y-4"
     >
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="font-fredoka font-bold text-xl text-slate-900">Amigos</h2>
-        <button className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-[#F59E0B] text-[#F59E0B] text-xs font-bold hover:bg-[#F59E0B]/10 transition-colors">
-          <Share2 size={12} />
-          Invitar
-        </button>
-      </div>
-
-      {/* Sub tabs */}
-      <div className="flex gap-2 mb-4">
-        {(['Ranking', 'Lista'] as const).map((tab) => (
+      {/* Tu código */}
+      <div className="bg-white rounded-2xl p-4">
+        <h2 className="font-fredoka font-bold text-lg text-slate-900 mb-2">Tu codigo</h2>
+        <div className="flex items-center gap-2">
+          <span className="flex-1 text-center py-2.5 rounded-xl bg-slate-100 font-mono text-sm font-bold text-[#F59E0B] tracking-widest">
+            {inviteCode ?? '········'}
+          </span>
           <button
-            key={tab}
-            onClick={() => setActiveSubTab(tab)}
-            className={cn(
-              'px-4 py-1.5 rounded-full text-xs font-bold transition-all duration-200',
-              activeSubTab === tab
-                ? 'bg-[#F59E0B] text-white'
-                : 'bg-slate-100 text-slate-500 hover:text-slate-900'
-            )}
+            onClick={handleCopy}
+            disabled={!inviteCode}
+            className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl border border-[#F59E0B] text-[#F59E0B] text-xs font-bold hover:bg-[#F59E0B]/10 transition-colors disabled:opacity-50"
           >
-            {tab}
+            {copied ? <Check size={12} /> : <Copy size={12} />}
+            {copied ? 'Copiado' : 'Copiar'}
           </button>
-        ))}
+        </div>
       </div>
 
-      <AnimatePresence mode="wait">
-        {activeSubTab === 'Ranking' ? (
-          <motion.div
-            key="ranking"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
+      {/* Agregar con código */}
+      <div className="bg-white rounded-2xl p-4">
+        <h2 className="font-fredoka font-bold text-lg text-slate-900 mb-2">Agregar con codigo</h2>
+        <div className="flex items-center gap-2">
+          <input
+            value={addCode}
+            onChange={(e) => setAddCode(e.target.value.toUpperCase())}
+            placeholder="CODIGO"
+            maxLength={8}
+            className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-slate-100 text-sm font-mono text-slate-900 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#F59E0B]/50"
+          />
+          <button
+            onClick={handleAdd}
+            disabled={busy || !addCode.trim()}
+            className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] text-white text-xs font-bold hover:shadow-lg hover:shadow-[#F59E0B]/20 transition-shadow disabled:opacity-50"
           >
-            {sortedFriends.map((friend, i) => (
-              <RankRow
-                key={friend.id}
-                player={friend}
-                rank={i + 1}
-                category={category}
-                isCurrentUser={friend.id === 999}
-              />
-            ))}
-          </motion.div>
-        ) : (
-          <motion.div
-            key="lista"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="space-y-2"
-          >
-            {sortedFriends.map((friend) => (
-              <div
-                key={friend.id}
-                className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl"
-              >
-                <div className="relative">
-                  <div className="w-12 h-12 rounded-full overflow-hidden bg-white">
-                    <img src={friend.avatar} alt={friend.name} className="w-full h-full object-cover" />
-                  </div>
-                  <div className="absolute bottom-0 right-0 w-3 h-3 bg-[#10B981] rounded-full border-2 border-[#232433]" />
+            Agregar
+          </button>
+        </div>
+        {feedback && (
+          <p className={cn('mt-2 text-xs font-medium', feedback.ok ? 'text-[#10B981]' : 'text-[#EF4444]')}>
+            {feedback.text}
+          </p>
+        )}
+      </div>
+
+      {/* Solicitudes pendientes */}
+      {pending.length > 0 && (
+        <div className="bg-white rounded-2xl p-4">
+          <h2 className="font-fredoka font-bold text-lg text-slate-900 mb-2">
+            Solicitudes ({pending.length})
+          </h2>
+          <div className="space-y-2">
+            {pending.map((req) => (
+              <div key={req.id} className="flex items-center gap-3 p-3 bg-slate-100 rounded-xl">
+                <div className="w-10 h-10 rounded-full overflow-hidden flex-shrink-0 bg-white">
+                  <img
+                    src={req.avatar_url ?? `https://api.dicebear.com/7.x/avataaars/svg?seed=${req.user_id}`}
+                    alt={req.username ?? 'Jugador'}
+                    className="w-full h-full object-cover"
+                  />
                 </div>
-                <div className="flex-1">
-                  <p className={cn('text-sm font-bold', friend.id === 999 ? 'text-[#F59E0B]' : 'text-slate-900')}>
-                    {friend.name}
-                  </p>
-                  <p className="text-xs text-slate-500">Online</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-slate-900">
-                    {formatNumber(getCategoryValue(friend, category))}
-                  </p>
-                  <p className="text-[10px] text-slate-500">pts</p>
-                </div>
+                <p className="flex-1 min-w-0 text-sm font-bold text-slate-900 truncate">
+                  {req.username ?? 'Jugador'}
+                </p>
+                <button
+                  onClick={() => void handleAccept(req.id)}
+                  className="px-3 py-1.5 rounded-full bg-[#F59E0B] text-white text-xs font-bold hover:bg-[#F59E0B]/90 transition-colors"
+                >
+                  Aceptar
+                </button>
+                <button
+                  onClick={() => void handleDecline(req.id)}
+                  className="px-3 py-1.5 rounded-full bg-slate-200 text-slate-500 text-xs font-bold hover:text-slate-900 transition-colors"
+                >
+                  Rechazar
+                </button>
               </div>
             ))}
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      )}
 
-      {/* Invite Card */}
-      <div className="mt-4 p-4 border-2 border-dashed border-[#F59E0B]/50 rounded-xl text-center">
-        <Users size={28} className="mx-auto text-[#F59E0B] mb-2" />
-        <p className="text-sm text-slate-500 mb-3">
-          Invita amigos y gana <span className="text-[#F59E0B] font-bold">500 TicaMillas</span> por cada uno que se una!
-        </p>
-        <button className="w-full py-2.5 rounded-xl bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] text-white text-sm font-bold hover:shadow-lg hover:shadow-[#F59E0B]/20 transition-shadow">
-          Compartir enlace
-        </button>
-        <p className="mt-2 text-[10px] font-mono text-[#F59E0B]">
-          Tu codigo: TS-ANA23
-        </p>
+      {/* Ranking de amigos */}
+      <div className="bg-white rounded-2xl overflow-hidden">
+        <div className="px-4 pt-4 pb-2">
+          <h2 className="font-fredoka font-bold text-lg text-slate-900">Clasificacion Amigos</h2>
+        </div>
+        {friendPlayers.map((player, i) => (
+          <RankRow
+            key={player.id}
+            player={player}
+            rank={i + 1}
+            category={category}
+            isCurrentUser={player.id === 999}
+          />
+        ))}
+        {friendPlayers.length <= 1 && (
+          <p className="px-4 pb-4 text-xs text-slate-500">
+            Aun no tienes amigos. Comparte tu codigo para agregarlos!
+          </p>
+        )}
       </div>
     </motion.div>
   );
@@ -521,24 +668,37 @@ export default function Leaderboard() {
   const [scope, setScope] = useState<ScopeFilter>('Global');
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
 
-  // Lee leaderboard_global y se suscribe a cambios vía Supabase Realtime.
+  // Lee leaderboard_global (ordenada por la columna del tab temporal activo)
+  // y se suscribe a cambios vía Supabase Realtime.
   // Fallback: poll cada 30s por si Realtime no está habilitado en el proyecto.
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     let cancelled = false;
 
+    const column = PERIOD_COLUMN[timeFilter];
+    const baseSelect = 'user_id, username, cps_total, level, avatar_url, rank';
+
     const load = async () => {
-      const { data, error } = await supabase
+      let result = await supabase
         .from('leaderboard_global')
-        .select('user_id, username, cps_total, level, avatar_url, rank')
-        .order('cps_total', { ascending: false })
+        .select(`${baseSelect}, score:${column}`)
+        .order(column, { ascending: false })
         .limit(50);
+      if (result.error && column !== 'cps_total') {
+        // La migración 003 aún no se aplicó (cps_week/cps_month no existen):
+        // cae al acumulado global en silencio.
+        result = await supabase
+          .from('leaderboard_global')
+          .select(`${baseSelect}, score:cps_total`)
+          .order('cps_total', { ascending: false })
+          .limit(50);
+      }
       if (cancelled) return;
-      if (error) {
-        console.error('[Leaderboard] Failed to load:', error);
+      if (result.error) {
+        console.error('[Leaderboard] Failed to load:', result.error);
         return;
       }
-      setEntries(data ?? []);
+      setEntries(result.data ?? []);
     };
 
     void load();
@@ -563,7 +723,7 @@ export default function Leaderboard() {
       clearInterval(poll);
       void supabase.removeChannel(channel);
     };
-  }, []);
+  }, [timeFilter]);
 
   const leaderboardPlayers: Player[] = useMemo(() => {
     if (entries.length === 0) return mockPlayers;
@@ -571,7 +731,7 @@ export default function Leaderboard() {
       id: index + 1,
       name: entry.username || 'Jugador',
       avatar: entry.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.user_id}`,
-      score: Math.floor(entry.cps_total),
+      score: Math.floor(entry.score ?? entry.cps_total),
       millas: 0,
       distance: 0,
       level: entry.level,
@@ -583,8 +743,6 @@ export default function Leaderboard() {
   const sortedPlayers = useMemo(() => {
     return [...leaderboardPlayers].sort((a, b) => getCategoryValue(b, category) - getCategoryValue(a, category));
   }, [leaderboardPlayers, category]);
-
-  const displayedPlayers = scope === 'Global' ? sortedPlayers : mockFriends;
 
   return (
     <div className="min-h-[100dvh] bg-white pt-14 pb-4">
@@ -657,36 +815,37 @@ export default function Leaderboard() {
         <YourRankCard category={category} players={sortedPlayers} />
       </div>
 
-      {/* Rankings List */}
-      <div className="mt-4">
-        <div className="px-4 mb-2">
-          <h2 className="font-fredoka font-bold text-lg text-slate-900">
-            {scope === 'Global' ? 'Clasificacion Global' : 'Clasificacion Amigos'}
-          </h2>
+      {/* Rankings List (Global) / Friends Panel (Amigos) */}
+      {scope === 'Global' ? (
+        <div className="mt-4">
+          <div className="px-4 mb-2">
+            <h2 className="font-fredoka font-bold text-lg text-slate-900">
+              Clasificacion Global
+            </h2>
+          </div>
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={`${category}-${timeFilter}`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              {sortedPlayers.map((player, i) => (
+                <RankRow
+                  key={player.id}
+                  player={player}
+                  rank={i + 1}
+                  category={category}
+                  isCurrentUser={player.id === 999}
+                />
+              ))}
+            </motion.div>
+          </AnimatePresence>
         </div>
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={`${category}-${scope}`}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            {displayedPlayers.map((player, i) => (
-              <RankRow
-                key={player.id}
-                player={player}
-                rank={i + 1}
-                category={category}
-                isCurrentUser={player.id === 999}
-              />
-            ))}
-          </motion.div>
-        </AnimatePresence>
-      </div>
-
-      {/* Friends Section (only in Global scope) */}
-      {scope === 'Global' && <FriendsSection category={category} />}
+      ) : (
+        <FriendsPanel category={category} />
+      )}
 
       {/* Weekly Prizes */}
       <PrizeCards />

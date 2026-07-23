@@ -19,7 +19,7 @@ type UseAuthOptions = {
 /**
  * Hook de autenticación backed por Supabase Auth (antes Clerk + tRPC).
  * Mantiene la misma interfaz que consumen las páginas:
- * `{ user, isAuthenticated, isLoading, error, logout, refresh, clerkUser }`.
+ * `{ user, isAuthenticated, isLoading, error, logout, refresh }`.
  * `user` tiene el shape `{ id, name, email, avatar }`.
  */
 export function useAuth(options?: UseAuthOptions) {
@@ -122,8 +122,7 @@ export function useAuth(options?: UseAuthOptions) {
       error,
       logout,
       refresh,
-      clerkUser: authUser,
     }),
-    [user, isAuthenticated, isLoading, error, logout, refresh, authUser],
+    [user, isAuthenticated, isLoading, error, logout, refresh],
   );
 }
