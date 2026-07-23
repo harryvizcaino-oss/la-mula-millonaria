@@ -32,12 +32,17 @@ import {
   Bell,
   Link2,
   Check,
+  BookOpen,
+  Globe2,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { useMillas } from '@/providers/MillasProvider';
 import { useClickerStore } from '@/store/clickerStore';
 import { useAchievementStore, ACHIEVEMENTS, type AchievementReward } from '@/store/achievementStore';
+import { useCustomizationStore } from '@/store/customizationStore';
+import { getTruckVisual } from '@/data/truckSkins';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { fetchTransactions, type TransactionRow } from '@/lib/transactions';
 import { FriendsSection } from '@/components/FriendsSection';
@@ -250,6 +255,9 @@ export default function Profile() {
   const { millas, addMillas } = useMillas();
   const unlockedAchievements = useAchievementStore((s) => s.unlocked);
   const claimedAchievements = useAchievementStore((s) => s.claimed);
+  // F16: marco de avatar equipado (pase cosmético)
+  const equippedParts = useCustomizationStore((s) => s.equipped);
+  const avatarFrameColor = getTruckVisual(equippedParts).frameColor;
   const [txRows, setTxRows] = useState<TransactionRow[]>([]);
   const [userStats, setUserStats] = useState({ totalClicks: 0, totalEarned: 0, rank: 0 });
   const [vtexEmail, setVtexEmail] = useState<string | null>(null);
@@ -439,7 +447,14 @@ export default function Profile() {
             transition={{ type: 'spring', stiffness: 260, damping: 20, delay: 0.1 }}
             className="relative mb-3"
           >
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#F97316] flex items-center justify-center text-slate-900 font-fredoka font-bold text-3xl border-[3px] border-[#F59E0B] shadow-lg overflow-hidden">
+            <div
+              className="w-24 h-24 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#F97316] flex items-center justify-center text-slate-900 font-fredoka font-bold text-3xl border-[3px] border-[#F59E0B] shadow-lg overflow-hidden"
+              style={
+                avatarFrameColor
+                  ? { borderColor: avatarFrameColor, boxShadow: `0 0 18px ${avatarFrameColor}` }
+                  : undefined
+              }
+            >
               {user?.avatar ? (
                 <img src={user.avatar} alt={displayName} className="w-full h-full object-cover" />
               ) : (
@@ -620,6 +635,30 @@ export default function Profile() {
             subtitle="Pase de temporada: sube de nivel y reclama recompensas"
             right={<ChevronRight size={18} className="text-slate-500" />}
             onClick={() => navigate('/season')}
+          />
+          <SettingsItem
+            icon={Sparkles}
+            iconColor="text-[#EC4899]"
+            title="Mula Glamour"
+            subtitle="Pase cosmético: estelas, marcos y skins exclusivas"
+            right={<ChevronRight size={18} className="text-slate-500" />}
+            onClick={() => navigate('/cosmetic-pass')}
+          />
+          <SettingsItem
+            icon={BookOpen}
+            iconColor="text-[#8B5CF6]"
+            title="Álbum de Coleccionables"
+            subtitle="Completa sets y gana bonus permanentes de CPS"
+            right={<ChevronRight size={18} className="text-slate-500" />}
+            onClick={() => navigate('/album')}
+          />
+          <SettingsItem
+            icon={Globe2}
+            iconColor="text-[#22D3EE]"
+            title="Desafíos Globales"
+            subtitle="Metas semanales de la comunidad con recompensas"
+            right={<ChevronRight size={18} className="text-slate-500" />}
+            onClick={() => navigate('/challenges')}
           />
           <SettingsItem
             icon={Lock}

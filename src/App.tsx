@@ -10,6 +10,9 @@ import Redemption from './pages/Redemption'
 import Leaderboard from './pages/Leaderboard'
 import Profile from './pages/Profile'
 import SeasonPass from './pages/SeasonPass'
+import Album from './pages/Album'
+import Challenges from './pages/Challenges'
+import CosmeticPass from './pages/CosmeticPass'
 import Garage from './pages/Garage'
 import Brands from './pages/Brands'
 import Login from "./pages/Login"
@@ -19,6 +22,7 @@ import NotFound from "./pages/NotFound"
 import { ClickerEngine } from './components/ClickerEngine'
 import { useClickerSync } from './hooks/useClickerSync'
 import { useSeasonSync } from './hooks/useSeasonSync'
+import { useSessionTracker } from './hooks/useSessionTracker'
 
 function ClickerSync() {
   useClickerSync()
@@ -27,6 +31,12 @@ function ClickerSync() {
 
 function SeasonSync() {
   useSeasonSync()
+  return null
+}
+
+// Wave 4: latido de sesión (recompensas F13, estrellas del pase F16, pasivo F15)
+function SessionTracker() {
+  useSessionTracker()
   return null
 }
 
@@ -50,6 +60,9 @@ function AnimatedRoutes() {
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/profile" element={<Profile />} />
             <Route path="/season" element={<SeasonPass />} />
+            <Route path="/album" element={<Album />} />
+            <Route path="/challenges" element={<Challenges />} />
+            <Route path="/cosmetic-pass" element={<CosmeticPass />} />
             <Route path="/garage" element={<Garage />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/redemption" element={<Redemption />} />
@@ -71,6 +84,7 @@ export default function App() {
       <ClickerEngine />
       <ClickerSync />
       <SeasonSync />
+      <SessionTracker />
       <AnimatedRoutes />
     </>
   )

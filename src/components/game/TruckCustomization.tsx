@@ -48,7 +48,8 @@ export function TruckCustomization({ onToast }: TruckCustomizationProps) {
 
   const visual = useMemo(() => getTruckVisual(equipped), [equipped]);
   const bonusPct = Math.round((computeCustomizationBonus(equipped) - 1) * 100);
-  const parts = partsByCategory(category);
+  // F16: las piezas exclusivas del pase cosmético solo se muestran si ya se ganaron
+  const parts = partsByCategory(category).filter((p) => !p.passExclusive || owned.includes(p.id));
 
   const balanceFor = (part: TruckPart): number => {
     if (part.currency === 'millas') return millas;

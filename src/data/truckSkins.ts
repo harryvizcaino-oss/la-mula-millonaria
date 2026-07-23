@@ -4,7 +4,14 @@
 // Los bonuses son muy pequeños (+1-2% por pieza) y se aplican al CPS por click.
 // ─────────────────────────────────────────────────────────────────────────────
 
-export type CustomCategory = 'skin' | 'horn' | 'lights' | 'trailer' | 'sticker';
+export type CustomCategory =
+  | 'skin'
+  | 'horn'
+  | 'lights'
+  | 'trailer'
+  | 'sticker'
+  | 'trailEffect'
+  | 'avatarFrame';
 
 export type PartCurrency = 'millas' | 'tickets' | 'cps';
 
@@ -24,6 +31,12 @@ export interface TruckPart {
   filterExtra?: string;
   /** luces: color del glow alrededor del camión. */
   glowColor?: string;
+  /** trailEffect: color de la estela bajo el camión. */
+  trailColor?: string;
+  /** avatarFrame: color del marco del avatar en el perfil. */
+  frameColor?: string;
+  /** true = solo se obtiene con el pase cosmético (F16); no se vende en El Taller. */
+  passExclusive?: boolean;
 }
 
 export const CUSTOM_CATEGORIES: { id: CustomCategory; label: string; emoji: string }[] = [
@@ -32,6 +45,8 @@ export const CUSTOM_CATEGORIES: { id: CustomCategory; label: string; emoji: stri
   { id: 'lights', label: 'Luces', emoji: '💡' },
   { id: 'trailer', label: 'Remolque', emoji: '🚚' },
   { id: 'sticker', label: 'Sticker', emoji: '⭐' },
+  { id: 'trailEffect', label: 'Estela', emoji: '💨' },
+  { id: 'avatarFrame', label: 'Marco', emoji: '🖼️' },
 ];
 
 export const TRUCK_PARTS: TruckPart[] = [
@@ -212,6 +227,116 @@ export const TRUCK_PARTS: TruckPart[] = [
     currency: 'tickets',
     bonusPct: 1,
   },
+
+  // ── Exclusivos del pase cosmético (F16): SIN bonus de CPS ──
+  {
+    id: 'trail-gold',
+    category: 'trailEffect',
+    name: 'Estela Dorada',
+    emoji: '✨',
+    description: 'Una estela dorada que anuncia tu paso por la autopista.',
+    cost: 0,
+    currency: 'tickets',
+    passExclusive: true,
+    trailColor: '#FFD700',
+  },
+  {
+    id: 'trail-neon',
+    category: 'trailEffect',
+    name: 'Estela Neón',
+    emoji: '💠',
+    description: 'Estela cian eléctrica, pura noche de ciudad.',
+    cost: 0,
+    currency: 'tickets',
+    passExclusive: true,
+    trailColor: '#22D3EE',
+  },
+  {
+    id: 'trail-fire',
+    category: 'trailEffect',
+    name: 'Estela Ígnea',
+    emoji: '🔥',
+    description: 'Fuego puro saliendo del escape.',
+    cost: 0,
+    currency: 'tickets',
+    passExclusive: true,
+    trailColor: '#EF4444',
+  },
+  {
+    id: 'frame-gold',
+    category: 'avatarFrame',
+    name: 'Marco Dorado',
+    emoji: '🏆',
+    description: 'Marco dorado para tu avatar de camionero elite.',
+    cost: 0,
+    currency: 'tickets',
+    passExclusive: true,
+    frameColor: '#F59E0B',
+  },
+  {
+    id: 'frame-diamond',
+    category: 'avatarFrame',
+    name: 'Marco Diamante',
+    emoji: '💎',
+    description: 'Marco diamante: brillo frío de leyenda.',
+    cost: 0,
+    currency: 'tickets',
+    passExclusive: true,
+    frameColor: '#67E8F9',
+  },
+  {
+    id: 'lights-galactic',
+    category: 'lights',
+    name: 'Luces Galácticas',
+    emoji: '🌌',
+    description: 'Glow violeta interestelar bajo el chasis.',
+    cost: 0,
+    currency: 'tickets',
+    passExclusive: true,
+    glowColor: '#A855F7',
+  },
+  {
+    id: 'skin-camaleon',
+    category: 'skin',
+    name: 'Skin Camaleón',
+    emoji: '🦎',
+    description: 'Colores vivos que cambian con la luz de la carretera.',
+    cost: 0,
+    currency: 'tickets',
+    passExclusive: true,
+    hueRotate: 120,
+    filterExtra: 'saturate(1.8) brightness(1.1)',
+  },
+  {
+    id: 'horn-sinfonica',
+    category: 'horn',
+    name: 'Bocina Sinfónica',
+    emoji: '🎼',
+    description: 'Una orquesta completa en cada pitazo.',
+    cost: 0,
+    currency: 'tickets',
+    passExclusive: true,
+  },
+  {
+    id: 'sticker-rayo',
+    category: 'sticker',
+    name: 'Sticker Rayo',
+    emoji: '⚡',
+    description: 'El rayo de los más rápidos de la vía.',
+    cost: 0,
+    currency: 'tickets',
+    passExclusive: true,
+  },
+  {
+    id: 'trailer-luxury',
+    category: 'trailer',
+    name: 'Remolque Luxury',
+    emoji: '🚛',
+    description: 'Remolque cromado con acabados de lujo.',
+    cost: 0,
+    currency: 'tickets',
+    passExclusive: true,
+  },
 ];
 
 export function getTruckPart(id: string): TruckPart | undefined {
@@ -230,6 +355,8 @@ export const DEFAULT_EQUIPPED: EquippedParts = {
   lights: null,
   trailer: null,
   sticker: null,
+  trailEffect: null,
+  avatarFrame: null,
 };
 
 /** Bonus multiplicador total de las piezas equipadas (1 + Σ bonusPct/100). */
@@ -248,6 +375,10 @@ export interface TruckVisual {
   filter?: string;
   stickerEmoji?: string;
   trailerEmoji?: string;
+  /** Color de la estela equipada (F16). */
+  trailColor?: string;
+  /** Color del marco de avatar equipado (F16). */
+  frameColor?: string;
 }
 
 /** Apariencia del camión según las piezas equipadas. */
@@ -267,5 +398,9 @@ export function getTruckVisual(equipped: EquippedParts): TruckVisual {
   if (filters.length > 0) visual.filter = filters.join(' ');
   if (equipped.sticker) visual.stickerEmoji = getTruckPart(equipped.sticker)?.emoji;
   if (equipped.trailer) visual.trailerEmoji = getTruckPart(equipped.trailer)?.emoji;
+  const trail = equipped.trailEffect ? getTruckPart(equipped.trailEffect) : undefined;
+  if (trail?.trailColor) visual.trailColor = trail.trailColor;
+  const frame = equipped.avatarFrame ? getTruckPart(equipped.avatarFrame) : undefined;
+  if (frame?.frameColor) visual.frameColor = frame.frameColor;
   return visual;
 }
