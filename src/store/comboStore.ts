@@ -1,6 +1,12 @@
 import { create } from 'zustand';
+import { getTalentComboWindowMs } from '@/store/talentStore';
 
 export const COMBO_WINDOW_MS = 2000;
+
+/** Ventana de combo efectiva: base 2s + 0.5s por nivel del talento (rama Combo). */
+export function getComboWindowMs(): number {
+  return COMBO_WINDOW_MS + getTalentComboWindowMs();
+}
 
 export interface ComboTierDef {
   min: number;
@@ -46,7 +52,7 @@ export const useComboStore = create<ComboState>()((set, get) => ({
   incrementCombo: () => {
     const now = Date.now();
     const state = get();
-    const withinWindow = state.comboActive && now - state.lastClickAt <= COMBO_WINDOW_MS;
+    const withinWindow = state.comboActive && now - state.lastClickAt <= getComboWindowMs();
     const comboCount = withinWindow ? state.comboCount + 1 : 1;
     const tierDef = comboTierFor(comboCount);
     set({
