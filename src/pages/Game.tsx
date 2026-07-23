@@ -8,6 +8,7 @@ import {
   Sparkles,
   MousePointerClick,
   Clock,
+  Gamepad2,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { cn } from '@/lib/utils';
@@ -27,6 +28,13 @@ import { useComboStore } from '@/store/comboStore';
 import { usePowerupStore, POWERUP_DEFS, type PowerupId } from '@/store/powerupStore';
 import { useUnlockStore } from '@/store/unlockStore';
 import { useEventStore } from '@/store/eventStore';
+import { useFriendsStore } from '@/store/friendsStore';
+import { useDailyStore } from '@/store/dailyStore';
+import {
+  notifyComboLost,
+  notifyDailyReady,
+  notifyGlobalEvent,
+} from '@/lib/pushNotifications';
 
 import { CriticalHit, type CritState } from '@/components/game/CriticalHit';
 import { AscensionCinematic } from '@/components/game/AscensionCinematic';
@@ -37,6 +45,7 @@ import { SponsorPowerCard } from '@/components/game/SponsorPowerCard';
 import { FleetVehicleCard } from '@/components/game/FleetVehicleCard';
 import { FloatingNumber } from '@/components/game/FloatingNumber';
 import { BoomEffect } from '@/components/game/BoomEffect';
+import { MinigameModal } from '@/components/game/MinigameModal';
 
 import { useTruckHorn } from '@/hooks/useTruckHorn';
 import { getTruckAsset } from '@/data/truckAssets';
@@ -207,6 +216,7 @@ export default function Game() {
   const [goldCoins, setGoldCoins] = useState<{ id: number; x: number; reward: number }[]>([]);
   const [milestoneHit, setMilestoneHit] = useState<{ label: string; id: number } | null>(null);
   const [boom, setBoom] = useState<{ id: number; tierUp: boolean } | null>(null);
+  const [showMinigame, setShowMinigame] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
   // V9: barra THICK cargada por clicks (0-100), multiplicador activo y flash "×N ACTIVADO!"
   const [barCharge, setBarCharge] = useState(0);
@@ -255,9 +265,12 @@ export default function Game() {
   const storeUpgrades = useClickerStore((s) => s.upgrades);
   const stars = useClickerStore((s) => s.stars);
   const selectedFleet = useClickerStore((s) => s.selectedFleet);
+  // Wave 3 (F10): recalcular el poder por click cuando cambia la caravana
+  const friendsList = useFriendsStore((s) => s.friends);
+  const incomingConvite = useFriendsStore((s) => s.incomingConvite);
   const clickPower = useMemo(
     () => calculateClickPower(useClickerStore.getState()),
-    [powerLevels, storeUpgrades, stars, selectedFleet]
+    [powerLevels, storeUpgrades, stars, selectedFleet, friendsList]
   );
   // V9: objetivo de la barra THICK — arranca en el próximo milestone del CPS por
   // click y avanza al siguiente target con cada activación (×3, ×4, ×5, ×10...)
@@ -350,9 +363,39 @@ export default function Game() {
   useEffect(() => {
     const iv = setInterval(() => {
       const s = useComboStore.getState();
-      if (s.comboActive && Date.now() - s.lastClickAt > 2000) s.breakCombo();
+      if (s.comboActive && Date.now() - s.lastClickAt > 2000) {
+        const lostCount = s.comboCount;
+        s.breakCombo();
+        // Wave 3 (F11): aviso push cuando se pierde un combo decente
+        if (lostCount >= 6) notifyComboLost(lostCount);
+      }
     }, 250);
     return () => clearInterval(iv);
+  }, []);
+
+  // Wave 3 (F11): aviso push cuando arranca un evento global
+  useEffect(() => {
+    if (activeGlobalEvent) notifyGlobalEvent(activeGlobalEvent.name);
+  }, [activeGlobalEvent?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Wave 3 (F10): presencia simulada de amigos + toast de convite entrante
+  useEffect(() => {
+    useFriendsStore.getState().refreshActivity();
+    const iv = setInterval(() => useFriendsStore.getState().refreshActivity(), 60_000);
+    return () => clearInterval(iv);
+  }, []);
+
+  useEffect(() => {
+    if (!incomingConvite) return;
+    showToast(`🚛 ${incomingConvite.friendName} te envió un convite de caravana`, '#3B82F6');
+    useFriendsStore.getState().clearIncomingConvite();
+  }, [incomingConvite]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Wave 3 (F11): aviso push si la racha diaria de hoy está lista
+  useEffect(() => {
+    const today = new Date();
+    const dayKey = `${today.getFullYear()}-${today.getMonth() + 1}-${today.getDate()}`;
+    if (useDailyStore.getState().lastLoginDate !== dayKey) notifyDailyReady();
   }, []);
 
   // Eventos globales simulados: arranque + progreso comunitario pasivo
@@ -1113,7 +1156,7 @@ export default function Game() {
                 <span>+{formatNumber(clickPower * activeClickMultiplier)}</span>
               </div>
 
-              {/* 👑 Rank */}
+              {/* 👑 Rank + 🎮 Minijuegos */}
               <div className="pointer-events-auto flex items-center gap-1.5">
                 {store.ascensions > 0 && (
                   <div className="ascension-badge" title={`Ascensión ${store.ascensions}`}>
@@ -1124,6 +1167,14 @@ export default function Game() {
                   <span>👑</span>
                   <span>#{rankPosition}</span>
                 </div>
+                {/* Wave 3 (F12): acceso a minijuegos */}
+                <button
+                  onClick={() => setShowMinigame(true)}
+                  className="float-pill float-pill--red"
+                  title="Minijuegos (1 🎟️ por partida)"
+                >
+                  <Gamepad2 size={13} />
+                </button>
               </div>
             </div>
 
@@ -1861,6 +1912,9 @@ export default function Game() {
 
       {/* Efecto BOOM al comprar poderes / cambiar de tier */}
       <BoomEffect trigger={boom} />
+
+      {/* Wave 3 (F12): minijuegos (Derrape / Cambio de neumático) */}
+      <MinigameModal open={showMinigame} onClose={() => setShowMinigame(false)} />
 
       <GameTutorial forceOpen={showTutorial} onClose={() => setShowTutorial(false)} />
     </div>

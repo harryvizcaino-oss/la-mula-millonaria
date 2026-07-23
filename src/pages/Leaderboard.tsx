@@ -31,6 +31,7 @@ import {
   type PendingRequest,
   type FriendEntry,
 } from '@/lib/friends';
+import { LeaguePanel } from '@/components/LeaguePanel';
 
 /** Fila de la tabla `leaderboard_global` (migraciones 001 + 003).
  *  `score` es un alias de la columna del período activo (ver PERIOD_COLUMN). */
@@ -46,7 +47,7 @@ interface LeaderboardEntry {
 
 type TimeFilter = 'Semanal' | 'Mensual' | 'Global';
 type CategoryFilter = 'Puntaje' | 'TicaMillas' | 'Distancia';
-type ScopeFilter = 'Global' | 'Amigos';
+type ScopeFilter = 'Global' | 'Amigos' | 'Liga';
 
 const timeFilters: TimeFilter[] = ['Semanal', 'Mensual', 'Global'];
 const categoryFilters: CategoryFilter[] = ['Puntaje', 'TicaMillas', 'Distancia'];
@@ -794,7 +795,7 @@ export default function Leaderboard() {
 
       {/* Scope Toggle */}
       <div className="flex justify-center gap-2 px-4 py-2">
-        {(['Global', 'Amigos'] as ScopeFilter[]).map((s) => (
+        {(['Global', 'Amigos', 'Liga'] as ScopeFilter[]).map((s) => (
           <button
             key={s}
             onClick={() => setScope(s)}
@@ -815,8 +816,10 @@ export default function Leaderboard() {
         <YourRankCard category={category} players={sortedPlayers} />
       </div>
 
-      {/* Rankings List (Global) / Friends Panel (Amigos) */}
-      {scope === 'Global' ? (
+      {/* Rankings List (Global) / Friends Panel (Amigos) / League Panel (Liga) */}
+      {scope === 'Liga' ? (
+        <LeaguePanel />
+      ) : scope === 'Global' ? (
         <div className="mt-4">
           <div className="px-4 mb-2">
             <h2 className="font-fredoka font-bold text-lg text-slate-900">

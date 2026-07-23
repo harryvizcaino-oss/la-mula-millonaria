@@ -10,6 +10,8 @@ import {
 } from '@/data/sponsorPowers';
 import { DEFAULT_FLEET_ID, getFleetMultiplier, getFleetVehicle } from '@/data/fleetVehicles';
 import { loadGameState, rowToHydration, scheduleSave } from '@/lib/gameSync';
+import { useLeagueStore } from '@/store/leagueStore';
+import { useFriendsStore } from '@/store/friendsStore';
 
 const CLICKER_STORAGE_KEY = 'truckSurfers_clicker_v5';
 const OFFLINE_CAP_SECONDS = 8 * 60 * 60; // max 8 hours of offline progress
@@ -47,6 +49,7 @@ export interface ClickerState {
   redeemCps: (amount: number) => { success: boolean };
   buyUpgrade: (id: string, currentMillas: number) => { success: boolean; cost: number };
   addGoldenTickets: (amount: number) => void;
+  spendGoldenTickets: (amount: number) => { success: boolean };
   redeemGoldenTickets: (amount: number) => { success: boolean; millasGained: number };
   prestige: () => { success: boolean; starsGained: number };
   clearOfflineEarnings: () => void;
@@ -72,6 +75,7 @@ type ClickerComputed = Omit<
     | 'redeemCps'
     | 'buyUpgrade'
     | 'addGoldenTickets'
+    | 'spendGoldenTickets'
     | 'redeemGoldenTickets'
     | 'prestige'
     | 'clearOfflineEarnings'
@@ -146,6 +150,9 @@ function calculateClickPower(state: ClickerComputed): number {
   // Prestige stars: +1% per star
   mult *= 1 + state.stars * 0.01;
 
+  // Wave 3 (F10): bonus de caravana — +1% por amigo activo (tope +5%)
+  mult *= 1 + useFriendsStore.getState().getCaravanBonus();
+
   return sum * mult;
 }
 
@@ -192,6 +199,8 @@ export const useClickerStore = create<ClickerState>()(
           cpsTotal: state.cpsTotal + power,
           totalEarned: state.totalEarned + power,
         });
+        // Wave 3 (F9): el CPS semanal alimenta la liga
+        useLeagueStore.getState().addWeeklyCps(power);
         return { cps: power, millas: power };
       },
 
@@ -262,6 +271,14 @@ export const useClickerStore = create<ClickerState>()(
         set((state) => ({ goldenTickets: state.goldenTickets + amount }));
       },
 
+      // Gasto puro de tickets (minijuegos, etc.): NO convierte a millas.
+      spendGoldenTickets: (amount: number) => {
+        const state = get();
+        if (amount <= 0 || state.goldenTickets < amount) return { success: false };
+        set({ goldenTickets: state.goldenTickets - amount });
+        return { success: true };
+      },
+
       redeemGoldenTickets: (amount: number) => {
         const state = get();
         if (amount <= 0 || state.goldenTickets < amount) return { success: false, millasGained: 0 };
@@ -311,6 +328,8 @@ export const useClickerStore = create<ClickerState>()(
           cpsTotal: state.cpsTotal + amount,
           totalEarned: state.totalEarned + amount,
         }));
+        // Wave 3 (F9): todo ingreso CPS cuenta para la semana de liga
+        useLeagueStore.getState().addWeeklyCps(amount);
       },
 
       // El autoclick se compra con CPS (balance).
