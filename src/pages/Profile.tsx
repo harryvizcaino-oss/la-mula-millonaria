@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { motion, useInView, AnimatePresence } from 'framer-motion';
 import {
   Gamepad2,
@@ -222,6 +223,7 @@ function SettingsItem({
 /*  Main Profile Component                                             */
 /* ------------------------------------------------------------------ */
 export default function Profile() {
+  const navigate = useNavigate();
   const { user, isLoading, logout } = useAuth();
   const { millas } = useMillas();
   const [txRows, setTxRows] = useState<TransactionRow[]>([]);
@@ -479,6 +481,14 @@ export default function Profile() {
             subtitle="Nombre, foto, correo"
             right={<ChevronRight size={18} className="text-slate-500" />}
             onClick={() => setEditSheetOpen(true)}
+          />
+          <SettingsItem
+            icon={Route}
+            iconColor="text-[#F59E0B]"
+            title="Ruta Nacional"
+            subtitle="Pase de temporada: sube de nivel y reclama recompensas"
+            right={<ChevronRight size={18} className="text-slate-500" />}
+            onClick={() => navigate('/season')}
           />
           <SettingsItem
             icon={Lock}

@@ -34,6 +34,7 @@ import type { VtexProduct } from '@/lib/vtexCatalog';
 import { useAuth } from '@/hooks/useAuth';
 import { useMillas } from '@/providers/MillasProvider';
 import { useClickerStore } from '@/store/clickerStore';
+import { useSeasonStore } from '@/store/seasonStore';
 
 /* ═══════════════════════════════════════════════════════════════════
    Constants & Helpers
@@ -917,6 +918,7 @@ export default function Marketplace() {
 
     addMillas(-cashMillasAmount);
     clicker.redeemGoldenTickets(cashTicketAmount);
+    useSeasonStore.getState().addXp(50); // F6: XP del pase por redención
 
     const code = `TC-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
     setCashGiftCard({ code, cop });
@@ -935,6 +937,7 @@ export default function Marketplace() {
   const handleRedeemVtex = (usd: number, cps: number) => {
     const result = clicker.redeemCps(cps);
     if (!result.success) return;
+    useSeasonStore.getState().addXp(50); // F6: XP del pase por redención
     const code = `VTEX-${usd}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
     setVtexGiftCard({ code, usd });
     showTicketToast(`Gift Card VTEX $${usd} generada`, '#ff4c4c');
