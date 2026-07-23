@@ -93,6 +93,8 @@ function mapVtexProduct(p: VtexProduct): Product {
     description: `${p.name} de ${p.brand || 'redpostventa.com'}. Producto del catalogo real de redpostventa.com.`,
     redeemable: p.price != null,
     link: p.link,
+    skuId: p.skuId ?? undefined,
+    sellerId: p.sellerId ?? undefined,
   };
 }
 

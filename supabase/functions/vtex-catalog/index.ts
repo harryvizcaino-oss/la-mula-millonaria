@@ -27,6 +27,8 @@ interface SlimProduct {
   available: number | null;
   category: string;
   link: string;
+  skuId: string | null;
+  sellerId: string | null;
 }
 
 // La tienda tiene productos con datos corruptos que hacen que VTEX
@@ -37,7 +39,8 @@ function toSlimProducts(raw: unknown): SlimProduct[] {
   for (const p of raw) {
     if (typeof p !== 'object' || p === null) continue;
     const item = p.items?.[0];
-    const offer = item?.sellers?.[0]?.commertialOffer ?? {};
+    const seller = item?.sellers?.[0] ?? {};
+    const offer = seller?.commertialOffer ?? {};
     const categories = Array.isArray(p.categories)
       ? p.categories.filter((c: unknown) => typeof c === 'string')
       : [];
@@ -50,6 +53,8 @@ function toSlimProducts(raw: unknown): SlimProduct[] {
       available: typeof offer.AvailableQuantity === 'number' ? offer.AvailableQuantity : null,
       category: categories[0]?.replace(/^\/|\/$/g, '') ?? '',
       link: String(p.link ?? ''),
+      skuId: item?.itemId != null ? String(item.itemId) : null,
+      sellerId: seller?.sellerId != null ? String(seller.sellerId) : null,
     });
   }
   return out;

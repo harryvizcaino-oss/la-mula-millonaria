@@ -5,9 +5,10 @@ module.exports = {
   theme: {
     extend: {
       fontFamily: {
+        // Fuente única del juego: Fredoka (todas las clases apuntan a ella)
         fredoka: ['Fredoka', 'sans-serif'],
-        inter: ['Inter', 'sans-serif'],
-        mono: ['JetBrains Mono', 'monospace'],
+        inter: ['Fredoka', 'sans-serif'],
+        mono: ['Fredoka', 'sans-serif'],
       },
       colors: {
         'bg-dark': '#0D0E14',

@@ -7,7 +7,7 @@
 .floating-number {
   position: absolute;
   translate: -50% -50%;
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-size: 20px;
   font-weight: 700;
   color: #FFD700;
@@ -95,7 +95,7 @@
 }
 
 .cps-counter-value {
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-weight: 700;
   font-size: clamp(28px, 7vw, 44px);
   color: #ffd700;
@@ -109,7 +109,7 @@
 }
 
 .cps-counter-label {
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 3px;
@@ -219,7 +219,7 @@
   background: #f1f5f9;
   border: 1px solid #e2e8f0;
   color: #475569;
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-size: 11px;
   font-weight: 700;
   white-space: nowrap;
@@ -227,7 +227,7 @@
 
 /* ---------- FIX 2 + V2-5: Compact buy button (44px) ---------- */
 .sponsor-card-price {
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-size: 12px;
   font-weight: 700;
   color: #1a1a2e;
@@ -294,7 +294,7 @@
   bottom: calc(325px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 7;
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-size: 20px;
   font-weight: 700;
   color: #ffd700;
@@ -313,7 +313,7 @@
   gap: 6px;
   padding: 8px 16px;
   border-radius: 20px;
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-weight: 700;
   font-size: 13px;
   color: #ffffff;
@@ -434,7 +434,7 @@
   background: linear-gradient(180deg, #22c55e 0%, #16a34a 100%);
   border: 1px solid #15803d;
   color: #052e16;
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-size: 11px;
   font-weight: 700;
   line-height: 1.2;
@@ -538,7 +538,7 @@
   border: 2px solid #b8860b;
   background: linear-gradient(180deg, #ffe066 0%, #ffd700 45%, #f5a623 100%);
   color: #4a3000;
-  font-family: 'Fredoka', 'Baloo 2', sans-serif;
+  font-family: 'Fredoka', 'Fredoka', sans-serif;
   font-weight: 900;
   font-size: 22px;
   letter-spacing: 3px;
@@ -746,7 +746,7 @@
   }
 }
 
-/* Stats row: +N (verde) + "verdes" (gris 9px) + costo (Space Mono #1a1a2e) */
+/* Stats row: +N (verde) + "verdes" (gris 9px) + costo (Fredoka #1a1a2e) */
 .sponsor-v8-stats {
   display: flex;
   align-items: baseline;
@@ -755,7 +755,7 @@
 }
 
 .sponsor-v8-gain {
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-size: 16px;
   font-weight: 700;
   color: #16a34a;
@@ -770,7 +770,7 @@
 }
 
 .sponsor-v8-cost {
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-size: 14px;
   font-weight: 700;
   color: #1a1a2e;
@@ -795,6 +795,56 @@
   border-radius: 999px 999px 45% 45%;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0));
   pointer-events: none;
+}
+
+/* Círculo de NIVEL glossy 40px junto al botón BUY (color del tier) */
+.level-circle-v8 {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  background: linear-gradient(
+    180deg,
+    var(--product-color-light, #b0bec5),
+    var(--product-color, #607d8b)
+  );
+  border: 2px solid var(--product-color-dark, #37474f);
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.35),
+    0 3px 8px rgba(0, 0, 0, 0.25);
+}
+
+.level-circle-v8::before {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 12%;
+  right: 12%;
+  height: 42%;
+  border-radius: 999px 999px 45% 45%;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0));
+  pointer-events: none;
+}
+
+.level-circle-v8-label {
+  font-size: 7px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.85;
+  margin-bottom: 1px;
+}
+
+.level-circle-v8-num {
+  font-family: 'Fredoka', sans-serif;
+  font-size: 15px;
+  font-weight: 700;
 }
 
 /* ---------- V11: 4 epic power buttons (52px glossy, right side vertical stack) ---------- */
@@ -909,7 +959,7 @@
   background: #ffffff;
   color: #1a1a2e;
   border: 2px solid var(--epic-dark, #92400e);
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-size: 10px;
   font-weight: 700;
   display: flex;
@@ -943,7 +993,7 @@
 
 /* ---------- V8: THICK progress bar 20px + estrella del multiplicador ---------- */
 .milestone-v8 {
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
 }
 
 .milestone-v8-row {
@@ -1031,7 +1081,7 @@
     inset 0 2px 3px rgba(255, 255, 255, 0.6),
     0 3px 10px rgba(0, 0, 0, 0.35);
   color: #4a3000;
-  font-family: 'Fredoka', 'Baloo 2', sans-serif;
+  font-family: 'Fredoka', 'Fredoka', sans-serif;
   font-size: 10px;
   font-weight: 900;
   letter-spacing: -0.5px;
@@ -1094,7 +1144,7 @@
   gap: 5px;
   padding: 4px 12px;
   border-radius: 999px;
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-size: 12px;
   font-weight: 700;
   color: #4a3000;
@@ -1163,14 +1213,14 @@
 }
 
 .fleet-v8-mult {
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-size: 16px;
   font-weight: 700;
   color: #d97706;
 }
 
 .fleet-v8-cost {
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-size: 13px;
   font-weight: 700;
   color: #ef4444;
@@ -1207,7 +1257,7 @@
   padding: 8px 20px;
   background: linear-gradient(135deg, #FFD700, #FFA500);
   border-radius: 20px;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Fredoka', sans-serif;
   font-weight: 800;
   font-size: 14px;
   color: #4A3000;
@@ -1274,7 +1324,7 @@
   top: 28%;
   left: 50%;
   transform: translate(-50%, -50%);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Fredoka', sans-serif;
   font-weight: 900;
   font-size: 56px;
   color: white;
@@ -1300,7 +1350,7 @@
   top: 50%;
   left: 50%;
   z-index: 9999;
-  font-family: 'Inter', sans-serif;
+  font-family: 'Fredoka', sans-serif;
   font-weight: 900;
   font-size: 42px;
   color: #E74C3C;

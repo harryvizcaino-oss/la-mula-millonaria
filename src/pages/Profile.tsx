@@ -7,7 +7,6 @@ import {
   Route,
   User,
   Lock,
-  Link2,
   ChevronRight,
   ShoppingBag,
   TrendingUp,
@@ -29,6 +28,7 @@ import {
   X,
   Mail,
   Phone,
+  Link2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
@@ -122,10 +122,10 @@ function getTransactionTitle(type: string, description: string | null): string {
 
 const FAQ_ITEMS = [
   { q: 'Como gano CPS?', a: 'Toca tu camion en La Mula Millonaria, compra poderes de marca con CPS y multiplica todo con tu flota de camiones reales.' },
-  { q: 'Como redimo mis TicaMillas?', a: 'Ve a la tienda, selecciona un producto y presiona "Redimir". Se descontaran tus TicaMillas y recibiras un codigo de gift card de VTEX.' },
-  { q: 'Cuanto valen las TicaMillas?', a: '1 TicaMilla = $1 COP. Si un producto cuesta $50,000 COP, necesitas 50,000 TicaMillas para redimirlo.' },
-  { q: 'Puedo vincular mi cuenta de VTEX?', a: 'Si. En configuracion de cuenta selecciona "Cuenta VTEX" y sigue el proceso de vinculacion.' },
+  { q: 'Como redimo mis TicaMillas?', a: 'Ve a la tienda, selecciona un producto y presiona "Redimir". Se descontaran tus TicaMillas y recibiras un codigo de gift card.' },
+  { q: 'Cuanto valen las TicaMillas?', a: 'En redencion de efectivo: 100.000.000 TicaMillas = $10.000 COP. Los productos del catalogo tienen su propio precio en millas segun su valor real.' },
   { q: 'Que pasa si pierdo mi progreso?', a: 'Tu progreso se guarda automaticamente en la nube al vincular tu cuenta. Nunca pierdas tus TicaMillas.' },
+  { q: 'Por que vincular mi cuenta de redpostventa.com?', a: 'Al vincular tu email de redpostventa.com podemos llevarte directo al carrito de compras del marketplace con tu producto y tu gift card precargados. Sin vincularla recibiras el codigo de gift card para usarlo manualmente.' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -226,6 +226,10 @@ export default function Profile() {
   const { millas } = useMillas();
   const [txRows, setTxRows] = useState<TransactionRow[]>([]);
   const [userStats, setUserStats] = useState({ totalClicks: 0, totalEarned: 0, rank: 0 });
+  const [vtexEmail, setVtexEmail] = useState<string | null>(null);
+  const [vtexModalOpen, setVtexModalOpen] = useState(false);
+  const [vtexInput, setVtexInput] = useState('');
+  const [vtexSaving, setVtexSaving] = useState(false);
 
   // Transacciones desde Supabase (tabla `transactions`, más recientes primero)
   useEffect(() => {
@@ -249,13 +253,15 @@ export default function Profile() {
     Promise.all([
       supabase.from('game_state').select('total_clicks, total_earned').eq('id', user.id).maybeSingle(),
       supabase.from('leaderboard_global').select('rank').eq('user_id', user.id).maybeSingle(),
-    ]).then(([gs, lb]) => {
+      supabase.from('profiles').select('vtex_email').eq('id', user.id).maybeSingle(),
+    ]).then(([gs, lb, prof]) => {
       if (cancelled) return;
       setUserStats({
         totalClicks: Number(gs.data?.total_clicks ?? 0),
         totalEarned: Number(gs.data?.total_earned ?? 0),
         rank: lb.data?.rank ?? 0,
       });
+      setVtexEmail(prof.data?.vtex_email ?? null);
     });
     return () => {
       cancelled = true;
@@ -296,7 +302,6 @@ export default function Profile() {
   const xpTotal = 1000;
   const xpPercent = (xpCurrent / xpTotal) * 100;
   const isSocialAuth = !!user?.email;
-  const vtexLinked = true;
 
   // `amount` viene positivo de la tabla; el signo lo da `type` ('spend' = gasto).
   // balanceAfter se reconstruye hacia atrás desde el balance actual de millas.
@@ -333,6 +338,21 @@ export default function Profile() {
 
   const toggleNotification = (id: string) => {
     setNotifications((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const handleSaveVtexEmail = async () => {
+    const email = vtexInput.trim();
+    if (!email || !user?.id) return;
+    setVtexSaving(true);
+    const { error } = await supabase
+      .from('profiles')
+      .update({ vtex_email: email, vtex_linked_at: new Date().toISOString() })
+      .eq('id', user.id);
+    setVtexSaving(false);
+    if (!error) {
+      setVtexEmail(email);
+      setVtexModalOpen(false);
+    }
   };
 
   const handleLogout = () => {
@@ -490,16 +510,14 @@ export default function Profile() {
           />
           <SettingsItem
             icon={Link2}
-            iconColor={vtexLinked ? 'text-[#10B981]' : 'text-[#F59E0B]'}
+            iconColor="text-[#F59E0B]"
             title="Cuenta VTEX"
-            subtitle={vtexLinked ? 'Vinculada: user@email.com' : 'No vinculada'}
-            right={
-              <div className="flex items-center gap-2">
-                <div className={cn('w-2 h-2 rounded-full', vtexLinked ? 'bg-[#10B981]' : 'bg-[#F59E0B]')} />
-                <ChevronRight size={18} className="text-slate-500" />
-              </div>
-            }
-            onClick={() => { }}
+            subtitle={vtexEmail ? vtexEmail : 'Vincula tu email de redpostventa.com'}
+            right={<ChevronRight size={18} className="text-slate-500" />}
+            onClick={() => {
+              setVtexInput(vtexEmail || '');
+              setVtexModalOpen(true);
+            }}
             last
           />
         </div>
@@ -923,6 +941,67 @@ export default function Profile() {
                   className="w-full h-12 bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] rounded-xl text-[#0D0E14] font-bold text-sm mt-2"
                 >
                   Guardar Cambios
+                </motion.button>
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+
+      {/* ============ VTEX Account Bottom Sheet ============ */}
+      <AnimatePresence>
+        {vtexModalOpen && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+              onClick={() => setVtexModalOpen(false)}
+            />
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'tween', duration: 0.35, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
+              className="fixed bottom-0 left-0 right-0 z-50 bg-slate-100 rounded-t-3xl max-h-[70vh] overflow-y-auto pb-safe"
+            >
+              <div className="flex justify-center pt-3 pb-1">
+                <div className="w-10 h-1 rounded-full bg-white/20" />
+              </div>
+              <div className="flex items-center justify-between px-5 py-3">
+                <h3 className="font-fredoka font-bold text-lg text-slate-900">Cuenta VTEX</h3>
+                <button onClick={() => setVtexModalOpen(false)} className="p-1 rounded-full hover:bg-slate-100 transition-colors">
+                  <X size={20} className="text-slate-500" />
+                </button>
+              </div>
+              <div className="px-5 pb-8 space-y-4">
+                <p className="text-slate-500 text-sm">
+                  Ingresa el email de tu cuenta en{' '}
+                  <span className="font-bold text-slate-900">redpostventa.com</span>. Asi, al redimir un producto real, podemos llevarte directo al carrito con tu gift card precargada.
+                </p>
+
+                <div>
+                  <label className="text-slate-500 text-xs font-medium mb-1.5 block">Email de redpostventa.com</label>
+                  <div className="relative">
+                    <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                    <input
+                      type="email"
+                      value={vtexInput}
+                      onChange={(e) => setVtexInput(e.target.value)}
+                      placeholder="tucorreo@ejemplo.com"
+                      className="w-full h-11 bg-white border border-white/[0.08] rounded-xl pl-10 pr-4 text-slate-900 text-sm focus:outline-none focus:border-[#F59E0B]/50"
+                    />
+                  </div>
+                </div>
+
+                <motion.button
+                  whileTap={{ scale: 0.98 }}
+                  disabled={vtexSaving || !vtexInput.trim()}
+                  onClick={handleSaveVtexEmail}
+                  className="w-full h-12 bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] rounded-xl text-[#0D0E14] font-bold text-sm mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {vtexSaving ? 'Guardando...' : vtexEmail ? 'Actualizar email' : 'Vincular cuenta'}
                 </motion.button>
               </div>
             </motion.div>

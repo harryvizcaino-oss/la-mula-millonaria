@@ -198,9 +198,9 @@
     0 1px 0 rgba(255, 255, 255, 0.2);
 }
 
-/* V3: contador principal CPS — Space Mono, dorado, glow respirante 3s */
+/* V3: contador principal CPS — Fredoka, dorado, glow respirante 3s */
 .cps-counter-number {
-  font-family: 'Space Mono', 'JetBrains Mono', monospace;
+  font-family: 'Fredoka', sans-serif;
   font-weight: 700;
   font-size: clamp(36px, 8vw, 64px);
   line-height: 1.05;
