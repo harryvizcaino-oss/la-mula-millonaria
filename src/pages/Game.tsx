@@ -67,6 +67,9 @@ import { useCustomizationStore } from '@/store/customizationStore';
 import { getTruckVisual } from '@/data/truckSkins';
 // Wave 4: recompensas de sesión (F13), álbum (F14) y pase cosmético (F16)
 import { SessionRewardsPanel } from '@/components/game/SessionRewardsPanel';
+// import { DailyRankPanel } from '@/components/game/DailyRankPanel';
+// import { useDailyRank } from '@/hooks/useDailyRank';
+// import { useAuth } from '@/hooks/useAuth';
 import { useCollectibleStore } from '@/store/collectibleStore';
 import { useCosmeticPassStore } from '@/store/cosmeticPassStore';
 import type { SessionRewardSet } from '@/data/sessionRewards';
@@ -241,7 +244,7 @@ export default function Game() {
   const [milestoneHit, setMilestoneHit] = useState<{ label: string; id: number } | null>(null);
   const [boom, setBoom] = useState<{ id: number; tierUp: boolean } | null>(null);
   const [showMinigame, setShowMinigame] = useState(false);
-  const [nowMs, setNowMs] = useState(Date.now());
+  const [nowMs, setNowMs] = useState(() => Date.now());
   // V9: barra THICK cargada por clicks (0-100), multiplicador activo y flash "×N ACTIVADO!"
   const [barCharge, setBarCharge] = useState(0);
   const [barTargetIdx, setBarTargetIdx] = useState<number | null>(null);
@@ -258,6 +261,12 @@ export default function Game() {
   // F5: oferta de revivir el combo roto viendo un anuncio (opt-in)
   const [reviveOffer, setReviveOffer] = useState<{ count: number; id: number } | null>(null);
   const [showReviveAd, setShowReviveAd] = useState(false);
+  // Ranking diario mundial en tiempo real
+  // const [showDailyRank, setShowDailyRank] = useState(false);
+
+  // const { user } = useAuth();
+  // const { myRank: dailyRankPosition } = useDailyRank(user?.id);
+  const dailyRankPosition: number | null = null;
 
   const comboTier = useComboStore((s) => s.comboTier);
   const comboActive = useComboStore((s) => s.comboActive);
@@ -1179,15 +1188,17 @@ export default function Game() {
   );
   const canAffordAutoclick = store.cpsBalance >= autoclickCost;
 
-  // El ranking mide el CPS TOTAL acumulado (histórico, nunca baja)
-  const rankPosition = useMemo(() => {
+  // Ranking diario mundial: usa el rank real de Supabase si hay sesión;
+  // fallback local con mocks si está offline o no autenticado.
+  const localRankPosition = useMemo(() => {
     const userScore = store.cpsTotal;
     const allScores = [...mockPlayers.map((p) => p.score), userScore].sort((a, b) => b - a);
     return allScores.indexOf(userScore) + 1;
   }, [store.cpsTotal]);
+  const rankPosition = dailyRankPosition ?? localRankPosition;
 
   return (
-    <div className="relative min-h-[100dvh] bg-white text-slate-900 pb-28 overflow-x-hidden">
+    <div className="relative min-h-[100dvh] bg-white text-slate-900 pb-4 overflow-x-hidden">
       {/* Haptic overlays */}
       <AnimatePresence>
         {hapticOverlay?.type === 'flash' && (
@@ -1216,7 +1227,7 @@ export default function Game() {
             animate={shake ? { x: [-4, 4, -4, 4, 0] } : { x: 0 }}
             transition={{ duration: 0.2 }}
             className={cn(
-              'relative h-[100dvh] rounded-b-[2rem] overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.2)] select-none',
+              'relative h-[calc(100dvh-235px)] rounded-b-[2rem] overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.2)] select-none',
               hapticOverlay?.type === 'shake' && 'screen-shake',
               crit && 'crit-shake',
               comboActive && comboTier >= 4 && 'combo-max-shake'
@@ -1301,17 +1312,31 @@ export default function Game() {
                 <span>+{formatNumber(clickPower * activeClickMultiplier)}</span>
               </div>
 
-              {/* 👑 Rank + accesos rápidos (misiones / caja / minijuegos) */}
+              {/* 👑 Ranking en tiempo real + accesos rápidos (misiones / caja / minijuegos) */}
               <div className="pointer-events-auto flex items-center gap-1.5">
                 {store.ascensions > 0 && (
                   <div className="ascension-badge" title={`Ascensión ${store.ascensions}`}>
                     ⭐x{store.ascensions}
                   </div>
                 )}
-                <div className="float-pill float-pill--purple" title="Tu posición en el ranking">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => { /* setShowDailyRank(true) */ }}
+                  className={cn(
+                    'float-pill float-pill--purple',
+                    'bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] text-[#0D0E14]',
+                    'border border-white/40 shadow-[0_0_16px_rgba(245,158,11,0.35)]'
+                  )}
+                  title="Ver ranking diario mundial en tiempo real"
+                >
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+                  </span>
                   <span>👑</span>
-                  <span>#{rankPosition}</span>
-                </div>
+                  <span className="font-black">#{rankPosition}</span>
+                </motion.button>
                 <button
                   onClick={() => setShowQuests(true)}
                   className="w-8 h-8 rounded-full bg-[#0D0E14]/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#F59E0B] shadow-lg active:scale-90 transition-transform"
@@ -1783,7 +1808,7 @@ export default function Game() {
               ))}
             </AnimatePresence>
 
-            {/* V8: stack inferior — barra THICK + tabs glossy */}
+            {/* V8: stack inferior — barra THICK */}
             <div className="arena-bottom-stack">
               {/* THICK progress bar V9: se carga con cada click; al 100% activa el multiplicador por 30s */}
               <div className="milestone-v8">
@@ -1812,29 +1837,31 @@ export default function Game() {
                   </div>
                 </div>
               </div>
-
-              {/* Tabs glossy pill */}
-              <div className="game-tabs-v8">
-                {[
-                  { id: 'upgrades', label: 'Poderes', icon: Zap },
-                  { id: 'buildings', label: 'Flota', icon: Truck },
-                  { id: 'talents', label: 'Talentos', icon: GitBranch },
-                  { id: 'ruta', label: 'Ruta', icon: MapPin },
-                  { id: 'taller', label: 'Taller', icon: Wrench },
-                  { id: 'prestige', label: 'Ascensión', icon: Star },
-                ].map((tab) => (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                    className={cn('game-tab-v8', activeTab === tab.id && 'game-tab-v8--active')}
-                  >
-                    <tab.icon size={14} />
-                    {tab.label}
-                  </button>
-                ))}
-              </div>
             </div>
           </motion.div>
+
+          {/* Tabs de juego — fuera de la arena, arriba del Autoclick */}
+          <div className="relative z-40 bg-white py-3 px-4 border-b border-slate-200">
+            <div className="game-tabs-v8">
+              {[
+                { id: 'upgrades', label: 'Poderes', icon: Zap },
+                { id: 'buildings', label: 'Flota', icon: Truck },
+                { id: 'talents', label: 'Talentos', icon: GitBranch },
+                { id: 'ruta', label: 'Ruta', icon: MapPin },
+                { id: 'taller', label: 'Taller', icon: Wrench },
+                { id: 'prestige', label: 'Ascensión', icon: Star },
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                  className={cn('game-tab-v8', activeTab === tab.id && 'game-tab-v8--active')}
+                >
+                  <tab.icon size={18} strokeWidth={activeTab === tab.id ? 2.5 : 2} />
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
           {/* Superpoder Autoclick (bloque bajo la arena; ya no hay header del que colgar) */}
           <motion.div
@@ -2178,6 +2205,9 @@ export default function Game() {
           showToast('¡Recompensa de sesión reclamada!', '#22D3EE');
         }}
       />
+
+      {/* Ranking diario mundial en tiempo real */}
+      {/* <DailyRankPanel open={showDailyRank} onClose={() => setShowDailyRank(false)} /> */}
 
       {/* Toast de logro desbloqueado */}
       <AchievementToast

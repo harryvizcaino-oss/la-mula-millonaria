@@ -45,15 +45,16 @@ interface LeaderboardEntry {
   rank: number | null;
 }
 
-type TimeFilter = 'Semanal' | 'Mensual' | 'Global';
+type TimeFilter = 'Diario' | 'Semanal' | 'Mensual' | 'Global';
 type CategoryFilter = 'Puntaje' | 'TicaMillas' | 'Distancia';
 type ScopeFilter = 'Global' | 'Amigos' | 'Liga';
 
-const timeFilters: TimeFilter[] = ['Semanal', 'Mensual', 'Global'];
+const timeFilters: TimeFilter[] = ['Diario', 'Semanal', 'Mensual', 'Global'];
 const categoryFilters: CategoryFilter[] = ['Puntaje', 'TicaMillas', 'Distancia'];
 
-/** Columna de `leaderboard_global` por tab temporal (migración 003). */
-const PERIOD_COLUMN: Record<TimeFilter, 'cps_week' | 'cps_month' | 'cps_total'> = {
+/** Columna de `leaderboard_global` por tab temporal (migraciones 003 + 007). */
+const PERIOD_COLUMN: Record<TimeFilter, 'cps_day' | 'cps_week' | 'cps_month' | 'cps_total'> = {
+  Diario: 'cps_day',
   Semanal: 'cps_week',
   Mensual: 'cps_month',
   Global: 'cps_total',
@@ -67,6 +68,14 @@ const getCategoryValue = (player: Player, category: CategoryFilter): number => {
     default: return player.score;
   }
 };
+
+/** Para datos reales (Supabase/amigos) solo tenemos `score`/`cps_total`.
+ *  Deriva millas/distancia de forma consistente para que el filtro de
+ *  categoría actualice todo el ranking. */
+const deriveCategoryValues = (score: number): { millas: number; distance: number } => ({
+  millas: Math.floor(score * 1000),
+  distance: Math.floor(score / 1000),
+});
 
 const formatNumber = (num: number): string => {
   return num.toLocaleString('es-CO');
@@ -99,7 +108,7 @@ const Sparkle = ({ delay = 0 }: { delay?: number }) => (
 /* ------------------------------------------------------------------ */
 /*  Podium Component                                                   */
 /* ------------------------------------------------------------------ */
-function Podium({ players }: { players: Player[] }) {
+function Podium({ players, category }: { players: Player[]; category: CategoryFilter }) {
   const top3 = players.slice(0, 3);
   const [second, first, third] = [top3[1], top3[0], top3[2]];
 
@@ -172,7 +181,7 @@ function Podium({ players }: { players: Player[] }) {
             'font-bold',
             pos.rank === 1 ? 'text-sm text-[#F59E0B]' : 'text-xs text-slate-500'
           )}>
-            {formatNumber(getCategoryValue(pos.player, 'Puntaje'))}
+            {formatNumber(getCategoryValue(pos.player, category))}
           </span>
 
           {/* Platform */}
@@ -204,16 +213,17 @@ function Podium({ players }: { players: Player[] }) {
 /*  Your Rank Card                                                     */
 /* ------------------------------------------------------------------ */
 function YourRankCard({ category, players }: { category: CategoryFilter; players: Player[] }) {
-  // El ranking mide el CPS TOTAL acumulado (histórico, nunca baja).
   const cpsTotal = useClickerStore((s) => s.cpsTotal);
-  const { rank, nextGap, progressPercent } = useMemo(() => {
-    const all = [...players.map((p) => p.score), cpsTotal].sort((a, b) => b - a);
-    const r = all.indexOf(cpsTotal) + 1;
+
+  const { rank, nextGap, progressPercent, myValue } = useMemo(() => {
+    const myScore = category === 'Puntaje' ? cpsTotal : deriveCategoryValues(cpsTotal)[category === 'TicaMillas' ? 'millas' : 'distance'];
+    const all = [...players.map((p) => getCategoryValue(p, category)), myScore].sort((a, b) => b - a);
+    const r = all.indexOf(myScore) + 1;
     const above = r > 1 ? all[r - 2] : null;
-    const gap = above !== null ? Math.max(0, Math.floor(above - cpsTotal)) : 0;
-    const pct = above !== null && above > 0 ? Math.min(99, Math.round((cpsTotal / above) * 100)) : 100;
-    return { rank: r, nextGap: gap, progressPercent: pct };
-  }, [cpsTotal, players]);
+    const gap = above !== null ? Math.max(0, Math.floor(above - myScore)) : 0;
+    const pct = above !== null && above > 0 ? Math.min(99, Math.round((myScore / above) * 100)) : 100;
+    return { rank: r, nextGap: gap, progressPercent: pct, myValue: myScore };
+  }, [cpsTotal, players, category]);
 
   return (
     <motion.div
@@ -248,8 +258,8 @@ function YourRankCard({ category, players }: { category: CategoryFilter; players
           <p className="text-sm font-bold text-slate-900">Tu</p>
           <p className="text-xs text-slate-500">
             {category === 'Puntaje'
-              ? `${formatNumber(Math.floor(cpsTotal))} cps totales`
-              : `${formatNumber(getCategoryValue(mockCurrentUser, category))} ${category.toLowerCase()}`}
+              ? `${formatNumber(Math.floor(myValue))} cps totales`
+              : `${formatNumber(myValue)} ${category.toLowerCase()}`}
           </p>
         </div>
 
@@ -277,7 +287,7 @@ function YourRankCard({ category, players }: { category: CategoryFilter; players
       {/* Progress bar */}
       <div className="mt-3">
         <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-          <span>{rank > 1 ? `${formatNumber(nextGap)} CPS para #${rank - 1}` : '¡Eres el #1!'}</span>
+          <span>{rank > 1 ? `${formatNumber(nextGap)} ${category === 'Puntaje' ? 'CPS' : category} para #${rank - 1}` : '¡Eres el #1!'}</span>
           <span>{progressPercent}%</span>
         </div>
         <div className="w-full h-1 bg-slate-100 rounded-full overflow-hidden">
@@ -454,24 +464,29 @@ function FriendsPanel({ category }: { category: CategoryFilter }) {
   // Ranking de amigos (incluyéndome) por la categoría activa.
   const friendPlayers: Player[] = useMemo(() => {
     if (!user) return [];
-    const others: Player[] = friends.map((f, i) => ({
-      id: i + 1,
-      name: f.username ?? 'Jugador',
-      avatar: f.avatar_url ?? `https://api.dicebear.com/7.x/avataaars/svg?seed=${f.user_id}`,
-      score: Math.floor(f.cps_total),
-      millas: 0,
-      distance: 0,
-      level: f.level ?? 1,
-      trend: 'same',
-      trendValue: 0,
-    }));
+    const others: Player[] = friends.map((f, i) => {
+      const score = Math.floor(f.cps_total);
+      const derived = deriveCategoryValues(score);
+      return {
+        id: i + 1,
+        name: f.username ?? 'Jugador',
+        avatar: f.avatar_url ?? `https://api.dicebear.com/7.x/avataaars/svg?seed=${f.user_id}`,
+        score,
+        millas: derived.millas,
+        distance: derived.distance,
+        level: f.level ?? 1,
+        trend: 'same',
+        trendValue: 0,
+      };
+    });
+    const myDerived = deriveCategoryValues(Math.floor(cpsTotal));
     const me: Player = {
       id: 999,
       name: user.name ?? 'Tu',
       avatar: user.avatar ?? `https://api.dicebear.com/7.x/avataaars/svg?seed=${user.id}`,
       score: Math.floor(cpsTotal),
-      millas: 0,
-      distance: 0,
+      millas: myDerived.millas,
+      distance: myDerived.distance,
       level: playerLevel,
       trend: 'same',
       trendValue: 0,
@@ -670,11 +685,13 @@ export default function Leaderboard() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
 
   // Lee leaderboard_global (ordenada por la columna del tab temporal activo)
-  // y se suscribe a cambios vía Supabase Realtime.
+  // y se suscribe a cambios vía Supabase Realtime (debounced 2s para no
+  // saturar la UI cuando muchos jugadores actualizan a la vez).
   // Fallback: poll cada 30s por si Realtime no está habilitado en el proyecto.
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     let cancelled = false;
+    let realtimeDebounce: ReturnType<typeof setTimeout> | null = null;
 
     const column = PERIOD_COLUMN[timeFilter];
     const baseSelect = 'user_id, username, cps_total, level, avatar_url, rank';
@@ -686,8 +703,8 @@ export default function Leaderboard() {
         .order(column, { ascending: false })
         .limit(50);
       if (result.error && column !== 'cps_total') {
-        // La migración 003 aún no se aplicó (cps_week/cps_month no existen):
-        // cae al acumulado global en silencio.
+        // La migración 003/007 aún no se aplicó (cps_day/cps_week/cps_month
+        // no existen): cae al acumulado global en silencio.
         result = await supabase
           .from('leaderboard_global')
           .select(`${baseSelect}, score:cps_total`)
@@ -710,7 +727,10 @@ export default function Leaderboard() {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leaderboard_global' },
         () => {
-          void load();
+          if (realtimeDebounce) clearTimeout(realtimeDebounce);
+          realtimeDebounce = setTimeout(() => {
+            void load();
+          }, 2000);
         }
       )
       .subscribe();
@@ -721,6 +741,7 @@ export default function Leaderboard() {
 
     return () => {
       cancelled = true;
+      if (realtimeDebounce) clearTimeout(realtimeDebounce);
       clearInterval(poll);
       void supabase.removeChannel(channel);
     };
@@ -728,17 +749,21 @@ export default function Leaderboard() {
 
   const leaderboardPlayers: Player[] = useMemo(() => {
     if (entries.length === 0) return mockPlayers;
-    return entries.map((entry, index) => ({
-      id: index + 1,
-      name: entry.username || 'Jugador',
-      avatar: entry.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.user_id}`,
-      score: Math.floor(entry.score ?? entry.cps_total),
-      millas: 0,
-      distance: 0,
-      level: entry.level,
-      trend: 'same',
-      trendValue: 0,
-    }));
+    return entries.map((entry, index) => {
+      const score = Math.floor(entry.score ?? entry.cps_total);
+      const derived = deriveCategoryValues(score);
+      return {
+        id: index + 1,
+        name: entry.username || 'Jugador',
+        avatar: entry.avatar_url || `https://api.dicebear.com/7.x/avataaars/svg?seed=${entry.user_id}`,
+        score,
+        millas: derived.millas,
+        distance: derived.distance,
+        level: entry.level,
+        trend: 'same',
+        trendValue: 0,
+      };
+    });
   }, [entries]);
 
   const sortedPlayers = useMemo(() => {
@@ -773,7 +798,7 @@ export default function Leaderboard() {
       </div>
 
       {/* Top 3 Podium */}
-      <Podium players={sortedPlayers} />
+      <Podium players={sortedPlayers} category={category} />
 
       {/* Category Tabs */}
       <div className="flex gap-2 px-4 py-3 overflow-x-auto">

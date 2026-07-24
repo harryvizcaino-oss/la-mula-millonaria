@@ -291,7 +291,7 @@
 .milestone-hit-text {
   position: absolute;
   left: 50%;
-  bottom: calc(325px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(200px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 7;
   font-family: 'Fredoka', sans-serif;
@@ -369,7 +369,7 @@
   left: 0;
   right: 0;
   top: 0;
-  bottom: calc(265px + env(safe-area-inset-bottom, 0px)); /* V8: libre el stack (poderes + barra THICK + tabs + navbar) */
+  bottom: calc(190px + env(safe-area-inset-bottom, 0px)); /* V8: libre el stack (poderes + barra THICK + tabs) */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -381,7 +381,7 @@
 /* El combo flota justo sobre el stack inferior de la arena */
 .combo-display {
   top: auto;
-  bottom: calc(272px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(197px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ---------- V2-6: BOOM al comprar poder / cambiar de tier ---------- */
@@ -633,8 +633,8 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  /* 78px + safe-area: el contenido queda por encima del bottom navbar (h-16) */
-  padding: 4px 16px calc(78px + env(safe-area-inset-bottom, 0px));
+  /* 125px + safe-area: el contenido queda por encima del bottom navbar (h-[110px]) */
+  padding: 4px 16px calc(125px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ---------- V8: Sponsor power card (horizontal glossy 90px) ---------- */
@@ -1087,48 +1087,59 @@
   letter-spacing: -0.5px;
 }
 
-/* ---------- V8: tabs glossy pill (activo gold, inactivo glass) ---------- */
+/* ---------- V8: tabs de juego (botones simples, seleccionado destacado) ---------- */
 .game-tabs-v8 {
   display: flex;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE 10+ */
+}
+
+.game-tabs-v8::-webkit-scrollbar {
+  display: none;
 }
 
 .game-tab-v8 {
   display: inline-flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 8px 18px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 800;
+  justify-content: center;
+  gap: 3px;
+  min-width: 64px;
+  padding: 8px 10px 7px;
+  border-radius: 12px;
+  font-size: 10px;
+  font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.5);
-  backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
+  letter-spacing: 0.4px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-bottom: 3px solid #cbd5e1;
+  color: #64748b;
   cursor: pointer;
   transition:
-    background 0.15s ease,
-    color 0.15s ease,
-    box-shadow 0.15s ease,
-    transform 0.1s ease;
+    background 0.12s ease,
+    color 0.12s ease,
+    border-color 0.12s ease,
+    transform 0.08s ease,
+    box-shadow 0.12s ease;
 }
 
 .game-tab-v8:active {
-  transform: scale(0.96);
+  transform: translateY(1px);
+  border-bottom-width: 2px;
 }
 
 .game-tab-v8--active {
-  padding: 7px 17px; /* compensa el borde 2px */
   background: linear-gradient(180deg, #ffe066 0%, #ffd700 45%, #f5a623 100%);
-  border: 2px solid #b8860b;
+  border: 1px solid #b8860b;
+  border-bottom: 3px solid #92400e;
   color: #4a3000;
   box-shadow:
-    inset 0 2px 3px rgba(255, 255, 255, 0.6),
-    0 4px 14px rgba(255, 215, 0, 0.35);
+    inset 0 1px 2px rgba(255, 255, 255, 0.6),
+    0 4px 12px rgba(245, 158, 11, 0.35);
 }
 
 /* ============================================================

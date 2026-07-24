@@ -102,20 +102,95 @@ export function AdRewardModal({ open, title, rewardLabel, onComplete }: AdReward
               </button>
             </div>
 
-            {/* "Anuncio" simulado */}
-            <div className="relative rounded-2xl bg-gradient-to-br from-[#232433] to-[#0D0E14] border border-white/10 h-40 flex flex-col items-center justify-center overflow-hidden mb-4">
-              <motion.span
-                animate={finished ? { scale: [1, 1.15, 1] } : { rotate: [0, 6, -6, 0] }}
-                transition={{ duration: 1.2, repeat: Infinity }}
-                className="text-5xl"
-              >
-                {finished ? '🎉' : '📺'}
-              </motion.span>
-              <p className="text-slate-400 text-xs mt-3 font-bold">
-                {finished ? '¡Anuncio completado!' : 'Tu recompensa está en camino...'}
-              </p>
+            {/* "Anuncio" simulado — estilo GIF dinámico integrado al juego */}
+            <div className="relative rounded-2xl border border-white/10 h-44 flex flex-col items-center justify-center overflow-hidden mb-4">
+              {/* Fondo animado tipo GIF */}
+              <motion.div
+                className="absolute inset-0"
+                animate={{
+                  background: [
+                    'linear-gradient(135deg, #0D0E14 0%, #1A1B26 50%, #0D0E14 100%)',
+                    'linear-gradient(135deg, #1A1B26 0%, #451a03 50%, #0D0E14 100%)',
+                    'linear-gradient(135deg, #0D0E14 0%, #1A1B26 50%, #0D0E14 100%)',
+                  ],
+                }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
+              />
+
+              {/* Scanlines de video */}
+              <div
+                className="absolute inset-0 opacity-10 pointer-events-none"
+                style={{
+                  backgroundImage: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.4) 2px, rgba(0,0,0,0.4) 4px)',
+                }}
+              />
+
+              {/* Anillos de pulso */}
               {!finished && (
-                <span className="absolute top-2 right-3 font-mono text-xs text-slate-500">
+                <>
+                  <motion.span
+                    className="absolute w-24 h-24 rounded-full border-2 border-[#F59E0B]/30"
+                    animate={{ scale: [1, 1.6], opacity: [0.6, 0] }}
+                    transition={{ duration: 1.5, repeat: Infinity }}
+                  />
+                  <motion.span
+                    className="absolute w-24 h-24 rounded-full border-2 border-[#F59E0B]/20"
+                    animate={{ scale: [1, 2], opacity: [0.4, 0] }}
+                    transition={{ duration: 1.5, repeat: Infinity, delay: 0.5 }}
+                  />
+                </>
+              )}
+
+              {/* Icono central animado */}
+              <motion.div
+                className="relative z-10 flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-[#F59E0B] to-[#F97316] shadow-[0_0_32px_rgba(245,158,11,0.5)]"
+                animate={finished ? { scale: [1, 1.1, 1] } : { y: [0, -4, 0], rotate: [0, 3, -3, 0] }}
+                transition={{ duration: 1.2, repeat: Infinity }}
+              >
+                <span className="text-4xl">{finished ? '🎉' : '📺'}</span>
+                {!finished && (
+                  <motion.span
+                    className="absolute -top-2 -right-2 bg-[#EF4444] text-white text-[10px] font-black px-1.5 py-0.5 rounded-full"
+                    animate={{ scale: [1, 1.15, 1] }}
+                    transition={{ duration: 0.8, repeat: Infinity }}
+                  >
+                    x2
+                  </motion.span>
+                )}
+              </motion.div>
+
+              {/* Partículas flotantes */}
+              {!finished && (
+                <>
+                  {[...Array(5)].map((_, i) => (
+                    <motion.span
+                      key={i}
+                      className="absolute text-lg"
+                      initial={{ opacity: 0, y: 40, x: (i - 2) * 30 }}
+                      animate={{
+                        opacity: [0, 1, 0],
+                        y: [-20, -70],
+                        x: (i - 2) * 30 + (Math.random() - 0.5) * 20,
+                      }}
+                      transition={{
+                        duration: 2,
+                        repeat: Infinity,
+                        delay: i * 0.4,
+                        ease: 'easeOut',
+                      }}
+                    >
+                      {['✨', '🎁', '💰', '🎟️', '⭐'][i]}
+                    </motion.span>
+                  ))}
+                </>
+              )}
+
+              <p className="relative z-10 text-white/80 text-xs mt-4 font-black uppercase tracking-wider">
+                {finished ? '¡Anuncio completado!' : 'Viendo anuncio patrocinado...'}
+              </p>
+
+              {!finished && (
+                <span className="absolute top-2 right-3 font-mono text-xs text-white/40">
                   {secondsLeft}s
                 </span>
               )}
