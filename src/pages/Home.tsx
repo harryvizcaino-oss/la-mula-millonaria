@@ -828,8 +828,9 @@ function LeaderboardSneakPeekSection() {
       </motion.div>
 
       {/* Podium */}
-      <div className="flex items-end justify-center gap-4">
-        {[topPlayers[0], topPlayers[1], topPlayers[2]].map((player, index) => (
+      {topPlayers.length > 0 && (
+        <div className="flex items-end justify-center gap-4">
+          {[topPlayers[0], topPlayers[1], topPlayers[2]].filter(Boolean).map((player, index) => (
           <motion.div
             key={player.rank}
             initial={{ opacity: 0, y: 30 }}
@@ -873,7 +874,8 @@ function LeaderboardSneakPeekSection() {
             </p>
           </motion.div>
         ))}
-      </div>
+        </div>
+      )}
     </section>
   );
 }
