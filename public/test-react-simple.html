@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>La Mula Millonaria - Test React Simple</title>
+  </head>
+  <body>
+    <div id="root">Cargando...</div>
+    <script type="module">
+      // Capturar errores
+      window.addEventListener('error', (e) => {
+        document.getElementById('root').innerHTML = `
+          <h1 style="color: red;">Error: ${e.message}</h1>
+          <p>Archivo: ${e.filename}</p>
+          <p>Línea: ${e.lineno}</p>
+        `;
+      });
+
+      // Intentar cargar React y la app
+      try {
+        const { createRoot } = await import('https://esm.sh/react-dom@18/client');
+        const { createElement } = await import('https://esm.sh/react@18');
+
+        createRoot(document.getElementById('root')).render(
+          createElement('h1', { style: { color: 'green', textAlign: 'center', marginTop: '50px' } },
+            '✅ React funciona correctamente'
+          )
+        );
+      } catch (error) {
+        document.getElementById('root').innerHTML = `
+          <h1 style="color: red;">Error al cargar React: ${error.message}</h1>
+        `;
+      }
+    </script>
+  </body>
+</html>
