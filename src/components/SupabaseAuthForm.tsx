@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { signInWithGoogle, signInWithApple } from "@/lib/auth";
-import { isSupabaseConfigured } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 function GoogleIcon() {
   return (
@@ -34,12 +34,14 @@ function AppleIcon() {
 }
 
 /**
- * Card de autenticación con OAuth de Supabase (Google / Apple).
+ * Card de autenticación con OAuth de Supabase (Google / Apple) y email/password.
  * Reemplaza los widgets `<SignIn>`/`<SignUp>` de Clerk.
  */
 export default function SupabaseAuthForm({ mode }: { mode: "login" | "register" }) {
   const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState<"google" | "apple" | null>(null);
+  const [pending, setPending] = useState<"google" | "apple" | "email" | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
   const handle = async (provider: "google" | "apple") => {
     setError(null);
@@ -49,6 +51,32 @@ export default function SupabaseAuthForm({ mode }: { mode: "login" | "register" 
     // Con redirect OAuth el navegador sale de la página; solo importa el error.
     if (oauthError) {
       setError(oauthError.message);
+      setPending(null);
+    }
+  };
+
+  const handleEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!email || !password) {
+      setError("Ingresa tu email y contraseña");
+      return;
+    }
+
+    setError(null);
+    setPending("email");
+
+    try {
+      const { error: authError } = mode === "login"
+        ? await supabase.auth.signInWithPassword({ email, password })
+        : await supabase.auth.signUp({ email, password });
+
+      if (authError) {
+        setError(authError.message);
+        setPending(null);
+      }
+      // Si no hay error, el usuario es redirigido automáticamente por useAuth
+    } catch (err) {
+      setError("Error al iniciar sesión");
       setPending(null);
     }
   };
@@ -88,6 +116,52 @@ export default function SupabaseAuthForm({ mode }: { mode: "login" | "register" 
           {pending === "apple" ? "Redirigiendo..." : "Continuar con Apple"}
         </button>
       </div>
+
+      {/* Divider */}
+      <div className="flex items-center gap-3 my-4">
+        <div className="flex-1 h-px bg-slate-200" />
+        <span className="text-xs text-slate-400 font-bold">o</span>
+        <div className="flex-1 h-px bg-slate-200" />
+      </div>
+
+      {/* Email/Password Form */}
+      <form onSubmit={handleEmail} className="flex flex-col gap-3">
+        <div>
+          <label htmlFor="email" className="block text-xs font-bold text-slate-700 mb-1">
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="tucorreo@ejemplo.com"
+            disabled={!isSupabaseConfigured || pending !== null}
+            className="w-full h-11 px-4 rounded-2xl border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-[#F59E0B] focus:ring-2 focus:ring-[#F59E0B]/20 disabled:opacity-50"
+          />
+        </div>
+        <div>
+          <label htmlFor="password" className="block text-xs font-bold text-slate-700 mb-1">
+            Contraseña
+          </label>
+          <input
+            id="password"
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            disabled={!isSupabaseConfigured || pending !== null}
+            className="w-full h-11 px-4 rounded-2xl border border-slate-300 text-slate-900 text-sm focus:outline-none focus:border-[#F59E0B] focus:ring-2 focus:ring-[#F59E0B]/20 disabled:opacity-50"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={!isSupabaseConfigured || pending !== null}
+          className="h-11 px-4 rounded-2xl bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] text-[#0D0E14] font-bold text-sm hover:shadow-lg transition-shadow disabled:opacity-50"
+        >
+          {pending === "email" ? "Cargando..." : mode === "login" ? "Iniciar sesión" : "Crear cuenta"}
+        </button>
+      </form>
 
       {error && <p className="mt-4 text-center text-xs text-red-600">{error}</p>}
 
