@@ -67,7 +67,7 @@ export function FriendsSection() {
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-[0_2px_12px_rgba(0,0,0,0.2)]">
+    <div className="bg-white rounded-3xl border-4 border-slate-200 p-4 shadow-[0_4px_0_rgba(0,0,0,0.2),0_8px_24px_rgba(0,0,0,0.15)]">
       {/* Bonus de caravana activo */}
       <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
         <div className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0">

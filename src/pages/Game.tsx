@@ -67,9 +67,9 @@ import { useCustomizationStore } from '@/store/customizationStore';
 import { getTruckVisual } from '@/data/truckSkins';
 // Wave 4: recompensas de sesión (F13), álbum (F14) y pase cosmético (F16)
 import { SessionRewardsPanel } from '@/components/game/SessionRewardsPanel';
-// import { DailyRankPanel } from '@/components/game/DailyRankPanel';
-// import { useDailyRank } from '@/hooks/useDailyRank';
-// import { useAuth } from '@/hooks/useAuth';
+import { DailyRankPanel } from '@/components/game/DailyRankPanel';
+import { useDailyRank } from '@/hooks/useDailyRank';
+import { useAuth } from '@/hooks/useAuth';
 import { useCollectibleStore } from '@/store/collectibleStore';
 import { useCosmeticPassStore } from '@/store/cosmeticPassStore';
 import type { SessionRewardSet } from '@/data/sessionRewards';
@@ -262,11 +262,10 @@ export default function Game() {
   const [reviveOffer, setReviveOffer] = useState<{ count: number; id: number } | null>(null);
   const [showReviveAd, setShowReviveAd] = useState(false);
   // Ranking diario mundial en tiempo real
-  // const [showDailyRank, setShowDailyRank] = useState(false);
+  const [showDailyRank, setShowDailyRank] = useState(false);
 
-  // const { user } = useAuth();
-  // const { myRank: dailyRankPosition } = useDailyRank(user?.id);
-  const dailyRankPosition: number | null = null;
+  const { user } = useAuth();
+  const { myRank: dailyRankPosition } = useDailyRank(user?.id);
 
   const comboTier = useComboStore((s) => s.comboTier);
   const comboActive = useComboStore((s) => s.comboActive);
@@ -1322,7 +1321,7 @@ export default function Game() {
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => { /* setShowDailyRank(true) */ }}
+                  onClick={() => setShowDailyRank(true)}
                   className={cn(
                     'float-pill float-pill--purple',
                     'bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] text-[#0D0E14]',
@@ -2207,7 +2206,7 @@ export default function Game() {
       />
 
       {/* Ranking diario mundial en tiempo real */}
-      {/* <DailyRankPanel open={showDailyRank} onClose={() => setShowDailyRank(false)} /> */}
+      <DailyRankPanel open={showDailyRank} onClose={() => setShowDailyRank(false)} />
 
       {/* Toast de logro desbloqueado */}
       <AchievementToast

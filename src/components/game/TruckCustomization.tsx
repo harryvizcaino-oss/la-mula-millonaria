@@ -85,7 +85,7 @@ export function TruckCustomization({ onToast }: TruckCustomizationProps) {
   };
 
   return (
-    <div className="rounded-2xl bg-white border-2 border-slate-200 shadow-sm p-4">
+    <div className="rounded-3xl bg-white border-4 border-slate-200 shadow-[0_4px_0_rgba(0,0,0,0.2),0_8px_24px_rgba(0,0,0,0.15)] p-4">
       <div className="flex items-center justify-between mb-1">
         <h3 className="font-fredoka font-black text-lg text-slate-900 flex items-center gap-1.5">
           <Wrench size={18} className="text-[#F59E0B]" />
@@ -155,7 +155,7 @@ export function TruckCustomization({ onToast }: TruckCustomizationProps) {
             <div
               key={part.id}
               className={cn(
-                'flex items-center gap-3 rounded-xl border-2 p-3 transition-all',
+                'flex items-center gap-3 rounded-2xl border-4 p-3 transition-all',
                 isEquipped
                   ? 'border-[#F59E0B] bg-[#F59E0B]/5'
                   : 'border-slate-200 bg-white'

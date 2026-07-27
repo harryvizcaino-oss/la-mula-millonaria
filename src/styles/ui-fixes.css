@@ -291,7 +291,7 @@
 .milestone-hit-text {
   position: absolute;
   left: 50%;
-  bottom: calc(200px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(90px + env(safe-area-inset-bottom, 0px));
   transform: translateX(-50%);
   z-index: 7;
   font-family: 'Fredoka', sans-serif;
@@ -369,7 +369,7 @@
   left: 0;
   right: 0;
   top: 0;
-  bottom: calc(190px + env(safe-area-inset-bottom, 0px)); /* V8: libre el stack (poderes + barra THICK + tabs) */
+  bottom: calc(80px + env(safe-area-inset-bottom, 0px)); /* V8: libre el stack (poderes + barra THICK + tabs) */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -381,7 +381,7 @@
 /* El combo flota justo sobre el stack inferior de la arena */
 .combo-display {
   top: auto;
-  bottom: calc(197px + env(safe-area-inset-bottom, 0px));
+  bottom: calc(87px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ---------- V2-6: BOOM al comprar poder / cambiar de tier ---------- */
@@ -633,8 +633,8 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  /* 125px + safe-area: el contenido queda por encima del bottom navbar (h-[110px]) */
-  padding: 4px 16px calc(125px + env(safe-area-inset-bottom, 0px));
+  /* 16px + safe-area: la barra queda cerca del borde inferior de la arena */
+  padding: 4px 16px calc(16px + env(safe-area-inset-bottom, 0px));
 }
 
 /* ---------- V8: Sponsor power card (horizontal glossy 90px) ---------- */

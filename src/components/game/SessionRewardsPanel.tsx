@@ -83,7 +83,7 @@ export function SessionRewardsPanel({ open, onClose, onClaimReward }: SessionRew
 
             <div className="px-5 pb-8 space-y-4">
               {/* Tiempo actual + progreso al siguiente milestone */}
-              <div className="rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm p-3">
+              <div className="rounded-3xl border-4 border-white/10 bg-white/5 backdrop-blur-sm p-3 shadow-[0_4px_0_rgba(0,0,0,0.2)]">
                 <div className="flex items-center justify-between mb-2">
                   <span className="flex items-center gap-1.5 text-slate-400 text-[11px] font-bold uppercase tracking-wider">
                     <Clock size={12} /> Tiempo en sesión
@@ -116,12 +116,12 @@ export function SessionRewardsPanel({ open, onClose, onClaimReward }: SessionRew
                     <div
                       key={m.id}
                       className={cn(
-                        'rounded-2xl border p-3 bg-white/5 backdrop-blur-sm',
+                        'rounded-3xl border-4 p-3 bg-white/5 backdrop-blur-sm',
                         isClaimed
                           ? 'border-white/5 opacity-50'
                           : reached
-                            ? 'border-[#F59E0B]/60 shadow-[0_0_16px_rgba(245,158,11,0.15)]'
-                            : 'border-white/10'
+                            ? 'border-[#F59E0B] shadow-[0_0_20px_rgba(245,158,11,0.3),0_4px_0_#B45309]'
+                            : 'border-white/10 shadow-[0_4px_0_rgba(0,0,0,0.2)]'
                       )}
                     >
                       <div className="flex items-center gap-3">

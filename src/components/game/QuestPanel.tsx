@@ -19,12 +19,12 @@ function QuestRow({ quest, onClaim }: { quest: Quest; onClaim: (quest: Quest) =>
   return (
     <div
       className={cn(
-        'rounded-2xl border p-3 bg-white/5 backdrop-blur-sm',
+        'rounded-3xl border-4 p-3 bg-white/5 backdrop-blur-sm',
         quest.claimed
           ? 'border-white/5 opacity-50'
           : complete
-            ? 'border-[#F59E0B]/60 shadow-[0_0_16px_rgba(245,158,11,0.15)]'
-            : 'border-white/10'
+            ? 'border-[#F59E0B] shadow-[0_0_20px_rgba(245,158,11,0.3),0_4px_0_#B45309]'
+            : 'border-white/10 shadow-[0_4px_0_rgba(0,0,0,0.2)]'
       )}
     >
       <div className="flex items-center gap-3">

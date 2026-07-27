@@ -68,14 +68,14 @@ export function TalentTree({ onBuy }: TalentTreeProps) {
                         disabled={!canBuy}
                         title={`${talent.name}: ${talent.description} · ${talent.cost} ⭐`}
                         className={cn(
-                          'relative w-14 h-14 rounded-2xl border-2 flex flex-col items-center justify-center transition-all',
+                          'relative w-14 h-14 rounded-2xl border-4 flex flex-col items-center justify-center transition-all',
                           owned
-                            ? 'shadow-lg'
+                            ? 'shadow-[0_4px_0_rgba(0,0,0,0.3),0_0_16px_rgba(245,158,11,0.4)]'
                             : locked
-                              ? 'bg-slate-100 border-slate-200 opacity-60'
+                              ? 'bg-slate-100 border-slate-200 opacity-60 shadow-[0_4px_0_#E2E8F0]'
                               : canBuy
-                                ? 'bg-white shadow-md'
-                                : 'bg-slate-100 border-slate-200'
+                                ? 'bg-white shadow-[0_4px_0_#F59E0B,0_0_12px_rgba(245,158,11,0.3)]'
+                                : 'bg-slate-100 border-slate-200 shadow-[0_4px_0_#E2E8F0]'
                         )}
                         style={
                           owned
