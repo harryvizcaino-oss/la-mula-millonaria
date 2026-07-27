@@ -65,10 +65,18 @@ export default function SupabaseAuthForm({ mode }: { mode: "login" | "register" 
     setError(null);
     setPending("email");
 
+    // Timeout de 10 segundos para evitar que se quede colgado
+    const timeoutId = setTimeout(() => {
+      setError("La petición tardó demasiado. Verifica tu conexión.");
+      setPending(null);
+    }, 10000);
+
     try {
       const { error: authError } = mode === "login"
         ? await supabase.auth.signInWithPassword({ email, password })
         : await supabase.auth.signUp({ email, password });
+
+      clearTimeout(timeoutId);
 
       if (authError) {
         setError(authError.message);
@@ -76,6 +84,7 @@ export default function SupabaseAuthForm({ mode }: { mode: "login" | "register" 
       }
       // Si no hay error, el usuario es redirigido automáticamente por useAuth
     } catch (err) {
+      clearTimeout(timeoutId);
       setError("Error al iniciar sesión");
       setPending(null);
     }
