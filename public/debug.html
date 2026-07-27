@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>La Mula Millonaria - Debug</title>
+  </head>
+  <body>
+    <div id="root">Cargando...</div>
+    <script>
+      // Capturar errores de JavaScript
+      window.addEventListener('error', (e) => {
+        document.getElementById('root').innerHTML = `
+          <h1 style="color: red;">Error de JavaScript</h1>
+          <p><strong>Mensaje:</strong> ${e.message}</p>
+          <p><strong>Archivo:</strong> ${e.filename}</p>
+          <p><strong>Línea:</strong> ${e.lineno}</p>
+          <p><strong>Columna:</strong> ${e.colno}</p>
+        `;
+      });
+
+      // Capturar errores de promesas no manejadas
+      window.addEventListener('unhandledrejection', (e) => {
+        document.getElementById('root').innerHTML = `
+          <h1 style="color: red;">Error de Promesa No Manejada</h1>
+          <p><strong>Razón:</strong> ${e.reason}</p>
+        `;
+      });
+
+      // Intentar cargar el JS de la app
+      const script = document.createElement('script');
+      script.type = 'module';
+      script.src = '/assets/index-BH6ctuc-.js';
+      script.onerror = () => {
+        document.getElementById('root').innerHTML = '<h1 style="color: red;">Error al cargar el JS de la app</h1>';
+      };
+      document.head.appendChild(script);
+
+      // Si no hay errores en 5 segundos, mostrar mensaje de éxito
+      setTimeout(() => {
+        if (document.getElementById('root').innerHTML === 'Cargando...') {
+          document.getElementById('root').innerHTML = '<h1 style="color: green;">✅ El JS se cargó correctamente. El problema es con la app React.</h1>';
+        }
+      }, 5000);
+    </script>
+  </body>
+</html>
