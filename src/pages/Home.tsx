@@ -24,6 +24,7 @@ import { useMillas } from '@/providers/MillasProvider';
 import { useClickerStore } from '@/store/clickerStore';
 import { GameTutorial } from '@/components/GameTutorial';
 import { FLEET_VEHICLES } from '@/data/fleetVehicles';
+import { supabase } from '@/lib/supabase';
 
 /* ─────────────────────── Animation Variants ─────────────────────── */
 
@@ -756,12 +757,46 @@ function LeaderboardSneakPeekSection() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true, margin: '-20%' });
   const navigate = useNavigate();
+  const [topPlayers, setTopPlayers] = useState<{ rank: number; name: string; score: number; avatar: string; borderColor: string; size: string }[]>([]);
 
-  const topPlayers = [
-    { rank: 2, name: 'AnaR23', score: 38940, avatar: '/badge-silver.png', borderColor: '#C0C0C0', size: 'sm' },
-    { rank: 1, name: 'CarlosM', score: 45230, avatar: '/badge-gold.png', borderColor: '#FFD700', size: 'lg' },
-    { rank: 3, name: 'TruckKing', score: 31200, avatar: '/badge-bronze.png', borderColor: '#CD7F32', size: 'sm' },
-  ];
+  // Cargar top 3 del leaderboard semanal desde Supabase
+  useEffect(() => {
+    if (!isInView) return;
+
+    void supabase
+      .from('leaderboard_global')
+      .select('user_id, username, cps_week, avatar_url')
+      .order('cps_week', { ascending: false })
+      .limit(3)
+      .then(({ data, error }) => {
+        if (error || !data || data.length === 0) {
+          // Fallback a datos hardcodeados si no hay datos
+          setTopPlayers([
+            { rank: 2, name: 'AnaR23', score: 38940, avatar: '/badge-silver.png', borderColor: '#C0C0C0', size: 'sm' },
+            { rank: 1, name: 'CarlosM', score: 45230, avatar: '/badge-gold.png', borderColor: '#FFD700', size: 'lg' },
+            { rank: 3, name: 'TruckKing', score: 31200, avatar: '/badge-bronze.png', borderColor: '#CD7F32', size: 'sm' },
+          ]);
+          return;
+        }
+
+        const players = data.map((entry, i) => {
+          const rank = i + 1;
+          const badges = ['/badge-gold.png', '/badge-silver.png', '/badge-bronze.png'];
+          const colors = ['#FFD700', '#C0C0C0', '#CD7F32'];
+          return {
+            rank,
+            name: entry.username || 'Jugador',
+            score: Math.floor(entry.cps_week ?? 0),
+            avatar: entry.avatar_url || badges[i],
+            borderColor: colors[i],
+            size: rank === 1 ? 'lg' : 'sm',
+          };
+        });
+
+        // Reordenar: 2do, 1ro, 3ro (podium)
+        setTopPlayers([players[1], players[0], players[2]].filter(Boolean));
+      });
+  }, [isInView]);
 
   return (
     <section

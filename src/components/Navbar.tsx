@@ -33,10 +33,10 @@ export default function Navbar() {
       {/* Barra de juego infantil/idle — colores, bordes gruesos, formas redondas */}
       <div
         className={cn(
-          'absolute bottom-3 left-3 right-3 h-[86px]',
-          'rounded-[2rem]',
+          'absolute bottom-0 left-0 right-0 h-[86px]',
+          'rounded-t-[2rem]',
           'bg-[#FFFBEB]',
-          'border-[5px] border-[#FDE68A]',
+          'border-t-[5px] border-l-[5px] border-r-[5px] border-[#FDE68A]',
           'shadow-[0_-6px_0_#F59E0B,0_-12px_24px_rgba(0,0,0,0.15)]',
           'pointer-events-auto',
           'flex items-center justify-between px-2'
