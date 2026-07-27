@@ -340,6 +340,8 @@ function GameModesSection() {
       color: '#F59E0B',
       borderColor: 'rgba(245,158,11,0.35)',
       gradient: 'linear-gradient(135deg, rgba(245,158,11,0.16) 0%, rgba(245,158,11,0.06) 100%)',
+      path: '/game',
+      tab: 'upgrades',
     },
     {
       title: 'Eventos',
@@ -348,6 +350,8 @@ function GameModesSection() {
       color: '#EF4444',
       borderColor: 'rgba(239,68,68,0.35)',
       gradient: 'linear-gradient(135deg, rgba(239,68,68,0.16) 0%, rgba(239,68,68,0.06) 100%)',
+      path: '/game',
+      tab: 'upgrades',
     },
     {
       title: 'Prestigio',
@@ -356,6 +360,8 @@ function GameModesSection() {
       color: '#3B82F6',
       borderColor: 'rgba(59,130,246,0.35)',
       gradient: 'linear-gradient(135deg, rgba(59,130,246,0.16) 0%, rgba(59,130,246,0.06) 100%)',
+      path: '/game',
+      tab: 'prestige',
     },
     {
       title: 'Vs Amigos',
@@ -390,7 +396,14 @@ function GameModesSection() {
           <motion.div
             key={mode.title}
             variants={staggerItem}
-            onClick={() => !mode.disabled && navigate('/game')}
+            onClick={() => {
+              if (mode.disabled) return;
+              if (mode.tab) {
+                // Guardar la pestaña deseada en sessionStorage para que Game.tsx la lea
+                sessionStorage.setItem('gameTab', mode.tab);
+              }
+              navigate(mode.path ?? '/game');
+            }}
             className={cn(
               'relative rounded-2xl p-4 cursor-pointer transition-all duration-200',
               'border active:scale-[0.98] backdrop-blur-sm',

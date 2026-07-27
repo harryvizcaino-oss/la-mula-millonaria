@@ -214,7 +214,14 @@ export default function Game() {
   const { addMillas } = useMillas();
   const store = useClickerStore();
 
-  const [activeTab, setActiveTab] = useState<'buildings' | 'upgrades' | 'prestige' | 'talents' | 'ruta' | 'taller'>('upgrades');
+  // Leer pestaña deseada de sessionStorage (para modos de juego desde Home)
+  const initialTab = (sessionStorage.getItem('gameTab') as 'buildings' | 'upgrades' | 'prestige' | 'talents' | 'ruta' | 'taller') || 'upgrades';
+  const [activeTab, setActiveTab] = useState<'buildings' | 'upgrades' | 'prestige' | 'talents' | 'ruta' | 'taller'>(initialTab);
+
+  // Limpiar sessionStorage después de leer
+  useEffect(() => {
+    sessionStorage.removeItem('gameTab');
+  }, []);
   const [floatingNumbers, setFloatingNumbers] = useState<FloatingNumberEntry[]>([]);
   const [particles, setParticles] = useState<ClickParticle[]>([]);
   const [truckBump, setTruckBump] = useState(false);
