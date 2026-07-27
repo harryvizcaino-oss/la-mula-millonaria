@@ -13,6 +13,7 @@ import SeasonPass from './pages/SeasonPass'
 import Album from './pages/Album'
 import Challenges from './pages/Challenges'
 import CosmeticPass from './pages/CosmeticPass'
+import SecurityAdmin from './pages/SecurityAdmin'
 import Garage from './pages/Garage'
 import Brands from './pages/Brands'
 import Login from "./pages/Login"
@@ -63,6 +64,7 @@ function AnimatedRoutes() {
             <Route path="/album" element={<Album />} />
             <Route path="/challenges" element={<Challenges />} />
             <Route path="/cosmetic-pass" element={<CosmeticPass />} />
+            <Route path="/security-admin" element={<SecurityAdmin />} />
             <Route path="/garage" element={<Garage />} />
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/redemption" element={<Redemption />} />

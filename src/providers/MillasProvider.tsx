@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef, ty
 import { useAuth } from '@/hooks/useAuth';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { saveMillasNow, SAVE_DEBOUNCE_MS } from '@/lib/gameSync';
+import { secureStorage } from '@/lib/crypto';
 
 const MILLAS_STORAGE_KEY = 'truckSurfers_millas_v3';
 
@@ -14,9 +15,9 @@ interface MillasContextValue {
 
 const MillasContext = createContext<MillasContextValue | null>(null);
 
-function loadLocalMillas(): number {
+async function loadLocalMillas(): Promise<number> {
   try {
-    const raw = localStorage.getItem(MILLAS_STORAGE_KEY);
+    const raw = await secureStorage.getItem(MILLAS_STORAGE_KEY);
     if (raw) {
       const parsed = parseInt(raw, 10);
       return Number.isNaN(parsed) ? 0 : parsed;
@@ -35,14 +36,23 @@ function loadLocalMillas(): number {
 export function MillasProvider({ children }: { children: ReactNode }) {
   const { user, isLoading: authLoading } = useAuth();
   const userId = user?.id ?? null;
-  const [millas, setMillasState] = useState<number>(loadLocalMillas);
+  const [millas, setMillasState] = useState<number>(0);
+  const [localLoaded, setLocalLoaded] = useState(false);
   // Balance del servidor ya cargado para este userId (null = ninguno aún)
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const millasRef = useRef(millas);
   const userIdRef = useRef(userId);
 
-  const isLoading = authLoading || (isSupabaseConfigured && !!userId && loadedFor !== userId);
+  const isLoading = authLoading || !localLoaded || (isSupabaseConfigured && !!userId && loadedFor !== userId);
+
+  // Carga el balance local cifrado (async)
+  useEffect(() => {
+    void loadLocalMillas().then((value) => {
+      setMillasState(value);
+      setLocalLoaded(true);
+    });
+  }, []);
 
   // Refs "latest" para los callbacks async (asignados en efecto, no en render)
   useEffect(() => {
@@ -76,10 +86,11 @@ export function MillasProvider({ children }: { children: ReactNode }) {
       });
   }, [authLoading, userId, loadedFor]);
 
-  // Persist to localStorage
+  // Persist to localStorage (cifrado)
   useEffect(() => {
-    localStorage.setItem(MILLAS_STORAGE_KEY, String(millas));
-  }, [millas]);
+    if (!localLoaded) return;
+    void secureStorage.setItem(MILLAS_STORAGE_KEY, String(millas));
+  }, [millas, localLoaded]);
 
   // Guardado en Supabase con debounce de 5s (trailing) ante cada cambio
   useEffect(() => {

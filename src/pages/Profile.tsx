@@ -46,6 +46,7 @@ import { getTruckVisual } from '@/data/truckSkins';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { fetchTransactions, type TransactionRow } from '@/lib/transactions';
 import { FriendsSection } from '@/components/FriendsSection';
+import { MFASettings } from '@/components/MFASettings';
 import {
   getPushPermission,
   getPushSettings,
@@ -560,6 +561,12 @@ export default function Profile() {
       <Section className="px-4 mt-6" delay={0.25}>
         <h2 className="font-fredoka font-bold text-xl text-slate-900 mb-2">Amigos y Caravanas</h2>
         <FriendsSection />
+      </Section>
+
+      {/* ============ Section: Seguridad (MFA) ============ */}
+      <Section className="px-4 mt-6" delay={0.3}>
+        <h2 className="font-fredoka font-bold text-xl text-slate-900 mb-2">Seguridad</h2>
+        <MFASettings />
       </Section>
 
       {/* ============ Section 2.6: Logros ============ */}
