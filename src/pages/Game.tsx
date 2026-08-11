@@ -56,6 +56,10 @@ import { FleetVehicleCard } from '@/components/game/FleetVehicleCard';
 import { FloatingNumber } from '@/components/game/FloatingNumber';
 import { BoomEffect } from '@/components/game/BoomEffect';
 import { MinigameModal } from '@/components/game/MinigameModal';
+import {
+  RoadChallengeModal,
+  type RoadChallengeOpen,
+} from '@/components/game/RoadChallengeModal';
 import { QuestPanel } from '@/components/game/QuestPanel';
 import { TalentTree } from '@/components/game/TalentTree';
 import { AchievementToast } from '@/components/game/AchievementToast';
@@ -269,6 +273,7 @@ export default function Game() {
   const [milestoneHit, setMilestoneHit] = useState<{ label: string; id: number } | null>(null);
   const [boom, setBoom] = useState<{ id: number; tierUp: boolean } | null>(null);
   const [showMinigame, setShowMinigame] = useState(false);
+  const [roadChallenge, setRoadChallenge] = useState<RoadChallengeOpen | null>(null);
   const [nowMs, setNowMs] = useState(() => Date.now());
   // V9: barra THICK cargada por clicks (0-100), multiplicador activo y flash "×N ACTIVADO!"
   const [barCharge, setBarCharge] = useState(0);
@@ -2076,7 +2081,12 @@ export default function Game() {
           />
         )}
 
-        {activeTab === 'ruta' && <RouteMap cpsTotal={store.cpsTotal} />}
+        {activeTab === 'ruta' && (
+          <RouteMap
+            cpsTotal={store.cpsTotal}
+            onPlayRoadChallenge={({ segmentId }) => setRoadChallenge({ segmentId, paid: false })}
+          />
+        )}
 
         {activeTab === 'taller' && <TruckCustomization onToast={showToast} />}
 
@@ -2287,7 +2297,15 @@ export default function Game() {
       />
 
       {/* Wave 3 (F12): minijuegos (Derrape / Cambio de neumático) */}
-      <MinigameModal open={showMinigame} onClose={() => setShowMinigame(false)} />
+      <MinigameModal
+        open={showMinigame}
+        onClose={() => setShowMinigame(false)}
+        onPlayRoadChallenge={(kind) => {
+          setShowMinigame(false);
+          setRoadChallenge({ kind, paid: true });
+        }}
+      />
+      <RoadChallengeModal open={roadChallenge} onClose={() => setRoadChallenge(null)} />
 
       <GameTutorial
         forceOpen={showTutorial}

@@ -7,6 +7,8 @@ import { useClickerStore, calculateClickPower } from '@/store/clickerStore';
 import { usePowerupStore, POWERUP_IDS } from '@/store/powerupStore';
 import { useCollectibleStore, type CollectibleDrop } from '@/store/collectibleStore';
 import { useMillas } from '@/providers/MillasProvider';
+import { RoadChallengeMenuList } from '@/components/game/RoadChallengeModal';
+import type { RoadChallengeKind } from '@/data/roadChallenges';
 
 /**
  * Wave 3 (F12) — Minijuegos: Derrape y Cambio de neumático.
@@ -203,7 +205,15 @@ function TuercaGame({ onFinish }: { onFinish: (clicks: number) => void }) {
 /* ------------------------------------------------------------------ */
 /*  Modal principal                                                    */
 /* ------------------------------------------------------------------ */
-export function MinigameModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function MinigameModal({
+  open,
+  onClose,
+  onPlayRoadChallenge,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onPlayRoadChallenge?: (kind: RoadChallengeKind) => void;
+}) {
   const { addMillas } = useMillas();
   const goldenTickets = useClickerStore((s) => s.goldenTickets);
   const store = useClickerStore();
@@ -348,6 +358,12 @@ export function MinigameModal({ open, onClose }: { open: boolean; onClose: () =>
                   <p className="text-center text-[#EF4444] text-xs font-bold">
                     Sin tickets: recoge 🎟️ flotantes en la carretera
                   </p>
+                )}
+                {onPlayRoadChallenge && (
+                  <RoadChallengeMenuList
+                    tickets={goldenTickets}
+                    onPick={(kind) => onPlayRoadChallenge(kind)}
+                  />
                 )}
               </div>
             )}

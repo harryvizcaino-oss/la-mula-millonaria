@@ -1,11 +1,24 @@
 import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Lock, MapPin, Radio, Trophy } from 'lucide-react';
+import { Lock, MapPin, Mountain, Radio, Trophy } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useRouteStore } from '@/store/routeStore';
-import { computeRouteBonus, ROUTE_CITIES } from '@/data/routes';
+import { computeRouteBonus, getRouteCity, ROUTE_CITIES } from '@/data/routes';
 import { useEventStore } from '@/store/eventStore';
 import { liveCommunity, useGlobalChallengeStore } from '@/store/globalChallengeStore';
+import {
+  FREE_ROAD_CHALLENGES_PER_DAY,
+  getActiveSegment,
+  getRoadChallenge,
+} from '@/data/roadChallenges';
+import { useRoadChallengeStore } from '@/store/roadChallengeStore';
+
+export type RoadChallengeLaunch = { segmentId: string };
+
+interface NationalMapPanelProps {
+  cpsTotal: number;
+  onPlayRoadChallenge?: (launch: RoadChallengeLaunch) => void;
+}
 
 function formatNumber(n: number): string {
   if (n < 1000) return n.toLocaleString('es-CO', { maximumFractionDigits: 0 });
@@ -26,10 +39,16 @@ function formatCompactPct(n: number): string {
  * Drop-in: RouteMap reexporta esta vista con la misma prop `cpsTotal`.
  * Game.tsx sigue montando `<RouteMap cpsTotal={store.cpsTotal} />` en tab "Ruta".
  */
-export function NationalMapPanel({ cpsTotal }: { cpsTotal: number }) {
+export function NationalMapPanel({ cpsTotal, onPlayRoadChallenge }: NationalMapPanelProps) {
   const currentCityId = useRouteStore((s) => s.currentCityId);
   const unlockedCityIds = useRouteStore((s) => s.unlockedCityIds);
   const setCurrentCity = useRouteStore((s) => s.setCurrentCity);
+  const ensureRoadDay = useRoadChallengeStore((s) => s.ensureDay);
+  const canPlayFree = useRoadChallengeStore((s) => s.canPlayFree);
+  const freeRemaining = useRoadChallengeStore((s) => s.freeRemaining);
+  const firstCleared = useRoadChallengeStore((s) => s.firstCleared);
+  const freePlayBySegment = useRoadChallengeStore((s) => s.freePlayBySegment);
+  const roadDayKey = useRoadChallengeStore((s) => s.dayKey);
 
   const activeEvent = useEventStore((s) => s.activeEvent);
   const challenges = useGlobalChallengeStore((s) => s.challenges);
@@ -40,7 +59,20 @@ export function NationalMapPanel({ cpsTotal }: { cpsTotal: number }) {
 
   useEffect(() => {
     ensureChallenges();
-  }, [ensureChallenges]);
+    ensureRoadDay();
+  }, [ensureChallenges, ensureRoadDay]);
+
+  const activeSegment = getActiveSegment(currentCityId);
+  const activeChallenge = activeSegment
+    ? getRoadChallenge(activeSegment.challengeId)
+    : undefined;
+  const segmentUnlocked =
+    !!activeSegment && unlockedCityIds.includes(activeSegment.fromCityId);
+  const freeOk = activeSegment ? canPlayFree(activeSegment.id) : false;
+  const doneToday =
+    !!activeSegment && freePlayBySegment[activeSegment.id] === roadDayKey;
+  const clearedOnce = !!activeSegment && firstCleared.includes(activeSegment.id);
+  const toCity = activeSegment ? getRouteCity(activeSegment.toCityId) : undefined;
 
   useEffect(() => {
     if (!activeEvent && challenges.length === 0) return;
@@ -99,6 +131,50 @@ export function NationalMapPanel({ cpsTotal }: { cpsTotal: number }) {
           )}
         </p>
       </div>
+
+      {/* Reto de vía del tramo actual */}
+      {activeSegment && activeChallenge && segmentUnlocked && (
+        <div className="rounded-xl border-2 border-[#F59E0B]/35 bg-gradient-to-r from-[#FFFBEB] to-[#FEF3C7] p-3">
+          <div className="flex items-start gap-2">
+            <span className="text-2xl leading-none">{activeChallenge.emoji}</span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <Mountain size={12} className="text-[#B45309] shrink-0" />
+                <p className="font-fredoka font-black text-sm text-[#78350F] truncate">
+                  {activeSegment.title}
+                </p>
+              </div>
+              <p className="text-[10px] text-[#92400E]/90 mt-0.5">
+                {activeChallenge.name}
+                {toCity ? ` · rumbo a ${toCity.name}` : ''}
+              </p>
+              <p className="text-[9px] font-bold text-[#B45309] mt-1">
+                {doneToday
+                  ? 'Hecho hoy · replay en Minijuegos (1 🎟️)'
+                  : freeOk
+                    ? `Disponible gratis · ${freeRemaining()}/${FREE_ROAD_CHALLENGES_PER_DAY} hoy`
+                    : `Sin cupos gratis hoy · ${FREE_ROAD_CHALLENGES_PER_DAY}/${FREE_ROAD_CHALLENGES_PER_DAY}`}
+                {clearedOnce ? ' · Primera vez ✓' : ''}
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={!freeOk || !onPlayRoadChallenge}
+              onClick={() =>
+                activeSegment && onPlayRoadChallenge?.({ segmentId: activeSegment.id })
+              }
+              className={cn(
+                'shrink-0 px-3 py-2 rounded-xl text-[10px] font-black uppercase',
+                freeOk
+                  ? 'bg-[#F59E0B] text-[#0D0E14]'
+                  : 'bg-slate-200 text-slate-500',
+              )}
+            >
+              {freeOk ? 'Jugar' : 'Hecho'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Banner evento activo */}
       {activeEvent && eventRemainingSec > 0 && (

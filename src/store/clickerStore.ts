@@ -20,6 +20,7 @@ import { useFriendsStore } from '@/store/friendsStore';
 import { useCollectibleStore } from '@/store/collectibleStore';
 import { computeAlbumBonus } from '@/data/collectibles';
 import { useGlobalChallengeStore } from '@/store/globalChallengeStore';
+import { useRoadChallengeStore } from '@/store/roadChallengeStore';
 
 const CLICKER_STORAGE_KEY = 'truckSurfers_clicker_v5';
 const OFFLINE_CAP_SECONDS = 8 * 60 * 60; // max 8 hours of offline progress
@@ -175,6 +176,9 @@ function calculateClickPower(state: ClickerComputed): number {
 
   // Wave 4 (F14): bonus permanente de los sets del álbum completados (+1-3% c/u)
   mult *= computeAlbumBonus(useCollectibleStore.getState().owned);
+
+  // Retos de vía: buff temporal +1% tras primera victoria de tramo
+  mult *= useRoadChallengeStore.getState().getBuffMultiplier();
 
   return sum * mult;
 }
