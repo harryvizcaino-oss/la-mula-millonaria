@@ -6,9 +6,7 @@ import {
   Lock,
   Check,
   X,
-  Copy,
   ExternalLink,
-  Share2,
   ShoppingBag,
   Truck as TruckIcon,
   Loader2,
@@ -29,7 +27,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useMillas } from '@/providers/MillasProvider';
 import { useSeasonStore } from '@/store/seasonStore';
 import { recordTransaction } from '@/lib/transactions';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { RedeemReceiptCard } from '@/components/game/RedeemReceipt';
 import confetti from 'canvas-confetti';
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -46,7 +44,7 @@ interface ProcessingStep {
 const processingSteps: ProcessingStep[] = [
   { label: 'Verificando saldo...', icon: <ShieldCheck size={20} /> },
   { label: 'Generando Gift Card...', icon: <Sparkles size={20} /> },
-  { label: 'Confirmando con VTEX...', icon: <Zap size={20} /> },
+  { label: 'Confirmando con redpostventa.com...', icon: <Zap size={20} /> },
 ];
 
 function formatMillas(n: number): string {
@@ -100,38 +98,6 @@ function AnimatedNumber({ value, duration = 1500, className }: { value: number; 
   }, [value]);
 
   return <span className={className}>{formatMillas(display)}</span>;
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   Barcode Component
-   ═══════════════════════════════════════════════════════════════════ */
-
-function BarcodeSVG() {
-  const bars = Array.from({ length: 40 }, (_, i) => {
-    const width = Math.random() > 0.5 ? 2 : 3;
-    const gap = Math.random() > 0.7 ? 4 : 2;
-    return { width, gap, id: i };
-  });
-
-  let x = 0;
-  return (
-    <svg width="100%" height="40" viewBox="0 0 200 40" className="opacity-70">
-      {bars.map((bar) => {
-        const pos = x;
-        x += bar.width + bar.gap;
-        return (
-          <rect
-            key={bar.id}
-            x={pos}
-            y={0}
-            width={bar.width}
-            height={40}
-            fill="currentColor"
-          />
-        );
-      })}
-    </svg>
-  );
 }
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -283,7 +249,7 @@ function ReviewScreen({
         <TruckIcon size={20} className="text-[#3B82F6]" />
         <div>
           <p className="text-slate-900 text-sm">Entrega estimada: 3-5 dias habiles</p>
-          <p className="text-slate-500 text-[11px]">Via VTEX + Transportes del Norte</p>
+          <p className="text-slate-500 text-[11px]">Via redpostventa.com + Transportes del Norte</p>
         </div>
       </motion.div>
 
@@ -485,25 +451,20 @@ function ProcessingScreen({ onCancel }: { onCancel: () => void }) {
 function SuccessScreen({
   product,
   giftCardCode,
-  vtexEmail,
   onGoToMarketplace,
 }: {
   product: Product;
   giftCardCode: string;
-  vtexEmail: string | null;
   onGoToMarketplace: () => void;
 }) {
-  const [copied, setCopied] = useState(false);
   const confettiRef = useRef(false);
 
   useEffect(() => {
     if (confettiRef.current) return;
     confettiRef.current = true;
 
-    // Multi-burst confetti
     const duration = 2000;
     const end = Date.now() + duration;
-
     const colors = ['#F59E0B', '#FBBF24', '#F97316', '#10B981', '#3B82F6', '#ffffff'];
 
     const frame = () => {
@@ -539,36 +500,11 @@ function SuccessScreen({
     return () => clearTimeout(timer);
   }, []);
 
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(giftCardCode).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {
-      // Fallback
-      const ta = document.createElement('textarea');
-      ta.value = giftCardCode;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }, [giftCardCode]);
-
-  const handleShare = useCallback(() => {
-    const text = `Acabo de redimir ${formatMillas(product.millasCost)} TicaMillas en La Mula Millonaria por un ${product.name}! Toca la tractomula y gana tus TicaMillas.`;
-    if (navigator.share) {
-      navigator.share({ title: 'La Mula Millonaria - Redencion', text }).catch(() => {});
-    } else {
-      navigator.clipboard.writeText(text).catch(() => {});
-    }
-  }, [product]);
-
-  const canAddToCart = !!product.skuId && !!vtexEmail;
-  const vtexCartUrl = canAddToCart
-    ? `https://www.redpostventa.com/checkout/cart/add?sku=${product.skuId}&qtd=1&seller=${product.sellerId ?? '1'}&redirect=true&sc=1&coupon=${encodeURIComponent(giftCardCode)}`
-    : (product.link || 'https://www.redpostventa.com');
+  const productUrl = product.link || 'https://www.redpostventa.com';
+  const valueLabel =
+    product.priceCOP != null
+      ? `$${formatMillas(product.priceCOP)} COP`
+      : `${formatMillas(product.millasCost)} TicaMillas`;
 
   return (
     <motion.div
@@ -577,7 +513,6 @@ function SuccessScreen({
       exit={{ opacity: 0 }}
       className="min-h-[100dvh] bg-white flex flex-col items-center px-6 pt-16 pb-8"
     >
-      {/* Checkmark */}
       <motion.div
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
@@ -593,7 +528,6 @@ function SuccessScreen({
         </motion.div>
       </motion.div>
 
-      {/* Title */}
       <motion.h1
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -609,10 +543,9 @@ function SuccessScreen({
         transition={{ delay: 0.5 }}
         className="text-slate-500 text-sm text-center max-w-[300px] mb-6"
       >
-        Tu Gift Card ha sido generada exitosamente. Usa el codigo en nuestro marketplace VTEX para obtener tu producto.
+        Tu Gift Card ha sido generada. Usa el codigo en redpostventa.com para obtener tu producto.
       </motion.p>
 
-      {/* Product image */}
       <motion.div
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
@@ -622,43 +555,21 @@ function SuccessScreen({
         <ProductPlaceholder gradient={getGradientClass(product.image)} />
       </motion.div>
 
-      {/* Gift Card Display */}
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', damping: 20, stiffness: 200, delay: 0.7 }}
-        className="w-full bg-gradient-to-br from-[#1A1B26] to-[#232433] rounded-2xl p-5 border-2 border-dashed border-[#F59E0B]/60 relative overflow-hidden mb-6"
+        className="w-full mb-6"
         style={{ maxWidth: '380px' }}
       >
-        {/* Subtle gold tint overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-[#F59E0B]/5 to-transparent pointer-events-none" />
-
-        <div className="relative z-10 text-center space-y-3">
-          <p className="text-slate-500 text-[10px] uppercase tracking-widest">Tu Gift Card</p>
-
-          <div className="flex items-center justify-center gap-2">
-            <code className="font-mono font-bold text-2xl text-slate-900 tracking-wider">
-              {giftCardCode}
-            </code>
-            <button
-              onClick={handleCopy}
-              className="p-1.5 rounded-lg bg-slate-100 hover:bg-white/20 transition-colors"
-            >
-              {copied ? <Check size={16} className="text-[#10B981]" /> : <Copy size={16} className="text-slate-500" />}
-            </button>
-          </div>
-
-          {/* Barcode */}
-          <div className="text-slate-500 px-4">
-            <BarcodeSVG />
-          </div>
-
-          <p className="text-[#F59E0B] font-fredoka font-bold text-xl">${formatMillas(product.priceCOP)} COP</p>
-          <p className="text-slate-500 text-[10px]">Valido por 30 dias</p>
-        </div>
+        <RedeemReceiptCard
+          kind="product"
+          code={giftCardCode}
+          valueLabel={valueLabel}
+          productName={product.name}
+        />
       </motion.div>
 
-      {/* Action buttons */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
@@ -666,46 +577,16 @@ function SuccessScreen({
         className="w-full space-y-2.5"
         style={{ maxWidth: '380px' }}
       >
-        {canAddToCart ? (
-          <PrimaryButton
-            variant="secondary"
-            icon={<ExternalLink size={16} />}
-            onClick={() => window.open(vtexCartUrl, '_blank', 'noopener,noreferrer')}
-          >
-            LLEVAR AL CARRITO VTEX
-          </PrimaryButton>
-        ) : (
-          <>
-            <PrimaryButton
-              variant="secondary"
-              icon={<ExternalLink size={16} />}
-              onClick={() => window.open(vtexCartUrl, '_blank', 'noopener,noreferrer')}
-            >
-              IR A REDPOSTVENTA.COM
-            </PrimaryButton>
-            <p className="text-slate-500 text-xs text-center">
-              {product.skuId
-                ? 'Vincula tu cuenta VTEX en el perfil para llevar el producto al carrito automaticamente.'
-                : 'Usa el codigo de gift card manualmente en el checkout de redpostventa.com.'}
-            </p>
-          </>
-        )}
-
         <PrimaryButton
-          variant="outline"
-          icon={copied ? <Check size={16} /> : <Copy size={16} />}
-          onClick={handleCopy}
+          variant="secondary"
+          icon={<ExternalLink size={16} />}
+          onClick={() => window.open(productUrl, '_blank', 'noopener,noreferrer')}
         >
-          {copied ? 'CODIGO COPIADO!' : 'COPIAR CODIGO'}
+          {product.link ? 'VER PRODUCTO EN REDPOSTVENTA.COM' : 'IR A REDPOSTVENTA.COM'}
         </PrimaryButton>
-
-        <button
-          onClick={handleShare}
-          className="w-full flex items-center justify-center gap-2 py-3 text-slate-500 text-sm font-medium hover:text-slate-900 transition-colors"
-        >
-          <Share2 size={16} />
-          Compartir
-        </button>
+        <p className="text-slate-500 text-xs text-center">
+          Usa el codigo de gift card manualmente en el checkout de redpostventa.com.
+        </p>
 
         <PrimaryButton variant="ghost" onClick={onGoToMarketplace}>
           VOLVER AL MARKETPLACE
@@ -910,30 +791,11 @@ export default function Redemption() {
   const [step, setStep] = useState<RedemptionStep>('review');
   const [giftCardCode, setGiftCardCode] = useState('');
   const [, setErrorMessage] = useState('');
-  const [vtexEmail, setVtexEmail] = useState<string | null>(null);
 
   // Get product(s) from navigation state
   const product = location.state?.product as Product | undefined;
   const cart = location.state?.cart as Product[] | undefined;
   const userMillas = (location.state?.userMillas as number) || 0;
-
-  // Carga el email vinculado de redpostventa.com para ofrecer (o no) el link al carrito
-  useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    let cancelled = false;
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (!user || cancelled) return;
-      supabase
-        .from('profiles')
-        .select('vtex_email')
-        .eq('id', user.id)
-        .maybeSingle()
-        .then(({ data }) => {
-          if (!cancelled) setVtexEmail(data?.vtex_email ?? null);
-        });
-    });
-    return () => { cancelled = true; };
-  }, []);
 
   // Redención client-side (mismo patrón que la redención de efectivo en
   // Marketplace): deduce millas del MillasProvider y genera el gift card
@@ -957,11 +819,12 @@ export default function Redemption() {
     setStep('processing');
     addMillas(-totalCost);
     useSeasonStore.getState().addXp(50); // F6: XP del pase por redención
-    setGiftCardCode(generateGiftCardCode());
+    const code = generateGiftCardCode();
+    setGiftCardCode(code);
     void recordTransaction({
       type: 'spend',
       amount: totalCost,
-      description: `Redencion: ${productName}`,
+      description: `Redencion: ${productName} · ${code}`,
     });
     // La redención es local e instantánea (patrón Marketplace): pasamos
     // directo a success; 'processing' queda como paso intermedio visual.
@@ -1031,7 +894,6 @@ export default function Redemption() {
           key="success"
           product={product}
           giftCardCode={giftCardCode}
-          vtexEmail={vtexEmail}
           onGoToMarketplace={handleGoToMarketplace}
         />
       )}

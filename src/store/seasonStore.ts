@@ -7,9 +7,20 @@ import {
   SEASON_MAX_LEVEL,
   type SeasonReward,
 } from '@/data/seasonPass';
-import { useClickerStore } from '@/store/clickerStore';
+import { useClickerStore, calculateClickPower } from '@/store/clickerStore';
 
 const SEASON_STORAGE_KEY = 'truckSurfers_season_v1';
+
+/**
+ * Soft scale for fixed CPS season rewards: at least the track amount, or
+ * `floor(clickPower * SEASON_CPS_K)` so mid/late game claims stay meaningful
+ * without rewriting SEASON_TRACK.
+ */
+export const SEASON_CPS_K = 8;
+
+export interface SeasonClaimCtx {
+  clickPower?: number;
+}
 
 export interface SeasonState {
   seasonId: string;
@@ -23,8 +34,12 @@ export interface SeasonState {
   /**
    * Reclama las recompensas de un nivel (gratis siempre; premium si está
    * desbloqueado). Aplica las recompensas directo al clicker store.
+   * CPS fijos se escalan levemente con clickPower (ver SEASON_CPS_K).
    */
-  claimLevel: (level: number) => { success: boolean; rewards: SeasonReward[] };
+  claimLevel: (
+    level: number,
+    ctx?: SeasonClaimCtx
+  ) => { success: boolean; rewards: SeasonReward[] };
   unlockPremium: () => void;
   resetSeason: () => void;
   /** Merge con el progreso del servidor (mayor XP gana; claims/premium unión). */
@@ -42,6 +57,14 @@ function ensureCurrentSeason(state: Pick<SeasonState, 'seasonId'>): Partial<Seas
   const current = getCurrentSeason();
   if (state.seasonId === current.id) return null;
   return { seasonId: current.id, xp: 0, premium: false, claimedFree: [], claimedPremium: [] };
+}
+
+/** Escala CPS del track: max(base, floor(clickPower * SEASON_CPS_K)). Tickets intactos. */
+export function scaleSeasonCpsReward(reward: SeasonReward, clickPower: number): SeasonReward {
+  if (reward.type !== 'cps' || reward.amount <= 0) return reward;
+  const scaled = Math.max(reward.amount, Math.floor(Math.max(0, clickPower) * SEASON_CPS_K));
+  if (scaled === reward.amount) return reward;
+  return { ...reward, amount: scaled };
 }
 
 function applyRewards(rewards: SeasonReward[]) {
@@ -70,7 +93,7 @@ export const useSeasonStore = create<SeasonState>()(
         }));
       },
 
-      claimLevel: (level: number) => {
+      claimLevel: (level: number, ctx?: SeasonClaimCtx) => {
         const state = get();
         const reset = ensureCurrentSeason(state);
         if (reset) set(reset);
@@ -80,17 +103,22 @@ export const useSeasonStore = create<SeasonState>()(
         const reached = levelForXp(fresh.xp);
         if (!def || level < 1 || level > reached) return { success: false, rewards: [] };
 
+        const clickPower =
+          ctx?.clickPower != null && Number.isFinite(ctx.clickPower)
+            ? Math.max(0, ctx.clickPower)
+            : calculateClickPower(useClickerStore.getState());
+
         const rewards: SeasonReward[] = [];
         const claimedFree = [...fresh.claimedFree];
         const claimedPremium = [...fresh.claimedPremium];
 
         if (!claimedFree.includes(level)) {
           claimedFree.push(level);
-          rewards.push(def.free);
+          rewards.push(scaleSeasonCpsReward(def.free, clickPower));
         }
         if (fresh.premium && !claimedPremium.includes(level)) {
           claimedPremium.push(level);
-          rewards.push(def.premium);
+          rewards.push(scaleSeasonCpsReward(def.premium, clickPower));
         }
         if (rewards.length === 0) return { success: false, rewards: [] };
 

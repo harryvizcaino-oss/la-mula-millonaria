@@ -28,8 +28,8 @@ import {
   Camera,
   X,
   Mail,
-  Phone,
   Bell,
+  Zap,
   Link2,
   Check,
   BookOpen,
@@ -150,11 +150,10 @@ function formatAchievementReward(reward: AchievementReward): string {
 
 const FAQ_ITEMS = [
   { q: 'Como gano CPS?', a: 'Toca tu camion en La Mula Millonaria, compra poderes de marca con CPS y multiplica todo con tu flota de camiones reales.' },
-  { q: 'Como redimo mis TicaMillas?', a: 'Ve a la tienda, selecciona un producto y presiona "Redimir". Se descontaran tus TicaMillas y recibiras un codigo de gift card de VTEX.' },
+  { q: 'Como redimo mis TicaMillas?', a: 'Ve a la tienda, selecciona un producto y presiona "Redimir". Se descontaran tus TicaMillas y recibiras un codigo de gift card para usar en redpostventa.com.' },
   { q: 'Cuanto valen las TicaMillas?', a: 'En redencion de efectivo: 100.000.000 TicaMillas = $10.000 COP. Los productos del catalogo tienen su propio precio en millas segun su valor real.' },
-  { q: 'Puedo vincular mi cuenta de VTEX?', a: 'Si. En configuracion de cuenta selecciona "Cuenta VTEX" y sigue el proceso de vinculacion.' },
+  { q: 'Donde uso mi gift card?', a: 'En redpostventa.com. Abre el producto desde la tienda del juego o ve directo al sitio e ingresa el codigo en el checkout.' },
   { q: 'Que pasa si pierdo mi progreso?', a: 'Tu progreso se guarda automaticamente en la nube al vincular tu cuenta. Nunca pierdas tus TicaMillas.' },
-  { q: 'Por que vincular mi cuenta de redpostventa.com?', a: 'Al vincular tu email de redpostventa.com podemos llevarte directo al carrito de compras del marketplace con tu producto y tu gift card precargados. Sin vincularla recibiras el codigo de gift card para usarlo manualmente.' },
 ];
 
 /* ------------------------------------------------------------------ */
@@ -256,15 +255,15 @@ export default function Profile() {
   const { millas, addMillas } = useMillas();
   const unlockedAchievements = useAchievementStore((s) => s.unlocked);
   const claimedAchievements = useAchievementStore((s) => s.claimed);
+  const powerLevels = useClickerStore((s) => s.powerLevels);
+  const cpsTotal = useClickerStore((s) => s.cpsTotal);
+  const totalClicksLocal = useClickerStore((s) => s.totalClicks);
+  const ascensions = useClickerStore((s) => s.ascensions);
   // F16: marco de avatar equipado (pase cosmético)
   const equippedParts = useCustomizationStore((s) => s.equipped);
   const avatarFrameColor = getTruckVisual(equippedParts).frameColor;
   const [txRows, setTxRows] = useState<TransactionRow[]>([]);
-  const [userStats, setUserStats] = useState({ totalClicks: 0, totalEarned: 0, rank: 0 });
-  const [vtexEmail, setVtexEmail] = useState<string | null>(null);
-  const [vtexModalOpen, setVtexModalOpen] = useState(false);
-  const [vtexInput, setVtexInput] = useState('');
-  const [vtexSaving, setVtexSaving] = useState(false);
+  const [rank, setRank] = useState(0);
 
   // Reclama la recompensa de un logro y la aplica a las economías del juego
   const claimAchievement = (id: string) => {
@@ -291,23 +290,21 @@ export default function Profile() {
     };
   }, [user?.id]);
 
-  // Stats del usuario desde `game_state` + rank de `leaderboard_global`
+  // Rank real desde `leaderboard_global` (si hay sesión + Supabase)
   useEffect(() => {
-    if (!user?.id || !isSupabaseConfigured) return;
+    if (!user?.id || !isSupabaseConfigured) {
+      setRank(0);
+      return;
+    }
     let cancelled = false;
-    Promise.all([
-      supabase.from('game_state').select('total_clicks, total_earned').eq('id', user.id).maybeSingle(),
-      supabase.from('leaderboard_global').select('rank').eq('user_id', user.id).maybeSingle(),
-      supabase.from('profiles').select('vtex_email').eq('id', user.id).maybeSingle(),
-    ]).then(([gs, lb, prof]) => {
-      if (cancelled) return;
-      setUserStats({
-        totalClicks: Number(gs.data?.total_clicks ?? 0),
-        totalEarned: Number(gs.data?.total_earned ?? 0),
-        rank: lb.data?.rank ?? 0,
+    supabase
+      .from('leaderboard_global')
+      .select('rank')
+      .eq('user_id', user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setRank(data?.rank ?? 0);
       });
-      setVtexEmail(prof.data?.vtex_email ?? null);
-    });
     return () => {
       cancelled = true;
     };
@@ -315,8 +312,7 @@ export default function Profile() {
 
   /* Local state */
   const [displayName, setDisplayName] = useState(user?.name || 'Camionero');
-  const [email, setEmail] = useState(user?.email || 'camionero@trucksurfers.co');
-  const [phone, setPhone] = useState('+57 300 123 4567');
+  const [email, setEmail] = useState(user?.email || '');
 
   useEffect(() => {
     if (user?.name) setDisplayName(user.name);
@@ -343,12 +339,9 @@ export default function Profile() {
   const [pushEnabled, setPushEnabled] = useState(() => getPushSettings().enabled);
   const [pushPermission, setPushPermission] = useState(() => getPushPermission());
 
-  /* Computed */
+  /* Computed — nivel = suma de niveles de poderes (igual que el badge Nv del juego) */
   const initials = (displayName || 'C').split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
-  const level = 12;
-  const xpCurrent = 650;
-  const xpTotal = 1000;
-  const xpPercent = (xpCurrent / xpTotal) * 100;
+  const level = Object.values(powerLevels).reduce((sum, n) => sum + (n || 0), 0);
   const isSocialAuth = !!user?.email;
 
   // `amount` viene positivo de la tabla; el signo lo da `type` ('spend' = gasto).
@@ -380,10 +373,6 @@ export default function Profile() {
     return true;
   });
 
-  const totalRuns = userStats.totalClicks;
-  const totalDistance = Math.floor(userStats.totalEarned / 1000);
-  const bestScore = userStats.rank;
-
   const toggleNotification = (id: string) => {
     setNotifications((prev) => ({ ...prev, [id]: !prev[id] }));
   };
@@ -400,21 +389,6 @@ export default function Profile() {
     }
     setPushEnabled(false);
     savePushSettings({ ...getPushSettings(), enabled: false });
-  };
-
-  const handleSaveVtexEmail = async () => {
-    const email = vtexInput.trim();
-    if (!email || !user?.id) return;
-    setVtexSaving(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ vtex_email: email, vtex_linked_at: new Date().toISOString() })
-      .eq('id', user.id);
-    setVtexSaving(false);
-    if (!error) {
-      setVtexEmail(email);
-      setVtexModalOpen(false);
-    }
   };
 
   const handleLogout = () => {
@@ -487,7 +461,7 @@ export default function Profile() {
             @{displayName.toLowerCase().replace(/\s/g, '')}
           </motion.p>
 
-          {/* Level Badge */}
+          {/* Level Badge — suma de niveles de poderes */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -495,45 +469,22 @@ export default function Profile() {
             className="flex items-center gap-1.5 mt-2 px-3 py-1 rounded-full bg-gradient-to-r from-[#F59E0B] to-[#FBBF24]"
           >
             <Star size={12} className="text-slate-900" />
-            <span className="text-slate-900 text-xs font-bold">Nivel {level}</span>
+            <span className="text-slate-900 text-xs font-bold">Nv {level}</span>
+            {ascensions > 0 && (
+              <span className="text-slate-900 text-[10px] font-bold opacity-80">· ⭐×{ascensions}</span>
+            )}
           </motion.div>
-
-          {/* Mini XP Bar */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.35 }}
-            className="w-[120px] mt-2"
-          >
-            <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
-              <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-[#F59E0B] to-[#FBBF24]"
-                initial={{ width: 0 }}
-                animate={{ width: `${xpPercent}%` }}
-                transition={{ duration: 1, delay: 0.5, ease: 'easeOut' }}
-              />
-            </div>
-          </motion.div>
-
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="text-slate-500 text-xs mt-2"
-          >
-            Miembro desde Enero 2026
-          </motion.p>
         </div>
       </Section>
 
-      {/* ============ Section 2: Stats Summary ============ */}
-      <Section className="mx-4 mt-4 py-4 border-y border-white/[0.06]" delay={0.2}>
+      {/* ============ Section 2: Stats Summary (datos reales) ============ */}
+      <Section className="mx-4 mt-4 py-4 border-y border-slate-200" delay={0.2}>
         <div className="grid grid-cols-4 gap-2">
           {[
-            { icon: Gamepad2, label: 'Juegos', value: totalRuns },
-            { icon: Trophy, label: 'Rank', value: bestScore, prefix: '#' },
-            { icon: Coins, label: 'TicaMillas', value: millas },
-            { icon: Route, label: 'Total', value: totalDistance, suffix: 'km' },
+            { icon: Gamepad2, label: 'Clics', value: totalClicksLocal },
+            { icon: Zap, label: 'CPS total', value: Math.floor(cpsTotal) },
+            { icon: Trophy, label: 'Rank', value: rank, prefix: rank > 0 ? '#' : undefined, empty: rank <= 0 },
+            { icon: Coins, label: 'TicaMillas', value: Math.floor(millas) },
           ].map((stat, i) => {
             const Icon = stat.icon;
             return (
@@ -546,9 +497,14 @@ export default function Profile() {
               >
                 <Icon size={18} className="text-[#F59E0B] mb-1" />
                 <span className="font-fredoka font-bold text-base text-slate-900">
-                  {stat.prefix}{stat.prefix && <AnimatedCounter value={stat.value} duration={800} className="" />}
-                  {!stat.prefix && <AnimatedCounter value={stat.value} duration={800} className="" />}
-                  {stat.suffix}
+                  {stat.empty ? (
+                    '—'
+                  ) : (
+                    <>
+                      {stat.prefix}
+                      <AnimatedCounter value={stat.value} duration={800} className="" />
+                    </>
+                  )}
                 </span>
                 <span className="text-slate-500 text-[10px]">{stat.label}</span>
               </motion.div>
@@ -677,14 +633,11 @@ export default function Profile() {
           />
           <SettingsItem
             icon={Link2}
-            iconColor="text-[#F59E0B]"
-            title="Cuenta VTEX"
-            subtitle={vtexEmail ? vtexEmail : 'Vincula tu email de redpostventa.com'}
+            iconColor="text-[#ff3131]"
+            title="redpostventa.com"
+            subtitle="Abre la tienda para usar tus gift cards"
             right={<ChevronRight size={18} className="text-slate-500" />}
-            onClick={() => {
-              setVtexInput(vtexEmail || '');
-              setVtexModalOpen(true);
-            }}
+            onClick={() => window.open('https://www.redpostventa.com', '_blank', 'noopener,noreferrer')}
             last
           />
         </div>
@@ -1109,20 +1062,6 @@ export default function Profile() {
                   {isSocialAuth && <p className="text-slate-500 text-[10px] mt-1">Vinculado a cuenta social - no editable</p>}
                 </div>
 
-                {/* Phone */}
-                <div>
-                  <label className="text-slate-500 text-xs font-medium mb-1.5 block">Telefono</label>
-                  <div className="relative">
-                    <Phone size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                    <input
-                      type="tel"
-                      value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
-                      className="w-full h-11 bg-white border border-white/[0.08] rounded-xl pl-10 pr-4 text-slate-900 text-sm focus:outline-none focus:border-[#F59E0B]/50"
-                    />
-                  </div>
-                </div>
-
                 {/* Save button */}
                 <motion.button
                   whileTap={{ scale: 0.98 }}
@@ -1137,66 +1076,6 @@ export default function Profile() {
         )}
       </AnimatePresence>
 
-      {/* ============ VTEX Account Bottom Sheet ============ */}
-      <AnimatePresence>
-        {vtexModalOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm"
-              onClick={() => setVtexModalOpen(false)}
-            />
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'tween', duration: 0.35, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] }}
-              className="fixed bottom-0 left-0 right-0 z-[60] bg-slate-100 rounded-t-3xl max-h-[70vh] overflow-y-auto pb-safe"
-            >
-              <div className="flex justify-center pt-3 pb-1">
-                <div className="w-10 h-1 rounded-full bg-white/20" />
-              </div>
-              <div className="flex items-center justify-between px-5 py-3">
-                <h3 className="font-fredoka font-bold text-lg text-slate-900">Cuenta VTEX</h3>
-                <button onClick={() => setVtexModalOpen(false)} className="p-1 rounded-full hover:bg-slate-100 transition-colors">
-                  <X size={20} className="text-slate-500" />
-                </button>
-              </div>
-              <div className="px-5 pb-8 space-y-4">
-                <p className="text-slate-500 text-sm">
-                  Ingresa el email de tu cuenta en{' '}
-                  <span className="font-bold text-slate-900">redpostventa.com</span>. Asi, al redimir un producto real, podemos llevarte directo al carrito con tu gift card precargada.
-                </p>
-
-                <div>
-                  <label className="text-slate-500 text-xs font-medium mb-1.5 block">Email de redpostventa.com</label>
-                  <div className="relative">
-                    <Mail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                    <input
-                      type="email"
-                      value={vtexInput}
-                      onChange={(e) => setVtexInput(e.target.value)}
-                      placeholder="tucorreo@ejemplo.com"
-                      className="w-full h-11 bg-white border border-white/[0.08] rounded-xl pl-10 pr-4 text-slate-900 text-sm focus:outline-none focus:border-[#F59E0B]/50"
-                    />
-                  </div>
-                </div>
-
-                <motion.button
-                  whileTap={{ scale: 0.98 }}
-                  disabled={vtexSaving || !vtexInput.trim()}
-                  onClick={handleSaveVtexEmail}
-                  className="w-full h-12 bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] rounded-xl text-[#0D0E14] font-bold text-sm mt-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {vtexSaving ? 'Guardando...' : vtexEmail ? 'Actualizar email' : 'Vincular cuenta'}
-                </motion.button>
-              </div>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

@@ -1,40 +1,35 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, MousePointerClick, Truck, Zap, Star, ShoppingBag, ChevronRight, ChevronLeft, HelpCircle } from 'lucide-react';
+import { X, MousePointerClick, Zap, Ticket, ShoppingBag, ChevronRight, ChevronLeft, HelpCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const TUTORIAL_SEEN_KEY = 'truckSurfers_tutorial_seen';
 
+/** Primer viaje Bogotá → Medellín: 4 pasos, copy camionero, sin metasistemas. */
 const steps = [
   {
     icon: MousePointerClick,
-    title: 'Toca la tractomula',
-    text: 'Cada click genera CPS. A mas poder de click, mas ganas por toque.',
+    title: 'Toca la mula',
+    text: 'Arranca tu primer viaje Bogotá–Medellín. Cada toque a la tractomula te deja CPS pa\' seguir rodando.',
     color: '#F59E0B',
   },
   {
-    icon: Truck,
-    title: 'Compra tu flota',
-    text: 'En la pestana Flota adquieres camiones reales (Chevrolet, Volvo, Scania, Tesla Semi...) con Golden Tickets. Cada uno MULTIPLICA tu CPS.',
-    color: '#3B82F6',
-  },
-  {
     icon: Zap,
-    title: 'Poderes de marca',
-    text: 'Compra niveles de autopartes con CPS. Cada 10 niveles desbloqueas una nueva marca patrocinadora que multiplica su aporte.',
+    title: 'Compra tu primer poder',
+    text: 'Con CPS compra una autoparte (filtro, turbo, frenos…). Cada nivel te hace ganar más por click.',
     color: '#22C55E',
   },
   {
-    icon: Star,
-    title: 'Ascender (Prestigio)',
-    text: 'Cuando tengas millones de CPS totales, reinicia tu flota a cambio de Estrellas de Carretera. Cada estrella da +1% permanente.',
-    color: '#FACC15',
+    icon: Ticket,
+    title: 'Consigue un ticket dorado',
+    text: 'De vez en cuando cae un 🎟️. Úsalo en Flota pa\' cambiar de camión y multiplicar lo que ganas.',
+    color: '#3B82F6',
   },
   {
     icon: ShoppingBag,
-    title: 'Redime en la Tienda',
-    text: 'Tus CPS se canjean por Gift Cards VTEX de redpostventa.com. Redimir no afecta tu ranking.',
-    color: '#F97316',
+    title: 'Mira la Tienda',
+    text: 'En Tienda ves premios de RedPostventa. Acumula y canjea cuando estés listo — sin apuros.',
+    color: '#ff3131',
   },
 ];
 
@@ -99,7 +94,6 @@ export function GameTutorial({ forceOpen, onClose }: GameTutorialProps) {
             transition={{ type: 'spring', stiffness: 300, damping: 25 }}
             className="modal-box-v2"
           >
-            {/* Corner ornaments */}
             <span className="modal-corner tl" />
             <span className="modal-corner tr" />
             <span className="modal-corner bl" />
@@ -114,6 +108,9 @@ export function GameTutorial({ forceOpen, onClose }: GameTutorialProps) {
             </button>
 
             <div className="text-center pt-2">
+              <p className="text-[#F59E0B] text-[10px] font-bold uppercase tracking-widest mb-2">
+                Primer viaje · Bogotá → Medellín
+              </p>
               <div
                 className="w-20 h-20 rounded-2xl mx-auto mb-4 flex items-center justify-center"
                 style={{ backgroundColor: `${current.color}20` }}
@@ -124,7 +121,6 @@ export function GameTutorial({ forceOpen, onClose }: GameTutorialProps) {
               <p className="text-[#CBD5E1] text-sm leading-relaxed min-h-[72px]">{current.text}</p>
             </div>
 
-            {/* Dots */}
             <div className="flex justify-center gap-2 my-5">
               {steps.map((_, i) => (
                 <div
@@ -137,7 +133,6 @@ export function GameTutorial({ forceOpen, onClose }: GameTutorialProps) {
               ))}
             </div>
 
-            {/* Footer */}
             <div className="flex items-center justify-between">
               <button
                 onClick={() => setStep((s) => Math.max(0, s - 1))}
@@ -152,7 +147,7 @@ export function GameTutorial({ forceOpen, onClose }: GameTutorialProps) {
                   onClick={handleClose}
                   className="game-btn-v2 px-6 py-2.5 rounded-xl bg-gradient-to-r from-[#F59E0B] to-[#F97316] text-[#0D0E14] font-bold text-sm"
                 >
-                  ¡A jugar!
+                  ¡A rodar!
                 </button>
               ) : (
                 <button

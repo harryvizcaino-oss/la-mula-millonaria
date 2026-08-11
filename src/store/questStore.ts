@@ -1,9 +1,31 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { useClickerStore, calculateClickPower } from '@/store/clickerStore';
 
 const QUEST_STORAGE_KEY = 'truckSurfers_quests_v1';
 
-export type QuestType = 'clicks' | 'comboTier' | 'buyPower' | 'collectTickets' | 'earnCps' | 'buyFleet';
+/** Full fleet size — buyFleet quests become dead-ends past this. */
+const FLEET_COMPLETE_COUNT = 10;
+
+/**
+ * Relative CPS reward: at least the template base, or `floor(clickPower * k)`.
+ * Daily uses a milder k; weekly a stronger one so late-game claims stay meaningful.
+ */
+export const QUEST_CPS_K_DAILY = 20;
+export const QUEST_CPS_K_WEEKLY = 100;
+
+export type QuestType =
+  | 'clicks'
+  | 'comboTier'
+  | 'buyPower'
+  | 'collectTickets'
+  | 'earnCps'
+  | 'buyFleet'
+  /** Anti-dead-end replacement when the fleet is complete (progresses via collectTickets). */
+  | 'earnTickets'
+  /** Anti-dead-end replacement; progresses when Game wires `progress('spendTickets')`. */
+  | 'spendTickets';
+
 export type QuestPeriod = 'daily' | 'weekly';
 
 export interface QuestReward {
@@ -22,6 +44,16 @@ export interface Quest {
   progress: number;
   reward: QuestReward;
   claimed: boolean;
+}
+
+export interface QuestClaimCtx {
+  /** CPS por click actual — preferido para testabilidad. */
+  clickPower?: number;
+}
+
+export interface QuestEnsureCtx {
+  /** Cantidad de vehículos de flota owned; si ≥10, buyFleet se sustituye. */
+  fleetOwnedCount?: number;
 }
 
 function dayKey(d: Date = new Date()): string {
@@ -157,6 +189,28 @@ const WEEKLY_TEMPLATES: QuestTemplate[] = [
   },
 ];
 
+/** Sustitutos cuando la flota ya está completa (anti-dead-end). */
+const FLEET_FALLBACK_TEMPLATES: QuestTemplate[] = [
+  {
+    type: 'earnTickets',
+    emoji: '🎟️',
+    title: (t) => `Gana ${t} Golden Tickets`,
+    minTarget: 5,
+    maxTarget: 15,
+    step: 1,
+    reward: (t) => ({ tickets: Math.max(2, Math.floor(t / 2)), cps: t * 2000 }),
+  },
+  {
+    type: 'spendTickets',
+    emoji: '🛍️',
+    title: (t) => `Gasta ${t} Golden Tickets`,
+    minTarget: 3,
+    maxTarget: 10,
+    step: 1,
+    reward: (t) => ({ millas: t * 5000, cps: t * 3000 }),
+  },
+];
+
 function rollTarget(tpl: QuestTemplate, rand: () => number): number {
   const raw = tpl.minTarget + rand() * (tpl.maxTarget - tpl.minTarget);
   return Math.max(tpl.step, Math.round(raw / tpl.step) * tpl.step);
@@ -176,6 +230,41 @@ function buildQuest(tpl: QuestTemplate, period: QuestPeriod, target: number, id:
   };
 }
 
+/** Si buyFleet y flota completa → earnTickets / spendTickets (mismo id, progreso 0). */
+function replaceFleetIfDeadEnd(quest: Quest, fleetOwnedCount: number, rand: () => number): Quest {
+  if (quest.type !== 'buyFleet' || fleetOwnedCount < FLEET_COMPLETE_COUNT) return quest;
+  const tpl = FLEET_FALLBACK_TEMPLATES[Math.floor(rand() * FLEET_FALLBACK_TEMPLATES.length)];
+  const target = rollTarget(tpl, rand);
+  return buildQuest(tpl, quest.period, target, quest.id);
+}
+
+function resolveFleetCount(ctx?: QuestEnsureCtx): number {
+  if (ctx?.fleetOwnedCount != null) return ctx.fleetOwnedCount;
+  try {
+    return useClickerStore.getState().fleetOwned?.length ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+function resolveClickPower(ctx?: QuestClaimCtx): number {
+  if (ctx?.clickPower != null && Number.isFinite(ctx.clickPower)) return Math.max(0, ctx.clickPower);
+  try {
+    return calculateClickPower(useClickerStore.getState());
+  } catch {
+    return 0;
+  }
+}
+
+/** Escala CPS fijos del reward con clickPower (tickets/millas intactos). */
+export function scaleQuestCpsReward(reward: QuestReward, clickPower: number, period: QuestPeriod): QuestReward {
+  if (reward.cps == null || reward.cps <= 0) return reward;
+  const k = period === 'weekly' ? QUEST_CPS_K_WEEKLY : QUEST_CPS_K_DAILY;
+  const scaled = Math.max(reward.cps, Math.floor(clickPower * k));
+  if (scaled === reward.cps) return reward;
+  return { ...reward, cps: scaled };
+}
+
 export function generateDailyQuests(date: string = dayKey()): Quest[] {
   const rand = seededRandom(hashSeed(`daily-${date}`));
   // Elige 3 tipos distintos del pool, barajados con el seed del día
@@ -187,10 +276,21 @@ export function generateDailyQuests(date: string = dayKey()): Quest[] {
   return pool.slice(0, 3).map((tpl, i) => buildQuest(tpl, 'daily', rollTarget(tpl, rand), `d-${date}-${i}`));
 }
 
-export function generateWeeklyQuest(week: string = weekKey()): Quest {
+export function generateWeeklyQuest(
+  week: string = weekKey(),
+  fleetOwnedCount: number = 0
+): Quest {
   const rand = seededRandom(hashSeed(`weekly-${week}`));
   const tpl = WEEKLY_TEMPLATES[Math.floor(rand() * WEEKLY_TEMPLATES.length)];
-  return buildQuest(tpl, 'weekly', rollTarget(tpl, rand), `w-${week}`);
+  const quest = buildQuest(tpl, 'weekly', rollTarget(tpl, rand), `w-${week}`);
+  return replaceFleetIfDeadEnd(quest, fleetOwnedCount, rand);
+}
+
+/** Progress type aliases: collectTickets also advances earnTickets. */
+function questMatchesProgress(questType: QuestType, progressType: QuestType): boolean {
+  if (questType === progressType) return true;
+  if (progressType === 'collectTickets' && questType === 'earnTickets') return true;
+  return false;
 }
 
 export interface QuestState {
@@ -198,9 +298,9 @@ export interface QuestState {
   weeklyKey: string;
   quests: Quest[]; // 3 diarias + 1 semanal
 
-  ensureQuests: () => void;
+  ensureQuests: (ctx?: QuestEnsureCtx) => void;
   progress: (type: QuestType, amount?: number) => void;
-  claim: (questId: string) => QuestReward | null;
+  claim: (questId: string, ctx?: QuestClaimCtx) => QuestReward | null;
 }
 
 export const useQuestStore = create<QuestState>()(
@@ -210,11 +310,13 @@ export const useQuestStore = create<QuestState>()(
       weeklyKey: '',
       quests: [],
 
-      // Rota las misiones si cambió el día local o la semana (lunes)
-      ensureQuests: () => {
+      // Rota las misiones si cambió el día local o la semana (lunes).
+      // Anti-dead-end: buyFleet con flota ≥10 → earnTickets/spendTickets.
+      ensureQuests: (ctx) => {
         const state = get();
         const today = dayKey();
         const week = weekKey();
+        const fleetCount = resolveFleetCount(ctx);
         let quests = state.quests;
         let changed = false;
         if (state.dailyKey !== today) {
@@ -222,16 +324,24 @@ export const useQuestStore = create<QuestState>()(
           changed = true;
         }
         if (state.weeklyKey !== week) {
-          quests = [...quests.filter((q) => q.period === 'daily'), generateWeeklyQuest(week)];
+          quests = [...quests.filter((q) => q.period === 'daily'), generateWeeklyQuest(week, fleetCount)];
           changed = true;
         }
-        if (changed) set({ dailyKey: today, weeklyKey: week, quests });
+        // Patch an already-rolled buyFleet that became impossible mid-week
+        const rand = seededRandom(hashSeed(`fleet-patch-${week}`));
+        const patched = quests.map((q) => {
+          if (q.claimed || q.type !== 'buyFleet') return q;
+          const next = replaceFleetIfDeadEnd(q, fleetCount, rand);
+          if (next !== q) changed = true;
+          return next;
+        });
+        if (changed) set({ dailyKey: today, weeklyKey: week, quests: patched });
       },
 
       progress: (type, amount = 1) => {
         set((state) => ({
           quests: state.quests.map((q) => {
-            if (q.type !== type || q.claimed || q.progress >= q.target) return q;
+            if (!questMatchesProgress(q.type, type) || q.claimed || q.progress >= q.target) return q;
             // comboTier registra el MEJOR tier alcanzado, no una suma
             const next =
               q.type === 'comboTier'
@@ -242,14 +352,15 @@ export const useQuestStore = create<QuestState>()(
         }));
       },
 
-      claim: (questId) => {
+      claim: (questId, ctx) => {
         const state = get();
         const quest = state.quests.find((q) => q.id === questId);
         if (!quest || quest.claimed || quest.progress < quest.target) return null;
         set({
           quests: state.quests.map((q) => (q.id === questId ? { ...q, claimed: true } : q)),
         });
-        return quest.reward;
+        const clickPower = resolveClickPower(ctx);
+        return scaleQuestCpsReward(quest.reward, clickPower, quest.period);
       },
     }),
     {

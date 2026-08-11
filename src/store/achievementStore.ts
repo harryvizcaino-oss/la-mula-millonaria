@@ -1,8 +1,19 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { SPONSOR_POWERS, MAX_SPONSOR_LEVEL } from '@/data/sponsorPowers';
+import { useClickerStore, calculateClickPower } from '@/store/clickerStore';
 
 const ACHIEVEMENT_STORAGE_KEY = 'truckSurfers_achievements_v1';
+
+/**
+ * Soft scale for small fixed CPS achievement rewards:
+ * `max(base, floor(clickPower * ACHIEVEMENT_CPS_K))`. Tickets/millas/title unchanged.
+ */
+export const ACHIEVEMENT_CPS_K = 5;
+
+export interface AchievementClaimCtx {
+  clickPower?: number;
+}
 
 export interface AchievementReward {
   cps?: number;
@@ -180,14 +191,28 @@ export function getAchievement(id: string): AchievementDef | undefined {
   return ACHIEVEMENTS.find((a) => a.id === id);
 }
 
+/** Escala CPS fijos pequeños del logro con clickPower (datos del catálogo intactos). */
+export function scaleAchievementCpsReward(
+  reward: AchievementReward,
+  clickPower: number
+): AchievementReward {
+  if (reward.cps == null || reward.cps <= 0) return reward;
+  const scaled = Math.max(reward.cps, Math.floor(Math.max(0, clickPower) * ACHIEVEMENT_CPS_K));
+  if (scaled === reward.cps) return reward;
+  return { ...reward, cps: scaled };
+}
+
 export interface AchievementState {
   unlocked: string[]; // desbloqueados, pendientes de reclamar
   claimed: string[]; // recompensa ya entregada
 
   /** Evalúa el snapshot y marca los logros recién cumplidos. Devuelve los nuevos. */
   checkAchievements: (s: AchievementSnapshot) => AchievementDef[];
-  /** Reclama la recompensa de un logro desbloqueado. Devuelve null si no procede. */
-  claim: (achievementId: string) => AchievementReward | null;
+  /**
+   * Reclama la recompensa de un logro desbloqueado. Devuelve null si no procede.
+   * CPS se escala levemente con clickPower (ctx preferido; fallback a store).
+   */
+  claim: (achievementId: string, ctx?: AchievementClaimCtx) => AchievementReward | null;
 }
 
 export const useAchievementStore = create<AchievementState>()(
@@ -206,7 +231,7 @@ export const useAchievementStore = create<AchievementState>()(
         return fresh;
       },
 
-      claim: (achievementId) => {
+      claim: (achievementId, ctx) => {
         const state = get();
         if (!state.unlocked.includes(achievementId)) return null;
         const def = getAchievement(achievementId);
@@ -215,7 +240,11 @@ export const useAchievementStore = create<AchievementState>()(
           unlocked: state.unlocked.filter((id) => id !== achievementId),
           claimed: [...state.claimed, achievementId],
         });
-        return def.reward;
+        const clickPower =
+          ctx?.clickPower != null && Number.isFinite(ctx.clickPower)
+            ? Math.max(0, ctx.clickPower)
+            : calculateClickPower(useClickerStore.getState());
+        return scaleAchievementCpsReward(def.reward, clickPower);
       },
     }),
     {

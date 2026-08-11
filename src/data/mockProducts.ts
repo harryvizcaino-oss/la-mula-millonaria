@@ -10,12 +10,11 @@ export interface Product {
   featured?: boolean;
   rating?: number;
   reviewCount?: number;
-  // Campos del catalogo VTEX real (ausentes en mocks)
+  // Campos opcionales del catálogo real (ausentes en mocks)
   imageUrl?: string;    // foto real; si falta se usa el placeholder con gradiente `image`
-  redeemable?: boolean; // false = sin precio curado en vtexPrices → no redimible
+  redeemable?: boolean; // false = sin precio COP → no redimible in-app
   link?: string;        // URL del producto en redpostventa.com
-  skuId?: string;       // itemId de VTEX — para armar link al carrito
-  sellerId?: string;    // seller de VTEX
+  sku?: string;         // identificador de SKU genérico (deep link al producto)
 }
 
 export const categories = [
@@ -75,7 +74,7 @@ export const mockProducts: Product[] = [
     image: 'gradient-amber',
     priceCOP: 50000,
     millasCost: 50000,
-    description: 'Gift Card valida por $50,000 COP en nuestro marketplace VTEX. Valida por 30 dias desde su activacion. No combinable con otras promociones.',
+    description: 'Gift Card valida por $50,000 COP en redpostventa.com. Valida por 30 dias desde su activacion. No combinable con otras promociones.',
     featured: true,
     rating: 5.0,
     reviewCount: 312,
@@ -148,7 +147,7 @@ export const mockProducts: Product[] = [
     image: 'gradient-gold',
     priceCOP: 100000,
     millasCost: 100000,
-    description: 'Gift Card valida por $100,000 COP en nuestro marketplace VTEX. Incluye envio gratis en todos los productos participantes.',
+    description: 'Gift Card valida por $100,000 COP en redpostventa.com. Incluye envio gratis en todos los productos participantes.',
     featured: true,
     rating: 4.9,
     reviewCount: 198,

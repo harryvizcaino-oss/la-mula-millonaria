@@ -2,18 +2,21 @@ import { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { Check, Copy, Send, Trash2, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useFriendsStore } from '@/store/friendsStore';
+import { findUserByInviteCode } from '@/lib/friends';
+import { isSupabaseConfigured } from '@/lib/supabase';
+import { MAX_FRIENDS, useFriendsStore } from '@/store/friendsStore';
 
 const formatNumber = (num: number): string => Math.floor(num).toLocaleString('es-CO');
 
 /**
  * Wave 3 (F10) — Sección "Amigos y Caravanas" del perfil.
- * Modelo 100% local (friendsStore): agregar por código, convites de caravana
- * y bonus de click por amigos activos (+1% c/u, tope +5%).
+ * Local + presencia best-effort (friendsStore). Códigos estrictos / tope
+ * MAX_FRIENDS. Bonus +1% c/u activo, tope +5%.
  */
 export function FriendsSection() {
   const myCode = useFriendsStore((s) => s.myCode);
   const friends = useFriendsStore((s) => s.friends);
+  const presenceLive = useFriendsStore((s) => s.presenceLive);
   const addFriend = useFriendsStore((s) => s.addFriend);
   const removeFriend = useFriendsStore((s) => s.removeFriend);
   const sendConvite = useFriendsStore((s) => s.sendConvite);
@@ -24,9 +27,9 @@ export function FriendsSection() {
   const [addCode, setAddCode] = useState('');
   const [feedback, setFeedback] = useState<{ ok: boolean; text: string } | null>(null);
   const [copied, setCopied] = useState(false);
-  const [, setTick] = useState(0); // re-render para estados "En caravana"
+  const [busy, setBusy] = useState(false);
+  const [, setTick] = useState(0);
 
-  // Simulación de presencia: al montar y cada 60s
   useEffect(() => {
     refreshActivity();
     const iv = setInterval(() => {
@@ -39,48 +42,92 @@ export function FriendsSection() {
   const activeFriends = getActiveFriends();
   const activeIds = new Set(activeFriends.map((f) => f.id));
   const bonusPct = Math.round(getCaravanBonus() * 100);
+  const showLive = presenceLive;
 
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(myCode);
     } catch {
-      // clipboard no disponible: igual mostramos feedback
+      // clipboard no disponible
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleAdd = () => {
-    const result = addFriend(addCode);
-    if (result.success) {
-      setFeedback({ ok: true, text: `${result.friend.name} se unió a tu caravana` });
-      setAddCode('');
-    } else {
-      const text =
-        result.reason === 'self'
-          ? 'Ese es tu propio código'
-          : result.reason === 'duplicate'
-            ? 'Ese amigo ya está en tu lista'
-            : 'Ingresa un código válido';
-      setFeedback({ ok: false, text });
+  const handleAdd = async () => {
+    if (busy) return;
+    setBusy(true);
+    setFeedback(null);
+    try {
+      const trimmed = addCode.trim();
+      let resolved: { id: string; name?: string; avatar?: string; cpsTotal?: number } | undefined;
+
+      if (isSupabaseConfigured && trimmed) {
+        const found = await findUserByInviteCode(trimmed);
+        if (found) {
+          resolved = {
+            id: found.id,
+            name: found.username ?? undefined,
+            avatar: found.avatar_url ?? undefined,
+          };
+        }
+      }
+
+      const result = addFriend(trimmed, resolved);
+      if (result.success) {
+        setFeedback({
+          ok: true,
+          text: resolved
+            ? `${result.friend.name} se unió (perfil real)`
+            : `${result.friend.name} se unió a tu caravana`,
+        });
+        setAddCode('');
+        refreshActivity();
+      } else {
+        const text =
+          result.reason === 'self'
+            ? 'Ese es tu propio código'
+            : result.reason === 'duplicate'
+              ? 'Ese amigo ya está en tu lista'
+              : result.reason === 'full'
+                ? `Máximo ${MAX_FRIENDS} amigos en la caravana`
+                : result.reason === 'invalid'
+                  ? 'Código inválido (MULA-XXXX, invite 8 hex o UUID)'
+                  : 'Ingresa un código válido';
+        setFeedback({ ok: false, text });
+      }
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
     <div className="bg-white rounded-3xl border-4 border-slate-200 p-4 shadow-[0_4px_0_rgba(0,0,0,0.2),0_8px_24px_rgba(0,0,0,0.15)]">
-      {/* Bonus de caravana activo */}
       <div className="flex items-center gap-3 pb-3 border-b border-slate-200">
         <div className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0">
           <Users size={18} className="text-[#F59E0B]" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-slate-900 text-sm font-semibold">
-            {activeFriends.length > 0
-              ? `Caravana activa: +${bonusPct}% por click`
-              : 'Sin caravana activa'}
-          </p>
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-slate-900 text-sm font-semibold">
+              {activeFriends.length > 0
+                ? `Caravana activa: +${bonusPct}% por click`
+                : 'Sin caravana activa'}
+            </p>
+            <span
+              className={cn(
+                'px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide',
+                showLive
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-slate-200 text-slate-500'
+              )}
+            >
+              {showLive ? 'En vivo' : 'Simulado'}
+            </span>
+          </div>
           <p className="text-slate-500 text-xs">
-            {activeFriends.length} de {friends.length} amigos activos · +1% c/u (tope +5%)
+            {activeFriends.length} de {friends.length}/{MAX_FRIENDS} amigos activos · +1% c/u
+            (tope +5%)
           </p>
         </div>
         {activeFriends.length > 0 && (
@@ -90,7 +137,6 @@ export function FriendsSection() {
         )}
       </div>
 
-      {/* Tu código + invitar */}
       <div className="flex items-center gap-2 py-3 border-b border-slate-200">
         <span className="flex-1 text-center py-2 rounded-xl bg-slate-100 font-mono text-sm font-bold text-[#F59E0B] tracking-widest">
           {myCode}
@@ -104,17 +150,16 @@ export function FriendsSection() {
         </button>
       </div>
 
-      {/* Agregar con código */}
       <div className="flex items-center gap-2 pt-3">
         <input
           value={addCode}
           onChange={(e) => setAddCode(e.target.value)}
-          placeholder="Código de amigo (ej. friend_pedro)"
+          placeholder="MULA-XXXX o invite (8 hex)"
           className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-slate-100 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:ring-2 focus:ring-[#F59E0B]/50"
         />
         <button
-          onClick={handleAdd}
-          disabled={!addCode.trim()}
+          onClick={() => void handleAdd()}
+          disabled={!addCode.trim() || busy || friends.length >= MAX_FRIENDS}
           className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#F59E0B] to-[#FBBF24] text-white text-xs font-bold hover:shadow-lg hover:shadow-[#F59E0B]/20 transition-shadow disabled:opacity-50"
         >
           Agregar
@@ -126,7 +171,6 @@ export function FriendsSection() {
         </p>
       )}
 
-      {/* Lista de amigos */}
       {friends.length === 0 ? (
         <p className="text-slate-500 text-xs text-center py-4">
           Aún no tienes amigos. Comparte tu código para armar una caravana.
@@ -135,6 +179,7 @@ export function FriendsSection() {
         <div className="mt-3 space-y-2">
           {friends.map((f) => {
             const isActive = activeIds.has(f.id);
+            const live = Boolean(f.livePresence);
             return (
               <motion.div
                 key={f.id}
@@ -152,7 +197,17 @@ export function FriendsSection() {
                   />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-slate-900 truncate">{f.name}</p>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <p className="text-sm font-bold text-slate-900 truncate">{f.name}</p>
+                    <span
+                      className={cn(
+                        'flex-shrink-0 px-1 py-px rounded text-[8px] font-bold uppercase',
+                        live ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'
+                      )}
+                    >
+                      {live ? 'En vivo' : 'Simulado'}
+                    </span>
+                  </div>
                   <p className="text-[10px] text-slate-500">
                     {isActive ? '🚛 En caravana' : 'Desconectado'} · {formatNumber(f.cpsTotal)} CPS
                   </p>

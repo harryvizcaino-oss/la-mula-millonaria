@@ -4,6 +4,11 @@ import { useClickerStore } from '@/store/clickerStore';
 
 const TALENT_STORAGE_KEY = 'truckSurfers_talents_v1';
 
+/** Costo base del primer Overdrive; escala `ceil(base * 1.5^n)`. */
+export const OVERDRIVE_BASE_COST = 5;
+/** +1% CPS por click permanente por nivel de Overdrive. */
+export const OVERDRIVE_POWER_BONUS_PER_LEVEL = 0.01;
+
 export type TalentBranch = 'power' | 'combo' | 'crit' | 'tickets';
 
 export interface TalentDef {
@@ -56,9 +61,36 @@ function branchLevel(levels: Record<string, number>, branch: TalentBranch): numb
   return max;
 }
 
-/** +5% de CPS por click por nivel de la rama Poder (multiplicador aditivo: 0.05-0.15). */
+/** True cuando las 4 ramas están al nivel 3 (Overdrive desbloqueado). */
+export function isOverdriveUnlocked(levels?: Record<string, number>): boolean {
+  const lv = levels ?? useTalentStore.getState().levels;
+  return (
+    branchLevel(lv, 'power') >= 3 &&
+    branchLevel(lv, 'combo') >= 3 &&
+    branchLevel(lv, 'crit') >= 3 &&
+    branchLevel(lv, 'tickets') >= 3
+  );
+}
+
+/** Costo en estrellas del próximo Overdrive: `ceil(5 * 1.5^n)`. */
+export function getOverdriveCost(level: number = getOverdriveLevel()): number {
+  return Math.ceil(OVERDRIVE_BASE_COST * Math.pow(1.5, Math.max(0, level)));
+}
+
+export function getOverdriveLevel(): number {
+  return useTalentStore.getState().overdriveLevel ?? 0;
+}
+
+/**
+ * Bonus de poder: +5% por nivel de rama Poder + +1% por nivel Overdrive.
+ * (multiplicador aditivo: 0.05–0.15 de talentos + 0.01×n de overdrive).
+ */
 export function getTalentPowerBonus(): number {
-  return branchLevel(useTalentStore.getState().levels, 'power') * 0.05;
+  const state = useTalentStore.getState();
+  return (
+    branchLevel(state.levels, 'power') * 0.05 +
+    (state.overdriveLevel ?? 0) * OVERDRIVE_POWER_BONUS_PER_LEVEL
+  );
 }
 
 /** +500ms de ventana de combo por nivel de la rama Combo. */
@@ -78,14 +110,20 @@ export function getTalentTicketBonus(): number {
 
 export interface TalentState {
   levels: Record<string, number>; // talentId -> nivel comprado (0 = no comprado)
+  /** Niveles infinitos post-max: +1% click permanente c/u. Persistido en la misma key. */
+  overdriveLevel: number;
 
   buy: (talentId: string) => { success: boolean; reason?: string };
+  /** Sink post-talentos: gasta estrellas crecientes por +1% click permanente. */
+  buyOverdrive: () => { success: boolean; reason?: string; cost?: number; level?: number };
+  getOverdriveLevel: () => number;
 }
 
 export const useTalentStore = create<TalentState>()(
   persist(
     (set, get) => ({
       levels: {},
+      overdriveLevel: 0,
 
       buy: (talentId) => {
         const talent = getTalent(talentId);
@@ -106,10 +144,40 @@ export const useTalentStore = create<TalentState>()(
         set({ levels: { ...state.levels, [talentId]: talent.level } });
         return { success: true };
       },
+
+      buyOverdrive: () => {
+        const state = get();
+        if (!isOverdriveUnlocked(state.levels)) {
+          return { success: false, reason: 'Maxea las 4 ramas primero' };
+        }
+        const level = state.overdriveLevel ?? 0;
+        const cost = getOverdriveCost(level);
+        if (!useClickerStore.getState().spendStars(cost)) {
+          return { success: false, reason: 'Estrellas insuficientes', cost };
+        }
+        const next = level + 1;
+        set({ overdriveLevel: next });
+        return { success: true, cost, level: next };
+      },
+
+      getOverdriveLevel: () => get().overdriveLevel ?? 0,
     }),
     {
       name: TALENT_STORAGE_KEY,
-      partialize: (state) => ({ levels: state.levels }),
+      partialize: (state) => ({
+        levels: state.levels,
+        overdriveLevel: state.overdriveLevel ?? 0,
+      }),
+      // Compat: saves antiguos sin overdriveLevel → 0
+      merge: (persisted, current) => {
+        const p = (persisted ?? {}) as Partial<TalentState>;
+        return {
+          ...current,
+          ...p,
+          levels: p.levels ?? current.levels,
+          overdriveLevel: typeof p.overdriveLevel === 'number' ? p.overdriveLevel : 0,
+        };
+      },
     }
   )
 );

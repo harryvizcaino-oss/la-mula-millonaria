@@ -19,12 +19,14 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Footer from '@/components/Footer';
-import { fetchVtexProducts } from '@/lib/vtexCatalog';
 import { useMillas } from '@/providers/MillasProvider';
 import { useClickerStore } from '@/store/clickerStore';
 import { GameTutorial } from '@/components/GameTutorial';
 import { FLEET_VEHICLES } from '@/data/fleetVehicles';
 import { supabase } from '@/lib/supabase';
+import { fetchCatalogProducts } from '@/lib/redpostventaCatalog';
+
+const HOME_MILLAS_PER_COP = 10_000;
 
 /* ─────────────────────── Animation Variants ─────────────────────── */
 
@@ -476,13 +478,12 @@ function MarketplacePreviewSection() {
   const isInView = useInView(ref, { once: true, margin: '-20%' });
   const navigate = useNavigate();
   const { millas } = useMillas();
-  const [products, setProducts] = useState<PreviewProduct[] | null>(null);
+  const [products, setProducts] = useState<PreviewProduct[]>(MOCK_PREVIEW_PRODUCTS);
   const [loading, setLoading] = useState(true);
 
-  // Carga productos reales del catálogo VTEX; si falla, cae a los 4 mocks.
   useEffect(() => {
     let cancelled = false;
-    fetchVtexProducts({ from: 0, to: 3 }).then((res) => {
+    void fetchCatalogProducts({ from: 0, to: 3, limit: 4 }).then((res) => {
       if (cancelled) return;
       if (res && res.products.length > 0) {
         setProducts(
@@ -490,23 +491,22 @@ function MarketplacePreviewSection() {
             id: p.id,
             name: p.name,
             brand: p.brand || 'redpostventa.com',
-            image: p.image ?? '/product-giftcard.jpg',
+            image: p.image || '/product-audifonos.jpg',
             priceCOP: p.price,
-            millasCost: p.price != null ? Math.round(p.price * 10_000) : 0,
+            millasCost: p.price != null ? Math.round(p.price * HOME_MILLAS_PER_COP) : 0,
             redeemable: p.price != null,
-          }))
+          })),
         );
-      } else {
-        setProducts(MOCK_PREVIEW_PRODUCTS);
       }
       setLoading(false);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
     <section ref={ref} className="py-6 px-4">
-      {/* Header */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={isInView ? { opacity: 1 } : {}}
@@ -526,7 +526,6 @@ function MarketplacePreviewSection() {
         </button>
       </motion.div>
 
-      {/* Preview cards (stack horizontal) */}
       <motion.div
         initial={{ opacity: 0, y: 16 }}
         animate={isInView ? { opacity: 1, y: 0 } : {}}
@@ -540,7 +539,7 @@ function MarketplacePreviewSection() {
             ))}
           </div>
         ) : (
-          products?.slice(0, 3).map((product) => (
+          products.slice(0, 3).map((product) => (
             <button
               key={product.id}
               onClick={() => navigate('/marketplace')}

@@ -599,8 +599,11 @@ function FriendsPanel({ category }: { category: CategoryFilter }) {
 
       {/* Ranking de amigos */}
       <div className="bg-white rounded-2xl overflow-hidden">
-        <div className="px-4 pt-4 pb-2">
+        <div className="px-4 pt-4 pb-2 flex items-center gap-2">
           <h2 className="font-fredoka font-bold text-lg text-slate-900">Clasificacion Amigos</h2>
+          <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide bg-emerald-100 text-emerald-700">
+            En vivo
+          </span>
         </div>
         {friendPlayers.map((player, i) => (
           <RankRow
@@ -747,8 +750,10 @@ export default function Leaderboard() {
     };
   }, [timeFilter]);
 
+  const boardLive = entries.length > 0;
+
   const leaderboardPlayers: Player[] = useMemo(() => {
-    if (entries.length === 0) return mockPlayers;
+    if (!boardLive) return mockPlayers;
     return entries.map((entry, index) => {
       const score = Math.floor(entry.score ?? entry.cps_total);
       const derived = deriveCategoryValues(score);
@@ -764,7 +769,7 @@ export default function Leaderboard() {
         trendValue: 0,
       };
     });
-  }, [entries]);
+  }, [entries, boardLive]);
 
   const sortedPlayers = useMemo(() => {
     return [...leaderboardPlayers].sort((a, b) => getCategoryValue(b, category) - getCategoryValue(a, category));
@@ -846,10 +851,18 @@ export default function Leaderboard() {
         <LeaguePanel />
       ) : scope === 'Global' ? (
         <div className="mt-4">
-          <div className="px-4 mb-2">
+          <div className="px-4 mb-2 flex items-center gap-2">
             <h2 className="font-fredoka font-bold text-lg text-slate-900">
               Clasificacion Global
             </h2>
+            <span
+              className={cn(
+                'px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide',
+                boardLive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'
+              )}
+            >
+              {boardLive ? 'En vivo' : 'Simulado'}
+            </span>
           </div>
           <AnimatePresence mode="wait">
             <motion.div

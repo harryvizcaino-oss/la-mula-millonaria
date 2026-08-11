@@ -539,7 +539,7 @@ export default function Brands() {
 
         {/* Trust badges */}
         <div className="flex items-center justify-center gap-2 mt-4 flex-wrap">
-          {['VTEX Partner', '+12K Jugadores', '4.8 Estrellas'].map((badge) => (
+          {['RedPostventa Partner', '+12K Jugadores', '4.8 Estrellas'].map((badge) => (
             <span
               key={badge}
               className="px-2.5 py-1 rounded-full bg-slate-100 text-[10px] text-slate-900 font-medium"

@@ -16,6 +16,7 @@ import { useClickerStore } from '@/store/clickerStore';
 import { useMillas } from '@/providers/MillasProvider';
 import { mockPlayers } from '@/data/mockLeaderboard';
 import { notifyLeagueReward } from '@/lib/pushNotifications';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 const formatNumber = (num: number): string => Math.floor(num).toLocaleString('es-CO');
 
@@ -29,10 +30,22 @@ function formatCountdown(ms: number): string {
   return `${mins}m`;
 }
 
+interface RivalRow {
+  name: string;
+  avatar: string;
+  score: number;
+  me: boolean;
+  demo?: boolean;
+}
+
 /**
  * Wave 3 (F9) — Panel de liga semanal dentro de /leaderboard (scope "Liga").
- * Local primero: el mini leaderboard mezcla jugadores mock con tu CPS semanal;
- * la tabla `league_progress` (migración 005) queda para un futuro sync.
+ *
+ * Progreso de liga y claim de recompensa: 100% local (`leagueStore`).
+ * `league_progress` (migración 005) tiene RLS solo-propia y no está cableada
+ * al mini-board semanal, así que cuando hay datos en `leaderboard_global`
+ * (select público, mig. 001) los mostramos como "Rivales de la semana"
+ * usando `cps_total`. Si no hay datos, caemos a mocks marcados Demo/Simulado.
  */
 export function LeaguePanel() {
   const { addMillas } = useMillas();
@@ -41,19 +54,58 @@ export function LeaguePanel() {
   const pendingReward = useLeagueStore((s) => s.pendingReward);
   const claimReward = useLeagueStore((s) => s.claimReward);
   const store = useClickerStore();
+  const cpsTotal = useClickerStore((s) => s.cpsTotal);
 
   const [now, setNow] = useState(Date.now());
   const [claimed, setClaimed] = useState<string | null>(null);
+  const [liveRivals, setLiveRivals] = useState<RivalRow[] | null>(null);
 
   useEffect(() => {
     const iv = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(iv);
   }, []);
 
-  // Aviso push cuando hay recompensa de liga lista para reclamar
   useEffect(() => {
     if (pendingReward) notifyLeagueReward();
   }, [pendingReward]);
+
+  // Proxy de rivales: top de leaderboard_global (cps_total). league_progress
+  // no permite leer filas ajenas (RLS select_own), así que no hay board
+  // semanal real cableado todavía.
+  useEffect(() => {
+    if (!isSupabaseConfigured) return;
+    let cancelled = false;
+
+    const load = async () => {
+      const { data, error } = await supabase
+        .from('leaderboard_global')
+        .select('user_id, username, avatar_url, cps_total')
+        .order('cps_total', { ascending: false })
+        .limit(10);
+      if (cancelled) return;
+      if (error || !data || data.length === 0) {
+        setLiveRivals(null);
+        return;
+      }
+      setLiveRivals(
+        data.map((row) => ({
+          name: (row.username as string | null) || 'Jugador',
+          avatar:
+            (row.avatar_url as string | null) ||
+            `https://api.dicebear.com/7.x/avataaars/svg?seed=${row.user_id}`,
+          score: Math.floor(Number(row.cps_total) || 0),
+          me: false,
+        }))
+      );
+    };
+
+    void load();
+    const poll = setInterval(() => void load(), 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(poll);
+    };
+  }, []);
 
   const league = leagueOfDivision(division);
   const tier = tierOfDivision(division);
@@ -62,12 +114,34 @@ export function LeaguePanel() {
   const rewards = divisionRewards(division);
   const msLeft = getNextWeekStart().getTime() - now;
 
-  // Mini leaderboard de la semana (local): mocks + tú
-  const weeklyBoard = useMemo(() => {
-    const rows = mockPlayers.map((p) => ({ name: p.name, avatar: p.avatar, weekly: p.score, me: false }));
-    rows.push({ name: 'Tu', avatar: mockPlayers[0]?.avatar ?? '', weekly: Math.floor(weeklyCpsTotal), me: true });
-    return rows.sort((a, b) => b.weekly - a.weekly).slice(0, 10);
-  }, [weeklyCpsTotal]);
+  const boardLive = Boolean(liveRivals && liveRivals.length > 0);
+
+  const weeklyBoard = useMemo((): RivalRow[] => {
+    if (boardLive && liveRivals) {
+      const rows = [...liveRivals];
+      rows.push({
+        name: 'Tu',
+        avatar: mockPlayers[0]?.avatar ?? '',
+        score: Math.floor(cpsTotal),
+        me: true,
+      });
+      return rows.sort((a, b) => b.score - a.score).slice(0, 10);
+    }
+    const rows: RivalRow[] = mockPlayers.map((p) => ({
+      name: p.name,
+      avatar: p.avatar,
+      score: p.score,
+      me: false,
+      demo: true,
+    }));
+    rows.push({
+      name: 'Tu',
+      avatar: mockPlayers[0]?.avatar ?? '',
+      score: Math.floor(weeklyCpsTotal),
+      me: true,
+    });
+    return rows.sort((a, b) => b.score - a.score).slice(0, 10);
+  }, [boardLive, liveRivals, cpsTotal, weeklyCpsTotal]);
 
   const handleClaim = () => {
     const reward = claimReward();
@@ -91,7 +165,6 @@ export function LeaguePanel() {
       transition={{ duration: 0.3 }}
       className="mt-4 mx-4 space-y-4"
     >
-      {/* Recompensa de la semana anterior */}
       {pendingReward && claimed !== pendingReward.weekKey && (
         <div className="rounded-2xl p-4 border-2 border-[#F59E0B]/40 bg-gradient-to-r from-[#1A1B26] to-[#232433] text-center">
           <p className="font-fredoka font-bold text-lg text-[#F59E0B]">
@@ -116,7 +189,6 @@ export function LeaguePanel() {
         </div>
       )}
 
-      {/* Liga actual */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-[0_2px_12px_rgba(0,0,0,0.2)]">
         <div className="flex items-center gap-3">
           <div
@@ -142,7 +214,6 @@ export function LeaguePanel() {
           </div>
         </div>
 
-        {/* Progreso semanal hacia el ascenso */}
         <div className="mt-4">
           <div className="flex justify-between text-[11px] font-bold text-slate-500 mb-1">
             <span>{formatNumber(weeklyCpsTotal)} CPS esta semana</span>
@@ -162,7 +233,6 @@ export function LeaguePanel() {
           </p>
         </div>
 
-        {/* Recompensas de la división actual */}
         <div className="mt-3 grid grid-cols-3 gap-2">
           {[
             { label: 'Millas', value: `+${formatNumber(rewards.millas)}` },
@@ -177,13 +247,31 @@ export function LeaguePanel() {
         </div>
       </div>
 
-      {/* Mini leaderboard semanal (local) */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-[0_2px_12px_rgba(0,0,0,0.2)] overflow-hidden">
         <div className="px-4 pt-4 pb-2 flex items-center gap-2">
           <Trophy size={16} className="text-[#F59E0B]" />
-          <h2 className="font-fredoka font-bold text-lg text-slate-900">Semana actual</h2>
-          <span className="text-[10px] text-slate-400 ml-auto">demo local</span>
+          <h2 className="font-fredoka font-bold text-lg text-slate-900">
+            {boardLive ? 'Rivales de la semana' : 'Semana actual'}
+          </h2>
+          <span
+            className={cn(
+              'ml-auto px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide',
+              boardLive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-500'
+            )}
+          >
+            {boardLive ? 'En vivo' : 'Simulado'}
+          </span>
         </div>
+        {!boardLive && (
+          <p className="px-4 pb-2 text-[10px] text-slate-400">
+            Demo local — sin board semanal en `league_progress` (RLS propia).
+          </p>
+        )}
+        {boardLive && (
+          <p className="px-4 pb-2 text-[10px] text-slate-400">
+            Top de `leaderboard_global` (cps_total) como proxy de rivales.
+          </p>
+        )}
         {weeklyBoard.map((row, i) => {
           const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : null;
           return (
@@ -202,16 +290,27 @@ export function LeaguePanel() {
                 )}
               </div>
               <img src={row.avatar} alt={row.name} className="w-8 h-8 rounded-full bg-slate-100 flex-shrink-0" />
-              <p className={cn('flex-1 min-w-0 text-sm font-bold truncate', row.me ? 'text-[#F59E0B]' : 'text-slate-900')}>
-                {row.name}
-              </p>
-              <p className="text-sm font-bold text-slate-900 flex-shrink-0">{formatNumber(row.weekly)}</p>
+              <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                <p
+                  className={cn(
+                    'min-w-0 text-sm font-bold truncate',
+                    row.me ? 'text-[#F59E0B]' : 'text-slate-900'
+                  )}
+                >
+                  {row.name}
+                </p>
+                {row.demo && (
+                  <span className="flex-shrink-0 px-1 py-px rounded text-[8px] font-bold uppercase bg-slate-200 text-slate-500">
+                    Demo
+                  </span>
+                )}
+              </div>
+              <p className="text-sm font-bold text-slate-900 flex-shrink-0">{formatNumber(row.score)}</p>
             </div>
           );
         })}
       </div>
 
-      {/* Escalera de ligas */}
       <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-[0_2px_12px_rgba(0,0,0,0.2)]">
         <h2 className="font-fredoka font-bold text-lg text-slate-900 mb-2">Escalera de ligas</h2>
         <div className="space-y-1.5">

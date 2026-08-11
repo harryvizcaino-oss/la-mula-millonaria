@@ -6,18 +6,25 @@ import {
   useTalentStore,
   TALENTS,
   TALENT_BRANCHES,
+  isOverdriveUnlocked,
+  getOverdriveCost,
   type TalentDef,
 } from '@/store/talentStore';
 
 interface TalentTreeProps {
   onBuy: (talent: TalentDef, result: { success: boolean; reason?: string }) => void;
+  onOverdrive?: (result: { success: boolean; reason?: string; cost?: number; level?: number }) => void;
 }
 
 /** Árbol de talentos del camionero: 4 ramas × 3 niveles, se compra con ⭐ de prestigio. */
-export function TalentTree({ onBuy }: TalentTreeProps) {
+export function TalentTree({ onBuy, onOverdrive }: TalentTreeProps) {
   const stars = useClickerStore((s) => s.stars);
   const levels = useTalentStore((s) => s.levels);
+  const overdriveLevel = useTalentStore((s) => s.overdriveLevel);
   const buy = useTalentStore((s) => s.buy);
+  const buyOverdrive = useTalentStore((s) => s.buyOverdrive);
+  const overdriveReady = isOverdriveUnlocked(levels);
+  const overdriveCost = getOverdriveCost(overdriveLevel);
 
   return (
     <div className="space-y-3">
@@ -127,6 +134,49 @@ export function TalentTree({ onBuy }: TalentTreeProps) {
             </div>
           );
         })}
+      </div>
+
+      {/* Overdrive: sink infinito de estrellas tras maxear las 4 ramas */}
+      <div
+        className={cn(
+          'rounded-2xl border p-3',
+          overdriveReady
+            ? 'border-[#F59E0B]/40 bg-[#F59E0B]/10'
+            : 'border-slate-200 bg-slate-50 opacity-70',
+        )}
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-fredoka font-black text-sm text-slate-800">
+              Overdrive {overdriveLevel > 0 ? `Nv ${overdriveLevel}` : ''}
+            </p>
+            <p className="text-[10px] text-slate-500 mt-0.5 leading-snug">
+              {overdriveReady
+                ? '+1% CPS/click permanente por nivel. Costo crece con cada compra.'
+                : 'Maxea las 4 ramas (Nv 3) para desbloquear el sink de estrellas.'}
+            </p>
+          </div>
+          <motion.button
+            whileTap={{ scale: overdriveReady && stars >= overdriveCost ? 0.95 : 1 }}
+            disabled={!overdriveReady || stars < overdriveCost}
+            onClick={() => {
+              if (!overdriveReady) return;
+              // buyOverdrive cobra estrellas internamente
+              onOverdrive?.(buyOverdrive());
+            }}
+            className={cn(
+              'flex-shrink-0 px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-wide',
+              overdriveReady && stars >= overdriveCost
+                ? 'bg-[#F59E0B] text-white'
+                : 'bg-slate-200 text-slate-500',
+            )}
+          >
+            <span className="inline-flex items-center gap-1">
+              <Star size={12} className="fill-current" />
+              {overdriveCost}
+            </span>
+          </motion.button>
+        </div>
       </div>
     </div>
   );

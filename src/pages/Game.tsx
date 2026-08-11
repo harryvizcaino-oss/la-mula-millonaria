@@ -44,6 +44,7 @@ import { useQuestStore, type QuestReward } from '@/store/questStore';
 import { useTalentStore, getTalentTicketBonus, type TalentDef } from '@/store/talentStore';
 import { useAchievementStore, type AchievementDef } from '@/store/achievementStore';
 import { useSeasonStore } from '@/store/seasonStore';
+import { composeSessionMultiplier } from '@/lib/sessionMult';
 
 import { CriticalHit, type CritState } from '@/components/game/CriticalHit';
 import { AscensionCinematic } from '@/components/game/AscensionCinematic';
@@ -202,13 +203,29 @@ function getMilestoneLabel(target: number): string {
   return m ? `×${m.mult}` : '×2';
 }
 
-// ───────────── V8: 4 epic power buttons (mapean a los power-ups existentes) ─────────────
+// ───────────── V8: 4 epic power buttons (lenguaje camión) ─────────────
 const EPIC_POWER_BUTTONS: { id: PowerupId; label: string; emoji: string; colorClass: string }[] = [
-  { id: 'nitro', label: 'VELOCIDAD', emoji: '🚀', colorClass: 'epic-power--gold' },
-  { id: 'time_warp', label: 'CONGELAR', emoji: '❄️', colorClass: 'epic-power--cyan' },
-  { id: 'convoy', label: 'DINEROx2', emoji: '💰', colorClass: 'epic-power--orange' },
-  { id: 'gold_rain', label: 'CAJA', emoji: '🎁', colorClass: 'epic-power--purple' },
+  { id: 'nitro', label: 'NITRO', emoji: '🚀', colorClass: 'epic-power--gold' },
+  { id: 'time_warp', label: 'FRENO MOTOR', emoji: '❄️', colorClass: 'epic-power--cyan' },
+  { id: 'convoy', label: 'DOBLE FLETE', emoji: '💰', colorClass: 'epic-power--orange' },
+  { id: 'gold_rain', label: 'REPUESTOS', emoji: '🎁', colorClass: 'epic-power--purple' },
 ];
+
+const ONBOARDING_FLAG_KEY = 'truckSurfers_onboarding_v1';
+
+/** Secondary float-pills stay hidden until tutorial done or first power bought. */
+function readOnboardingGateActive(): boolean {
+  try {
+    const tutorialDone = localStorage.getItem('truckSurfers_tutorial_seen') === 'true';
+    if (tutorialDone) return false;
+    const flag = localStorage.getItem(ONBOARDING_FLAG_KEY);
+    // Flag present (any value except "done") or simply tutorial incomplete → gate
+    if (flag === 'done') return false;
+    return true;
+  } catch {
+    return true;
+  }
+}
 
 export default function Game() {
   const { addMillas } = useMillas();
@@ -231,6 +248,7 @@ export default function Game() {
   const [eventTimeLeft, setEventTimeLeft] = useState(0);
   const [prestigeResult, setPrestigeResult] = useState<{ success: boolean; starsGained: number } | null>(null);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [onboardingGateActive, setOnboardingGateActive] = useState(readOnboardingGateActive);
   const [toasts, setToasts] = useState<{ id: number; text: string; color: string }[]>([]);
   const [flyItems, setFlyItems] = useState<FlyItem[]>([]);
   const [collectibles, setCollectibles] = useState<FloatingCollectible[]>([]);
@@ -327,6 +345,9 @@ export default function Game() {
     () => calculateClickPower(useClickerStore.getState()),
     [powerLevels, storeUpgrades, stars, selectedFleet, talentLevels, unlockedCityIds, equippedParts, friendsList]
   );
+  // P0 onboarding: secondary pills until first power OR tutorial done
+  const hasBoughtPower = Object.values(powerLevels).some((lvl) => (lvl ?? 0) > 0);
+  const showSecondaryPills = hasBoughtPower || !onboardingGateActive;
   // V9: objetivo de la barra THICK — arranca en el próximo milestone del CPS por
   // click y avanza al siguiente target con cada activación (×3, ×4, ×5, ×10...)
   const barMilestoneIdx = Math.max(barTargetIdx ?? 0, getDerivedMilestoneIdx(clickPower));
@@ -889,54 +910,68 @@ export default function Game() {
   }, []);
 
   const handleTruckClick = useCallback(
-    (e: React.PointerEvent) => {
+    (e: React.PointerEvent, options?: { fromAutoclick?: boolean }) => {
       e.stopPropagation();
+      const fromAutoclick = options?.fromAutoclick === true;
       const arena = clickAreaRef.current?.getBoundingClientRect();
       const x = e.clientX;
       const y = e.clientY;
       const relX = arena ? x - arena.left : x;
       const relY = arena ? y - arena.top : y;
 
-      cycleClicksRef.current += 1;
-      setCycleClicks((prev) => prev + 1);
-      clicksSinceTicketRef.current += 1;
+      if (!fromAutoclick) {
+        // Solo clicks humanos alimentan frenzy / tickets / barra
+        cycleClicksRef.current += 1;
+        setCycleClicks((prev) => prev + 1);
+        clicksSinceTicketRef.current += 1;
 
-      // V17: cada click carga la barra THICK — siempre 2% (50 clicks para llenar)
-      lastBarClickRef.current = Date.now();
-      setBarCharge((prev) => Math.min(100, prev + 2));
-      const chance = Math.min(0.25, clicksSinceTicketRef.current * 0.0075) * (1 + getTalentTicketBonus());
-      if (Math.random() < chance) {
-        spawnCollectible();
-        clicksSinceTicketRef.current = 0;
+        // V17: cada click carga la barra THICK — siempre 2% (50 clicks para llenar)
+        lastBarClickRef.current = Date.now();
+        setBarCharge((prev) => Math.min(100, prev + 2));
+        const chance = Math.min(0.25, clicksSinceTicketRef.current * 0.0075) * (1 + getTalentTicketBonus());
+        if (Math.random() < chance) {
+          spawnCollectible();
+          clicksSinceTicketRef.current = 0;
+        }
+
+        // Combo: cada click alimenta la racha (ventana de 2s)
+        useComboStore.getState().incrementCombo();
+
+        // Misiones: progreso de clicks y mejor tier de combo
+        useQuestStore.getState().progress('clicks', 1);
+        useQuestStore.getState().progress('comboTier', useComboStore.getState().comboTier);
+
+        // Wave 4 (F14): probabilidad baja de coleccionable por click
+        rollCollectibleDrop(0.004);
+
+        // Evento global: cada click aporta al progreso comunitario
+        useEventStore.getState().updateProgress(1);
+
+        // F6: cada click suma 1 XP al pase de temporada
+        useSeasonStore.getState().addXp(1);
       }
+      // Autoclick: season XP = 0 (no alimenta el pase como un click humano)
 
-      // Combo: cada click alimenta la racha (ventana de 2s)
-      useComboStore.getState().incrementCombo();
-      const comboMult = useComboStore.getState().comboMultiplier;
+      const comboMult = fromAutoclick ? 1 : useComboStore.getState().comboMultiplier;
 
-      // Misiones: progreso de clicks y mejor tier de combo
-      useQuestStore.getState().progress('clicks', 1);
-      useQuestStore.getState().progress('comboTier', useComboStore.getState().comboTier);
+      // Crítico: humano = chance normal; autoclick = chance reducida a la mitad
+      const critChance = fromAutoclick
+        ? store.getCriticalChance() * 0.5
+        : store.getCriticalChance();
+      const isCrit = Math.random() < critChance;
 
-      // Wave 4 (F14): probabilidad baja de coleccionable por click
-      rollCollectibleDrop(0.004);
-
-      // Evento global: cada click aporta al progreso comunitario
-      useEventStore.getState().updateProgress(1);
-
-      // F6: cada click suma 1 XP al pase de temporada
-      useSeasonStore.getState().addXp(1);
-
-      // Crítico: 5% base + bonus por 'precision' (tope 25%)
-      const isCrit = Math.random() < store.getCriticalChance();
-
-      let multiplier = activeClickMultiplier * comboMult;
-      if (nitroActive) multiplier *= 50;
-      if (convoyActive) multiplier *= 10;
-      if (caravanaActive) multiplier *= 3;
-      // V15: multiplicador ligado al nivel de la barra
-      multiplier *= currentBarMultiplier;
-      if (isCrit) multiplier *= 10;
+      // Cap stacking: nitro/convoy max, crit acotado a ×2, producto ≤ SESSION_MULT_CAP
+      // Autoclick: solo clickPower base (+ crit opcional) — sin frenzy/combo/barra
+      const multiplier = fromAutoclick
+        ? composeSessionMultiplier({ critical: isCrit })
+        : composeSessionMultiplier({
+            frenzy: activeClickMultiplier * currentBarMultiplier,
+            combo: comboMult,
+            nitro: nitroActive ? 50 : 1,
+            convoy: convoyActive ? 10 : 1,
+            event: caravanaActive ? 3 : 1,
+            critical: isCrit,
+          });
 
       const amount = clickPower * multiplier;
       playHorn();
@@ -989,7 +1024,7 @@ export default function Game() {
 
       spawnLayeredParticles(relX, relY);
     },
-    [clickPower, store, addMillas, activeClickMultiplier, spawnLayeredParticles, triggerHaptic, nitroActive, convoyActive, caravanaActive, currentBarMultiplier, barMilestone]
+    [clickPower, store, addMillas, activeClickMultiplier, spawnLayeredParticles, triggerHaptic, nitroActive, convoyActive, caravanaActive, currentBarMultiplier]
   );
 
   // Keep latest click handler accessible to autoclick loop without restarting it
@@ -998,7 +1033,7 @@ export default function Game() {
     handleTruckClickRef.current = handleTruckClick;
   }, [handleTruckClick]);
 
-  // Autoclick superpower loop
+  // Autoclick superpower loop (tonto: no alimenta frenzy/combo/tickets como un humano)
   const autoclickActiveRef = useRef(false);
   useEffect(() => {
     const interval = setInterval(() => {
@@ -1018,7 +1053,7 @@ export default function Game() {
       const x = rect.left + rect.width / 2 + (Math.random() - 0.5) * 80;
       const y = rect.top + rect.height / 2 + (Math.random() - 0.5) * 80;
       const fakeEvent = { clientX: x, clientY: y, stopPropagation: () => {} } as React.PointerEvent;
-      handleTruckClickRef.current(fakeEvent);
+      handleTruckClickRef.current(fakeEvent, { fromAutoclick: true });
     }, 250);
     return () => clearInterval(interval);
   }, [store.autoclickUntil]);
@@ -1049,6 +1084,13 @@ export default function Game() {
       rollCollectibleDrop(0.05);
       setBoom({ id: Date.now(), tierUp: false });
       triggerHaptic('flash');
+      // P0: primer poder desbloquea pills secundarios
+      try {
+        localStorage.setItem(ONBOARDING_FLAG_KEY, 'done');
+      } catch {
+        /* ignore */
+      }
+      setOnboardingGateActive(false);
     }
   };
 
@@ -1343,36 +1385,40 @@ export default function Game() {
                   <span>👑</span>
                   <span className="font-black">#{rankPosition}</span>
                 </motion.button>
-                <button
-                  onClick={() => setShowQuests(true)}
-                  className="w-8 h-8 rounded-full bg-[#0D0E14]/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#F59E0B] shadow-lg active:scale-90 transition-transform"
-                  title="Misiones diarias y semanales"
-                >
-                  <ClipboardList size={15} />
-                </button>
-                <button
-                  onClick={() => setShowLootBox(true)}
-                  className="w-8 h-8 rounded-full bg-[#0D0E14]/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#A855F7] shadow-lg active:scale-90 transition-transform"
-                  title="Caja sorpresa (1 🎟️)"
-                >
-                  <Gift size={15} />
-                </button>
-                {/* Wave 3 (F12): acceso a minijuegos */}
-                <button
-                  onClick={() => setShowMinigame(true)}
-                  className="w-8 h-8 rounded-full bg-[#0D0E14]/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#EF4444] shadow-lg active:scale-90 transition-transform"
-                  title="Minijuegos (1 🎟️ por partida)"
-                >
-                  <Gamepad2 size={15} />
-                </button>
-                {/* Wave 4 (F13): recompensas por tiempo de sesión */}
-                <button
-                  onClick={() => setShowSessionRewards(true)}
-                  className="w-8 h-8 rounded-full bg-[#0D0E14]/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#22D3EE] shadow-lg active:scale-90 transition-transform"
-                  title="Recompensas por tiempo de sesión"
-                >
-                  <Clock size={15} />
-                </button>
+                {showSecondaryPills && (
+                  <>
+                    <button
+                      onClick={() => setShowQuests(true)}
+                      className="w-8 h-8 rounded-full bg-[#0D0E14]/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#F59E0B] shadow-lg active:scale-90 transition-transform"
+                      title="Misiones diarias y semanales"
+                    >
+                      <ClipboardList size={15} />
+                    </button>
+                    <button
+                      onClick={() => setShowLootBox(true)}
+                      className="w-8 h-8 rounded-full bg-[#0D0E14]/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#A855F7] shadow-lg active:scale-90 transition-transform"
+                      title="Caja sorpresa (1 🎟️)"
+                    >
+                      <Gift size={15} />
+                    </button>
+                    {/* Wave 3 (F12): acceso a minijuegos */}
+                    <button
+                      onClick={() => setShowMinigame(true)}
+                      className="w-8 h-8 rounded-full bg-[#0D0E14]/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#EF4444] shadow-lg active:scale-90 transition-transform"
+                      title="Minijuegos (1 🎟️ por partida)"
+                    >
+                      <Gamepad2 size={15} />
+                    </button>
+                    {/* Wave 4 (F13): recompensas por tiempo de sesión */}
+                    <button
+                      onClick={() => setShowSessionRewards(true)}
+                      className="w-8 h-8 rounded-full bg-[#0D0E14]/70 backdrop-blur-md border border-white/15 flex items-center justify-center text-[#22D3EE] shadow-lg active:scale-90 transition-transform"
+                      title="Recompensas por tiempo de sesión"
+                    >
+                      <Clock size={15} />
+                    </button>
+                  </>
+                )}
               </div>
             </div>
 
@@ -2019,6 +2065,14 @@ export default function Game() {
                 showToast(result.reason, '#94A3B8');
               }
             }}
+            onOverdrive={(result) => {
+              if (result.success) {
+                showToast(`¡Overdrive Nv ${result.level}! +1% CPS permanente`, '#F59E0B');
+                triggerHaptic('flash');
+              } else if (result.reason) {
+                showToast(result.reason, '#94A3B8');
+              }
+            }}
           />
         )}
 
@@ -2235,7 +2289,13 @@ export default function Game() {
       {/* Wave 3 (F12): minijuegos (Derrape / Cambio de neumático) */}
       <MinigameModal open={showMinigame} onClose={() => setShowMinigame(false)} />
 
-      <GameTutorial forceOpen={showTutorial} onClose={() => setShowTutorial(false)} />
+      <GameTutorial
+        forceOpen={showTutorial}
+        onClose={() => {
+          setShowTutorial(false);
+          setOnboardingGateActive(readOnboardingGateActive());
+        }}
+      />
     </div>
   );
 }

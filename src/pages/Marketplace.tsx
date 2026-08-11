@@ -14,7 +14,6 @@ import {
   Zap,
   Truck as TruckIcon,
   Check,
-  Copy,
   Loader2,
   Grid3x3,
   Monitor,
@@ -24,17 +23,22 @@ import {
   Watch,
   Gift,
   ExternalLink,
+  Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import PrimaryButton from '@/components/PrimaryButton';
 import { mockProducts, categories, getGradientClass } from '@/data/mockProducts';
 import type { Product } from '@/data/mockProducts';
-import { fetchVtexProducts, fetchVtexCategories } from '@/lib/vtexCatalog';
-import type { VtexProduct } from '@/lib/vtexCatalog';
+import { fetchCatalogProducts, deriveCategories } from '@/lib/redpostventaCatalog';
+import type { CatalogProduct } from '@/lib/redpostventaCatalog';
 import { useAuth } from '@/hooks/useAuth';
 import { useMillas } from '@/providers/MillasProvider';
 import { useClickerStore } from '@/store/clickerStore';
 import { useSeasonStore } from '@/store/seasonStore';
+import { recordTransaction } from '@/lib/transactions';
+import { RedeemReceipt } from '@/components/game/RedeemReceipt';
+import { CatalogStatusBadge } from '@/components/CatalogStatusBadge';
+import { StoreAgentPanel } from '@/components/game/StoreAgentPanel'; // roadmap-agent
 
 /* ═══════════════════════════════════════════════════════════════════
    Constants & Helpers
@@ -72,15 +76,11 @@ function formatCompact(n: number): string {
   return new Intl.NumberFormat('es-CO', { notation: 'compact', maximumFractionDigits: 1 }).format(n);
 }
 
-/* ── Catálogo VTEX real (redpostventa.com) ──
-   Si la Edge Function responde, el grid usa productos reales; si no,
-   cae a mockProducts sin ruido. El costo en TicaMillas se deriva del
-   precio COP a la tasa de redención de efectivo (100M millas = $10.000
-   COP → 1 COP = 10.000 millas): los productos reales son objetivos
-   aspiracionales de muy largo plazo, NO canjes rápidos. */
-const MILLAS_PER_COP = 10_000;
+/* Tasa para derivar TicaMillas desde precio COP del catálogo real
+   (100M millas = $10.000 COP → 1 COP = 10.000 millas). */
+export const MILLAS_PER_COP = 10_000;
 
-function mapVtexProduct(p: VtexProduct): Product {
+function mapCatalogProduct(p: CatalogProduct): Product {
   const millasCost = p.price != null ? Math.round(p.price * MILLAS_PER_COP) : 0;
   return {
     id: p.id,
@@ -93,11 +93,12 @@ function mapVtexProduct(p: VtexProduct): Product {
     millasCost,
     description: `${p.name} de ${p.brand || 'redpostventa.com'}. Producto del catalogo real de redpostventa.com.`,
     redeemable: p.price != null,
-    link: p.link,
-    skuId: p.skuId ?? undefined,
-    sellerId: p.sellerId ?? undefined,
+    link: p.link || undefined,
+    sku: p.sku ?? undefined,
   };
 }
+
+
 
 function getProductCategoryIcon(category: string) {
   return getCategoryIconComponent(
@@ -117,8 +118,8 @@ const MILLAS_PER_COP_BLOCK = 100_000_000;
 const COP_PER_BLOCK = 10_000;
 const TICKET_TO_MILLAS = 1_000;
 
-/* ── VTEX Gift Cards (se redimen con CPS; NO afectan el ranking) ── */
-const VTEX_GIFT_CARDS = [
+/* ── Gift Cards RedPostventa (CPS; NO afectan el ranking) ── */
+const RPV_GIFT_CARDS = [
   { usd: 10, cps: 100_000 },
   { usd: 25, cps: 250_000 },
   { usd: 50, cps: 500_000 },
@@ -144,157 +145,6 @@ function ProductPlaceholder({ gradient, icon: Icon }: { gradient: string; icon: 
     <div className={cn('w-full aspect-square bg-gradient-to-br flex items-center justify-center', gradient)}>
       <Icon size={48} className="text-slate-400" />
     </div>
-  );
-}
-
-/* ═════════════════ Cash Redemption Modal ═════════════════ */
-
-function CashRedemptionModal({
-  isOpen,
-  onClose,
-  code,
-  cop,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  code: string;
-  cop: number;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(code).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {
-      const ta = document.createElement('textarea');
-      ta.value = code;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }, [code]);
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-center justify-center px-4"
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-fredoka font-black text-xl text-slate-900">Gift Card Generada</h3>
-              <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100">
-                <X size={18} className="text-slate-500" />
-              </button>
-            </div>
-            <p className="text-slate-500 text-sm mb-4">
-              Usa este codigo en nuestro marketplace para obtener ${cop.toLocaleString('es-CO')} COP.
-            </p>
-            <div className="bg-gradient-to-br from-[#1A1B26] to-[#232433] rounded-2xl p-5 border-2 border-dashed border-[#ff3131]/60 text-center mb-4">
-              <p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2">Codigo</p>
-              <div className="flex items-center justify-center gap-2">
-                <code className="font-mono font-bold text-2xl text-white tracking-wider">{code}</code>
-                <button onClick={handleCopy} className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20">
-                  {copied ? <Check size={16} className="text-[#ff4c4c]" /> : <Copy size={16} className="text-white" />}
-                </button>
-              </div>
-              <p className="text-[#ff3131] font-fredoka font-bold text-xl mt-2">${cop.toLocaleString('es-CO')} COP</p>
-            </div>
-            <PrimaryButton variant="primary" onClick={onClose}>
-              Entendido
-            </PrimaryButton>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
-}
-
-/* ═════════════════ VTEX Gift Card Modal (CPS) ═════════════════ */
-
-function VtexGiftCardModal({
-  isOpen,
-  onClose,
-  code,
-  usd,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  code: string;
-  usd: number;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(code).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }).catch(() => {
-      const ta = document.createElement('textarea');
-      ta.value = code;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand('copy');
-      document.body.removeChild(ta);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }, [code]);
-
-  return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="fixed inset-0 z-[60] bg-black/70 backdrop-blur-md flex items-center justify-center px-4"
-        >
-          <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.9, opacity: 0 }}
-            className="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-fredoka font-black text-xl text-slate-900">Gift Card VTEX</h3>
-              <button onClick={onClose} className="p-2 rounded-full hover:bg-slate-100">
-                <X size={18} className="text-slate-500" />
-              </button>
-            </div>
-            <p className="text-slate-500 text-sm mb-4">
-              Usa este codigo en <span className="font-bold text-slate-900">redpostventa.com</span> para obtener ${usd} USD.
-              Redimir CPS <span className="font-bold">no afecta tu ranking</span>.
-            </p>
-            <div className="bg-gradient-to-br from-[#1A1B26] to-[#232433] rounded-2xl p-5 border-2 border-dashed border-[#ff3131]/60 text-center mb-4">
-              <p className="text-slate-500 text-[10px] uppercase tracking-widest mb-2">Codigo VTEX</p>
-              <div className="flex items-center justify-center gap-2">
-                <code className="font-mono font-bold text-lg text-white tracking-wider">{code}</code>
-                <button onClick={handleCopy} className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20">
-                  {copied ? <Check size={16} className="text-[#ff4c4c]" /> : <Copy size={16} className="text-white" />}
-                </button>
-              </div>
-              <p className="text-[#ff3131] font-fredoka font-bold text-xl mt-2">${usd} USD</p>
-            </div>
-            <PrimaryButton variant="primary" onClick={onClose}>
-              Entendido
-            </PrimaryButton>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
   );
 }
 
@@ -796,88 +646,77 @@ export default function Marketplace() {
   const [redeemTab, setRedeemTab] = useState<'cash' | 'cps'>('cash');
   const [cashModalOpen, setCashModalOpen] = useState(false);
   const [cashGiftCard, setCashGiftCard] = useState<{ code: string; cop: number } | null>(null);
-  const [vtexGiftCard, setVtexGiftCard] = useState<{ code: string; usd: number } | null>(null);
+  const [rpvGiftCard, setRpvGiftCard] = useState<{ code: string; usd: number } | null>(null);
+  // roadmap-agent
+  const [storeAgentOpen, setStoreAgentOpen] = useState(false);
   const toastIdRef = useRef(0);
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const isInView = useInView(loadMoreRef, { margin: '200px' });
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  /* ── Catálogo VTEX real (fallback silencioso a mocks) ── */
+  /* ── Catálogo RedPostventa (fallback silencioso a mocks) ── */
   const [catalogOk, setCatalogOk] = useState(false);
   const [catalogLoading, setCatalogLoading] = useState(true);
-  const [vtexProducts, setVtexProducts] = useState<Product[]>([]);
-  const [vtexTabs, setVtexTabs] = useState<{ id: string; label: string; icon: string }[] | null>(null);
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [catalogRaw, setCatalogRaw] = useState<CatalogProduct[]>([]);
 
-  useEffect(() => {
-    let cancelled = false;
-    void fetchVtexCategories().then((tree) => {
-      if (cancelled || !tree || tree.length === 0) return;
-      setVtexTabs([
-        { id: 'all', label: 'Todos', icon: 'Grid3x3' },
-        ...tree.map((c) => ({ id: String(c.id), label: c.name, icon: 'Package' })),
-      ]);
-    });
-    return () => { cancelled = true; };
-  }, []);
-
-  // Buscador (ft=) y categoría (fq=C:/id/) server-side, debounce 400ms.
-  // Si la función no responde → catalogOk=false y se usan mocks como hoy.
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(() => {
       setCatalogLoading(true);
-      const isVtexTab = activeCategory !== 'all' && !!vtexTabs?.some((t) => t.id === activeCategory);
-      void fetchVtexProducts({
+      void fetchCatalogProducts({
         query: searchQuery.trim() || undefined,
-        categoryId: isVtexTab ? activeCategory : undefined,
-        from: 0,
-        to: 49,
+        limit: 50,
       }).then((res) => {
         if (cancelled) return;
         if (res) {
-          setVtexProducts(res.products.map(mapVtexProduct));
+          setCatalogRaw(res.products);
+          setCatalogProducts(res.products.map(mapCatalogProduct));
           setCatalogOk(true);
         } else {
+          setCatalogRaw([]);
           setCatalogOk(false);
         }
         setCatalogLoading(false);
       });
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [searchQuery, activeCategory, vtexTabs]);
+  }, [searchQuery]);
 
-  // Tabs: árbol VTEX nivel 1; si el árbol falla pero el catálogo responde,
-  // solo "Todos"; con mocks, las tabs de siempre.
-  const tabs: ReadonlyArray<{ id: string; label: string; icon: string }> =
-    vtexTabs ?? (catalogOk ? [{ id: 'all', label: 'Todos', icon: 'Grid3x3' }] : categories);
-
-  /* ── Infinite scroll ── */
-  useEffect(() => {
-    if (isInView) {
-      setDisplayCount((prev) => Math.min(prev + 6, filteredProducts.length));
-    }
-  }, [isInView]);
+  const tabs: ReadonlyArray<{ id: string; label: string; icon: string }> = useMemo(() => {
+    if (!catalogOk) return categories;
+    const derived = deriveCategories(catalogRaw);
+    return [
+      { id: 'all', label: 'Todos', icon: 'Grid3x3' },
+      ...derived.map((c) => ({ id: c.id, label: c.name, icon: 'Package' })),
+    ];
+  }, [catalogOk, catalogRaw]);
 
   /* ── Filter & sort products ── */
   const filteredProducts = useMemo(() => {
-    // Con catálogo VTEX activo el filtrado por texto/categoría ya lo hizo
-    // el servidor (ft= / categoryId); con mocks se filtra local como hoy.
-    let products = catalogOk ? [...vtexProducts] : [...mockProducts];
+    let products = catalogOk ? [...catalogProducts] : [...mockProducts];
 
-    if (!catalogOk) {
-      if (activeCategory !== 'all') {
+    if (activeCategory !== 'all') {
+      if (catalogOk) {
+        const tab = tabs.find((t) => t.id === activeCategory);
+        const label = tab?.label ?? activeCategory;
+        products = products.filter(
+          (p) => p.category === label || p.category === activeCategory,
+        );
+      } else {
         products = products.filter((p) => p.category === activeCategory);
       }
+    }
 
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        products = products.filter(
-          (p) =>
-            p.name.toLowerCase().includes(q) ||
-            p.brand.toLowerCase().includes(q) ||
-            p.category.toLowerCase().includes(q)
-        );
-      }
+    // Con catálogo real, la búsqueda ya va en q=; refiltro local por UX.
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      products = products.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.brand.toLowerCase().includes(q) ||
+          p.category.toLowerCase().includes(q)
+      );
     }
 
     switch (sortBy) {
@@ -896,7 +735,14 @@ export default function Marketplace() {
     }
 
     return products;
-  }, [catalogOk, vtexProducts, activeCategory, searchQuery, sortBy]);
+  }, [catalogOk, catalogProducts, tabs, activeCategory, searchQuery, sortBy]);
+
+  /* ── Infinite scroll ── */
+  useEffect(() => {
+    if (isInView) {
+      setDisplayCount((prev) => Math.min(prev + 6, filteredProducts.length));
+    }
+  }, [isInView, filteredProducts.length]);
 
   const visibleProducts = filteredProducts.slice(0, displayCount);
   const hasMore = displayCount < filteredProducts.length;
@@ -918,11 +764,17 @@ export default function Marketplace() {
     if (cop <= 0) return;
     if (cashMillasAmount > millas || cashTicketAmount > clicker.goldenTickets) return;
 
+    const millasSpent = cashMillasAmount + cashTicketAmount * 1000;
     addMillas(-cashMillasAmount);
     clicker.redeemGoldenTickets(cashTicketAmount);
     useSeasonStore.getState().addXp(50); // F6: XP del pase por redención
 
     const code = `TC-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    void recordTransaction({
+      type: 'spend',
+      amount: millasSpent,
+      description: `Gift Card efectivo $${cop.toLocaleString('es-CO')} COP · ${code}`,
+    });
     setCashGiftCard({ code, cop });
     setCashModalOpen(true);
     setCashMillasAmount(0);
@@ -935,14 +787,19 @@ export default function Marketplace() {
     setTimeout(() => setTicketToasts((prev) => prev.filter((t) => t.id !== id)), 2000);
   };
 
-  // Redime CPS por Gift Card VTEX: solo baja cpsBalance; cpsTotal (ranking) intacto
-  const handleRedeemVtex = (usd: number, cps: number) => {
+  // Redime CPS por Gift Card RedPostventa: solo baja cpsBalance; cpsTotal intacto
+  const handleRedeemRpv = (usd: number, cps: number) => {
     const result = clicker.redeemCps(cps);
     if (!result.success) return;
     useSeasonStore.getState().addXp(50); // F6: XP del pase por redención
-    const code = `VTEX-${usd}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
-    setVtexGiftCard({ code, usd });
-    showTicketToast(`Gift Card VTEX $${usd} generada`, '#ff4c4c');
+    const code = `RPV-${usd}-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`;
+    void recordTransaction({
+      type: 'spend',
+      amount: cps,
+      description: `Gift Card RedPostventa $${usd} · ${code}`,
+    });
+    setRpvGiftCard({ code, usd });
+    showTicketToast(`Gift Card RedPostventa $${usd} generada`, '#ff4c4c');
   };
 
   const cartTotalMillas = redemptionCart.reduce((sum, p) => sum + p.millasCost, 0);
@@ -963,6 +820,7 @@ export default function Marketplace() {
         animate={{ opacity: 1, y: 0 }}
         className="mx-4 mt-3 flex items-center gap-1.5 overflow-x-auto scrollbar-hide"
       >
+        <CatalogStatusBadge catalogOk={catalogOk} loading={catalogLoading} className="h-9" />
         <span className="flex items-center gap-1 h-9 px-3 rounded-full bg-[#ff3131]/10 border border-[#ff3131]/30 whitespace-nowrap flex-shrink-0">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" className="text-[#ff3131]">
             <circle cx="12" cy="12" r="10" fill="currentColor" opacity="0.2" />
@@ -1099,14 +957,14 @@ export default function Marketplace() {
         ) : (
         <>
         <div className="grid grid-cols-2 gap-2">
-          {VTEX_GIFT_CARDS.map((gc, i) => {
+          {RPV_GIFT_CARDS.map((gc, i) => {
             const canAfford = clicker.cpsBalance >= gc.cps;
             return (
               <div
                 key={gc.usd}
                 className={cn(
                   'rounded-xl border-2 p-3 flex flex-col items-center text-center transition-colors',
-                  i === VTEX_GIFT_CARDS.length - 1 && 'col-span-2',
+                  i === RPV_GIFT_CARDS.length - 1 && 'col-span-2',
                   canAfford ? 'border-[#ff3131] bg-[#ff3131]/5' : 'border-slate-200 bg-slate-50'
                 )}
               >
@@ -1115,7 +973,7 @@ export default function Marketplace() {
                   {formatMillas(gc.cps)} CPS
                 </p>
                 <button
-                  onClick={() => handleRedeemVtex(gc.usd, gc.cps)}
+                  onClick={() => handleRedeemRpv(gc.usd, gc.cps)}
                   disabled={!canAfford}
                   className={cn(
                     'w-full py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all',
@@ -1199,7 +1057,6 @@ export default function Marketplace() {
       {/* ─── Product Grid ─── */}
       <div className="px-4 mt-4">
         {catalogLoading ? (
-          /* ─── Loading State ─── */
           <div className="flex justify-center py-16">
             <Loader2 size={24} className="text-[#ff3131] animate-spin" />
           </div>
@@ -1314,20 +1171,25 @@ export default function Marketplace() {
         ))}
       </AnimatePresence>
 
-      {/* ─── Cash Redemption Modal ─── */}
-      <CashRedemptionModal
-        isOpen={cashModalOpen}
-        onClose={() => setCashModalOpen(false)}
+      {/* ─── Comprobante canje efectivo ─── */}
+      <RedeemReceipt
+        isOpen={cashModalOpen && cashGiftCard !== null}
+        onClose={() => {
+          setCashModalOpen(false);
+          setCashGiftCard(null);
+        }}
+        kind="cash"
         code={cashGiftCard?.code || ''}
-        cop={cashGiftCard?.cop || 0}
+        valueLabel={cashGiftCard ? `$${cashGiftCard.cop.toLocaleString('es-CO')} COP` : ''}
       />
 
-      {/* ─── VTEX Gift Card Modal ─── */}
-      <VtexGiftCardModal
-        isOpen={vtexGiftCard !== null}
-        onClose={() => setVtexGiftCard(null)}
-        code={vtexGiftCard?.code || ''}
-        usd={vtexGiftCard?.usd || 0}
+      {/* ─── Comprobante Gift Card CPS RedPostventa ─── */}
+      <RedeemReceipt
+        isOpen={rpvGiftCard !== null}
+        onClose={() => setRpvGiftCard(null)}
+        kind="rpv"
+        code={rpvGiftCard?.code || ''}
+        valueLabel={rpvGiftCard ? `Gift Card $${rpvGiftCard.usd}` : ''}
       />
 
       {/* ─── Floating Cart FAB ─── */}
@@ -1363,6 +1225,31 @@ export default function Marketplace() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* roadmap-agent — Asesor de Tienda MVP (botón + sheet; no reescribe catálogo) */}
+      <button
+        type="button"
+        onClick={() => setStoreAgentOpen(true)}
+        className="fixed z-40 right-4 bottom-24 h-11 px-4 rounded-full bg-[#0D0E14] text-white text-xs font-black uppercase tracking-wider shadow-lg border border-white/10 active:scale-95 transition-transform flex items-center gap-1.5"
+        style={{ maxWidth: '32rem' }}
+      >
+        <Sparkles size={14} className="text-[#ff3131]" />
+        Asesor
+      </button>
+      <StoreAgentPanel
+        open={storeAgentOpen}
+        onClose={() => setStoreAgentOpen(false)}
+        millas={millas}
+        cpsBalance={clicker.cpsBalance}
+        fleetId={clicker.selectedFleet}
+        catalog={catalogRaw}
+        onSelectProduct={(p) => {
+          const mapped = mapCatalogProduct(p);
+          setSelectedProduct(mapped);
+          setDetailOpen(true);
+          setStoreAgentOpen(false);
+        }}
+      />
     </div>
   );
 }

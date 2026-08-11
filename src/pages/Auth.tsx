@@ -10,10 +10,7 @@ import {
   ArrowLeft,
   ArrowRight,
   Truck,
-  Gamepad2,
   Check,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { LOGIN_PATH } from '@/const';
@@ -31,22 +28,22 @@ const EASE_BOUNCE = [0.34, 1.56, 0.64, 1] as [number, number, number, number];
 /* ─── Onboarding Data ─── */
 const ONBOARDING_STEPS = [
   {
-    title: 'Corre por la carretera',
+    title: 'Toca tu tractomula',
     description:
-      'Conduce tu camion esquivando obstaculos en una carretera sin fin. Cuantos mas camiones esquives, mas lejos llegaras.',
-    swipeText: 'Desliza para cambiar de carril',
+      'La Mula Millonaria es un clicker de camiones. Cada toque genera CPS para subir poderes y tu flota.',
+    swipeText: 'Toca la mula para ganar CPS',
   },
   {
-    title: 'Acumula TicaMillas',
+    title: 'Acumula y progresa',
     description:
-      'Recoge monedas doradas mientras corres. Cada moneda es una milla que podras redimir por productos reales en nuestra tienda.',
-    swipeText: 'Salta y desliza para esquivar',
+      'Compra autopartes con CPS, recoge tickets dorados y multiplica tu camino. Tu progreso se guarda al iniciar sesión.',
+    swipeText: 'Poderes, flota y tickets',
   },
   {
-    title: 'Gana Recompensas Reales',
+    title: 'Premios en RedPostventa',
     description:
-      'Tus TicaMillas son dinero real. Canjealas por productos de nuestro marketplace conectado a VTEX. Audifonos, mochilas, gift cards y mas.',
-    swipeText: 'Acumula TicaMillas y redime premios',
+      'En la Tienda canjeas por códigos Gift Card para usar en redpostventa.com. El fulfillment depende del catálogo y del sitio.',
+    swipeText: 'Canjea cuando estés listo',
   },
 ];
 
@@ -133,7 +130,7 @@ function SplashScreen({ onComplete }: { onComplete: () => void }) {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.3, duration: 0.4 }}
         >
-          Esquiva. Acumula. Redime.
+          Toca. Acumula. Canjea en RedPostventa.
         </motion.p>
 
         {/* Loading Bar */}
@@ -163,74 +160,57 @@ function SplashScreen({ onComplete }: { onComplete: () => void }) {
 /* ─── Swipe Demo Animation ─── */
 function SwipeDemo({ step }: { step: number }) {
   if (step === 0) {
-    // Lane switching - horizontal arrows
+    // Click the truck
     return (
-      <div className="relative w-full h-16 flex items-center justify-center gap-4">
+      <div className="relative w-full h-16 flex items-center justify-center">
         <motion.div
-          animate={{ x: [-20, 20, -20] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
-          className="flex items-center gap-2"
+          animate={{ scale: [1, 0.92, 1] }}
+          transition={{ duration: 0.9, repeat: Infinity, ease: 'easeInOut' }}
+          className="w-12 h-12 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FBBF24] flex items-center justify-center shadow-lg"
         >
-          <ChevronLeft size={20} className="text-[#F59E0B]" />
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#FBBF24] flex items-center justify-center shadow-lg">
-            <Gamepad2 size={18} className="text-slate-900" />
-          </div>
-          <ChevronRight size={20} className="text-[#F59E0B]" />
+          <Truck size={22} className="text-slate-900" />
         </motion.div>
       </div>
     );
   }
 
   if (step === 1) {
-    // Jump animation
+    // Powers / tickets
     return (
-      <div className="relative w-full h-16 flex items-center justify-center">
+      <div className="relative w-full h-16 flex items-center justify-center gap-3">
         <motion.div
-          animate={{ y: [0, -24, 0] }}
+          animate={{ y: [0, -8, 0] }}
           transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-          className="flex items-center gap-2"
         >
-          <motion.div
-            animate={{ rotate: [0, -10, 0] }}
-            transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
-          >
-            <Truck size={32} className="text-[#F59E0B]" />
-          </motion.div>
+          <Truck size={28} className="text-[#F59E0B]" />
         </motion.div>
-        {/* Road line */}
-        <div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-[#2D3748] rounded-full" />
+        <ArrowRight size={16} className="text-slate-400" />
+        <motion.span
+          animate={{ scale: [1, 1.15, 1] }}
+          transition={{ duration: 1.2, repeat: Infinity, ease: 'easeInOut' }}
+          className="text-2xl"
+        >
+          🎟️
+        </motion.span>
       </div>
     );
   }
 
-  // Step 2 - Millas to shopping
+  // Step 2 - Redeem at RedPostventa
   return (
     <div className="relative w-full h-16 flex items-center justify-center">
       <motion.div
-        animate={{ scale: [1, 1.2, 1] }}
+        animate={{ scale: [1, 1.1, 1] }}
         transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
         className="flex items-center gap-2"
       >
-        <motion.div
-          className="w-10 h-10 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#F97316] flex items-center justify-center shadow-lg"
-          animate={{ rotate: [0, 360] }}
-          transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-        >
+        <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#F59E0B] to-[#F97316] flex items-center justify-center shadow-lg">
           <span className="text-slate-900 font-bold text-sm">M</span>
-        </motion.div>
-        <motion.div
-          animate={{ x: [0, 10, 0], opacity: [0, 1, 0] }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-        >
-          <ArrowRight size={16} className="text-[#F59E0B]" />
-        </motion.div>
-        <motion.div
-          animate={{ scale: [0.8, 1, 0.8] }}
-          transition={{ duration: 1.5, repeat: Infinity, ease: 'easeInOut' }}
-          className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#3B82F6] to-[#60A5FA] flex items-center justify-center shadow-lg"
-        >
-          <Gamepad2 size={18} className="text-slate-900" />
-        </motion.div>
+        </div>
+        <ArrowRight size={16} className="text-[#F59E0B]" />
+        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#ff3131] to-[#b91c1c] flex items-center justify-center shadow-lg">
+          <span className="text-white font-bold text-[10px]">RPV</span>
+        </div>
       </motion.div>
     </div>
   );
@@ -1413,7 +1393,7 @@ function AuthScreen({
           animate={{ opacity: 1 }}
           transition={{ delay: 0.2, duration: 0.3 }}
         >
-          Inicia sesion para guardar tus TicaMillas y redimir premios.
+          Inicia sesión para guardar tu progreso y canjear premios vía redpostventa.com.
         </motion.p>
 
         {/* Auth Tabs */}

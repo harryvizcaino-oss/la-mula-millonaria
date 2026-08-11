@@ -27,7 +27,11 @@ export interface SeasonDef {
   endAt: number; // ms epoch
 }
 
-/** Track de 30 niveles: CPS creciente + tickets cada 5 (gratis) / cada 3 (premium). */
+/**
+ * Track de 30 niveles: CPS creciente + tickets cada 5 (gratis) / cada 3 (premium).
+ * Los montos CPS son bases fijas; en claim, `seasonStore.claimLevel` los escala
+ * levemente con clickPower (`SEASON_CPS_K`) para que no queden irrelevantes mid-game.
+ */
 export const SEASON_TRACK: SeasonLevel[] = Array.from({ length: SEASON_MAX_LEVEL }, (_, i) => {
   const level = i + 1;
   const free: SeasonReward =
