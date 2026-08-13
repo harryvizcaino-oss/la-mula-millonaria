@@ -10,6 +10,7 @@
 - **Build:** `npm run build` (Vite build estático a `dist/public`)
 - **Start (Railway):** `npm start` → `vite preview` sirviendo `dist/public` (frontend 100% estático; no hay servidor de API)
 - **Type-check:** `npx tsc -b` (limpio, 0 errores)
+- **Pendientes externos** (AdSense, Credibanco, AdMob/IAP nativo, FCM): [`PENDIENTES-EXTERNOS.md`](./PENDIENTES-EXTERNOS.md)
 
 ## Game Logic (Clicker)
 
@@ -158,7 +159,7 @@ After changing keys, users must hard-refresh (`Cmd + Shift + R`) to discard old 
 - **Catálogo RedPostventa 2.0:** `src/lib/redpostventaCatalog.ts` → `GET {VITE_REDPOSTVENTA_API_URL}/api/agentic/feed?format=native` (default Railway `eco20-web`). Precios `price_cents` → COP; millas con `MILLAS_PER_COP = 10_000`. Si falla → `mockProducts`. Sin Edge Function VTEX. Deep link al PDP (`product.link`). Gift cards CPS locales con códigos `RPV-...`.
 - Products without a COP price are shown but NOT redeemable (CTA "Solo en redpostventa.com").
 - **IAP packs (COP):** catálogo `src/data/iapSkus.ts` (tickets, starter once, ad-free 30d/lifetime, season premium). Store `src/store/iapStore.ts` (`truckSurfers_iap_v1`): `adFreeUntil` / `starterBought`, tope 5 fulfills/día local. Checkout `src/lib/iapCheckout.ts`: si `VITE_IAP_CHECKOUT_URL` está set, POST `{ skuId }` con bearer Supabase y redirige a `checkoutUrl`; si no, mock 800ms + `fulfillSku(..., 'mock')`. Secretos de Credibanco NUNCA en Vite. Migración `011_iap_entitlements.sql`: `game_state.ad_free_until` / `starter_iap_bought` + tabla `iap_orders` (webhook marca paid con service role).
-- **Ads:** `src/lib/adsConfig.ts` — `isAdsEnabled()` es `!iapStore.isAdFree()`. Banner 50px; interstitials mín. 4 min y gracia 60s al abrir sesión. House ad → `/marketplace`. Cliente AdSense opcional `VITE_ADSENSE_CLIENT`.
+- **Ads:** `src/lib/adsConfig.ts` — `isAdsEnabled()` es `!iapStore.isAdFree()`. Banner 50px; interstitials mín. 4 min y gracia 60s al abrir sesión. House ad → `/marketplace`. Cliente AdSense opcional `VITE_ADSENSE_CLIENT`. Producción ads/pagos: `PENDIENTES-EXTERNOS.md`.
 
 ## Navigation (Bottom Navbar)
 
@@ -198,6 +199,7 @@ Items in order:
 - Marketplace colors must stay within red/white/gray/black only.
 - Cash redemption rate is `100_000_000 millas = 10_000 COP`.
 - Always run `npx tsc -b && npm run build` before declaring done.
+- No inventar credenciales de AdSense, Credibanco, AdMob o IAP nativo; lista viva en `PENDIENTES-EXTERNOS.md`.
 - `npx tsc -b` está limpio (0 errores); mantenerlo así. `npm run lint` tiene errores pre-existentes de reglas react-hooks/react-compiler en archivos no relacionados; no añadir nuevos.
 
 ## Epic Features (`src/store/` + `src/components/game/` + `src/styles/epic-features.css`)
