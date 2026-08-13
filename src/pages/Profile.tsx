@@ -35,11 +35,13 @@ import {
   BookOpen,
   Globe2,
   Sparkles,
+  MegaphoneOff,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/lib/utils';
 import { useMillas } from '@/providers/MillasProvider';
 import { useClickerStore } from '@/store/clickerStore';
+import { useIapStore } from '@/store/iapStore';
 import { useAchievementStore, ACHIEVEMENTS, type AchievementReward } from '@/store/achievementStore';
 import { useCustomizationStore } from '@/store/customizationStore';
 import { getTruckVisual } from '@/data/truckSkins';
@@ -259,6 +261,7 @@ export default function Profile() {
   const cpsTotal = useClickerStore((s) => s.cpsTotal);
   const totalClicksLocal = useClickerStore((s) => s.totalClicks);
   const ascensions = useClickerStore((s) => s.ascensions);
+  const isAdFree = useIapStore((s) => s.isAdFree());
   // F16: marco de avatar equipado (pase cosmético)
   const equippedParts = useCustomizationStore((s) => s.equipped);
   const avatarFrameColor = getTruckVisual(equippedParts).frameColor;
@@ -715,6 +718,32 @@ export default function Profile() {
       <Section className="px-4 mt-6" delay={0.5}>
         <h2 className="font-fredoka font-bold text-xl text-slate-900 mb-3">Notificaciones</h2>
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-[0_2px_12px_rgba(0,0,0,0.2)]">
+          {isAdFree ? (
+            <div className="flex items-center gap-3 py-3.5 border-b border-slate-200">
+              <div className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0">
+                <MegaphoneOff size={18} className="text-[#10B981]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-slate-900 text-sm font-semibold">Sin anuncios activo</p>
+                <p className="text-slate-500 text-xs">Las compras se restauran al iniciar sesión</p>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => navigate('/marketplace')}
+              className="w-full flex items-center gap-3 py-3.5 border-b border-slate-200 text-left"
+            >
+              <div className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0">
+                <MegaphoneOff size={18} className="text-[#ff3131]" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-slate-900 text-sm font-semibold">Quitar anuncios</p>
+                <p className="text-slate-500 text-xs">Las compras se restauran al iniciar sesión</p>
+              </div>
+              <ChevronRight size={18} className="text-slate-500" />
+            </button>
+          )}
           {/* Wave 3 (F11): master switch de push del navegador */}
           <div className="flex items-center gap-3 py-3.5 border-b border-slate-200">
             <div className="w-9 h-9 rounded-full bg-white/5 flex items-center justify-center flex-shrink-0">

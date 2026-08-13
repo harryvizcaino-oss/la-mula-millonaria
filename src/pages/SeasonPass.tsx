@@ -1,10 +1,11 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { ArrowLeft, Check, Crown, Gift, Lock, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useSeasonStore } from '@/store/seasonStore';
 import { useClickerStore } from '@/store/clickerStore';
+import { startIapCheckout } from '@/lib/iapCheckout';
 import {
   getCurrentSeason,
   levelForXp,
@@ -40,6 +41,7 @@ export default function SeasonPass() {
   const xpProgress = level >= SEASON_MAX_LEVEL ? 100 : (xpIntoLevel / SEASON_XP_PER_LEVEL) * 100;
   const daysLeft = Math.max(0, Math.ceil((season.endAt - Date.now()) / 86_400_000));
   const canAffordPremium = goldenTickets >= SEASON_PREMIUM_COST_TICKETS;
+  const [copBusy, setCopBusy] = useState(false);
 
   const claimableCount = useMemo(() => {
     let count = 0;
@@ -60,6 +62,17 @@ export default function SeasonPass() {
     if (!canAffordPremium) return;
     const result = useClickerStore.getState().redeemGoldenTickets(SEASON_PREMIUM_COST_TICKETS);
     if (result.success) useSeasonStore.getState().unlockPremium();
+  };
+
+  const handleBuyPremiumCop = async () => {
+    if (copBusy) return;
+    setCopBusy(true);
+    try {
+      // fulfillSku('mula.season.premium') → unlockPremium; live checkout redirige solo.
+      await startIapCheckout('mula.season.premium');
+    } finally {
+      setCopBusy(false);
+    }
   };
 
   return (
@@ -122,25 +135,38 @@ export default function SeasonPass() {
 
       {/* Premium upsell */}
       {!premium && (
-        <div className="mx-4 mt-4 rounded-2xl p-4 border-2 border-[#F59E0B]/50 bg-gradient-to-br from-[#451a03] via-[#78350F] to-[#451a03] flex items-center gap-3">
-          <Crown size={28} className="text-[#FACC15] flex-shrink-0" />
-          <div className="flex-1 min-w-0">
-            <p className="font-fredoka font-black text-white text-sm">Pase Premium</p>
-            <p className="text-[#FDE68A] text-[11px]">
-              Duplica el track: recompensas premium en los {SEASON_MAX_LEVEL} niveles.
-            </p>
+        <div className="mx-4 mt-4 rounded-2xl p-4 border-2 border-[#F59E0B]/50 bg-gradient-to-br from-[#451a03] via-[#78350F] to-[#451a03]">
+          <div className="flex items-center gap-3">
+            <Crown size={28} className="text-[#FACC15] flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="font-fredoka font-black text-white text-sm">Pase Premium</p>
+              <p className="text-[#FDE68A] text-[11px]">
+                Duplica el track: recompensas premium en los {SEASON_MAX_LEVEL} niveles.
+              </p>
+            </div>
+            <button
+              onClick={handleUnlockPremium}
+              disabled={!canAffordPremium}
+              className={cn(
+                'flex-shrink-0 px-3 py-2 rounded-xl font-black text-xs border-b-4 transition-all',
+                canAffordPremium
+                  ? 'bg-gradient-to-b from-[#FACC15] to-[#D97706] text-[#451a03] border-[#92400E] active:translate-y-0.5 active:border-b-0'
+                  : 'bg-slate-700/60 text-slate-400 border-transparent cursor-not-allowed'
+              )}
+            >
+              {SEASON_PREMIUM_COST_TICKETS} 🎟️
+            </button>
           </div>
           <button
-            onClick={handleUnlockPremium}
-            disabled={!canAffordPremium}
+            type="button"
+            onClick={() => void handleBuyPremiumCop()}
+            disabled={copBusy}
             className={cn(
-              'flex-shrink-0 px-3 py-2 rounded-xl font-black text-xs border-b-4 transition-all',
-              canAffordPremium
-                ? 'bg-gradient-to-b from-[#FACC15] to-[#D97706] text-[#451a03] border-[#92400E] active:translate-y-0.5 active:border-b-0'
-                : 'bg-slate-700/60 text-slate-400 border-transparent cursor-not-allowed'
+              'mt-3 w-full py-2 rounded-xl font-black text-xs border border-[#FACC15]/40 text-[#FDE68A] bg-black/20 transition-all',
+              copBusy ? 'opacity-60 cursor-wait' : 'active:translate-y-0.5 hover:bg-black/30'
             )}
           >
-            {SEASON_PREMIUM_COST_TICKETS} 🎟️
+            {copBusy ? 'Procesando…' : 'Comprar con COP $14.900'}
           </button>
         </div>
       )}

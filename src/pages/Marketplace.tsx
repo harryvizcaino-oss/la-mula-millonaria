@@ -39,6 +39,7 @@ import { recordTransaction } from '@/lib/transactions';
 import { RedeemReceipt } from '@/components/game/RedeemReceipt';
 import { CatalogStatusBadge } from '@/components/CatalogStatusBadge';
 import { StoreAgentPanel } from '@/components/game/StoreAgentPanel'; // roadmap-agent
+import { IapRecargarPanel } from '@/components/store/IapRecargarPanel';
 
 /* ═══════════════════════════════════════════════════════════════════
    Constants & Helpers
@@ -842,6 +843,8 @@ export default function Marketplace() {
           <span className="text-white font-fredoka font-bold text-xs">{formatCompact(convertToCop(millas, clicker.goldenTickets))} COP</span>
         </span>
       </motion.div>
+
+      <IapRecargarPanel />
 
       {/* ─── Redime: card única con tabs Efectivo / Gift Cards CPS ─── */}
       <motion.div

@@ -65,6 +65,9 @@ import { TalentTree } from '@/components/game/TalentTree';
 import { AchievementToast } from '@/components/game/AchievementToast';
 import { LootBoxModal } from '@/components/game/LootBoxModal';
 import { AdRewardModal } from '@/components/game/AdRewardModal';
+import { GameAdBanner } from '@/components/game/GameAdBanner';
+import { InterstitialAd } from '@/components/game/InterstitialAd';
+import { useIapStore } from '@/store/iapStore';
 import { RouteMap } from '@/components/game/RouteMap';
 import { useRouteStore } from '@/store/routeStore';
 import { TruckCustomization } from '@/components/game/TruckCustomization';
@@ -274,6 +277,8 @@ export default function Game() {
   const [boom, setBoom] = useState<{ id: number; tierUp: boolean } | null>(null);
   const [showMinigame, setShowMinigame] = useState(false);
   const [roadChallenge, setRoadChallenge] = useState<RoadChallengeOpen | null>(null);
+  const [showInterstitial, setShowInterstitial] = useState(false);
+  const pendingAscensionAdRef = useRef(false);
   const [nowMs, setNowMs] = useState(() => Date.now());
   // V9: barra THICK cargada por clicks (0-100), multiplicador activo y flash "×N ACTIVADO!"
   const [barCharge, setBarCharge] = useState(0);
@@ -1116,6 +1121,19 @@ export default function Game() {
     }
   };
 
+  const tryShowInterstitial = useCallback(() => {
+    const iap = useIapStore.getState();
+    if (!iap.canShowInterstitial()) return;
+    iap.recordInterstitial();
+    setShowInterstitial(true);
+  }, []);
+
+  useEffect(() => {
+    const INTERVAL_MS = 8 * 60 * 1000;
+    const iv = setInterval(() => tryShowInterstitial(), INTERVAL_MS);
+    return () => clearInterval(iv);
+  }, [tryShowInterstitial]);
+
   // Ascensión: el botón abre la cinemática; el reset se aplica a mitad de la cinemática
   const handleAscensionApply = () => {
     const result = store.prestige();
@@ -1128,6 +1146,7 @@ export default function Game() {
       showToast(`¡Ascendiste! +${result.starsGained} ⭐`, '#FACC15');
       triggerHaptic('shake');
       setTimeout(() => setPrestigeResult(null), 3000);
+      pendingAscensionAdRef.current = true;
     }
   };
 
@@ -2229,7 +2248,13 @@ export default function Game() {
         <AscensionCinematic
           ascension={store.ascensions + 1}
           onAscend={handleAscensionApply}
-          onComplete={() => setShowAscension(false)}
+          onComplete={() => {
+            setShowAscension(false);
+            if (pendingAscensionAdRef.current) {
+              pendingAscensionAdRef.current = false;
+              tryShowInterstitial();
+            }
+          }}
         />
       )}
 
@@ -2305,7 +2330,16 @@ export default function Game() {
           setRoadChallenge({ kind, paid: true });
         }}
       />
-      <RoadChallengeModal open={roadChallenge} onClose={() => setRoadChallenge(null)} />
+      <RoadChallengeModal
+        open={roadChallenge}
+        onClose={() => {
+          setRoadChallenge(null);
+          tryShowInterstitial();
+        }}
+      />
+
+      <GameAdBanner />
+      <InterstitialAd open={showInterstitial} onClose={() => setShowInterstitial(false)} />
 
       <GameTutorial
         forceOpen={showTutorial}

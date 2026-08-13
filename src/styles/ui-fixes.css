@@ -1388,3 +1388,26 @@
   0%, 100% { box-shadow: 0 0 15px rgba(231, 76, 60, 0.6); }
   50% { box-shadow: 0 0 25px rgba(231, 76, 60, 0.9); }
 }
+
+/* ---------- Banner de ads en /game (50px sobre el navbar) ---------- */
+.game-ad-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: 40;
+  height: 50px;
+  bottom: calc(86px + env(safe-area-inset-bottom, 0px));
+  background: #0d0e14;
+}
+
+body.game-has-ad-banner {
+  --ad-banner-h: 50px;
+}
+
+body.game-has-ad-banner .arena-bottom-stack {
+  padding-bottom: calc(16px + var(--ad-banner-h) + env(safe-area-inset-bottom, 0px));
+}
+
+body.game-has-ad-banner .fixed:has(.powerup-fab) {
+  bottom: calc(300px + var(--ad-banner-h) + env(safe-area-inset-bottom, 0px)) !important;
+}

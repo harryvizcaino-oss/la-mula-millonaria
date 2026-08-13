@@ -23,6 +23,7 @@ import NotFound from "./pages/NotFound"
 import { ClickerEngine } from './components/ClickerEngine'
 import { useClickerSync } from './hooks/useClickerSync'
 import { useSeasonSync } from './hooks/useSeasonSync'
+import { useIapSync } from './hooks/useIapSync'
 import { useSessionTracker } from './hooks/useSessionTracker'
 
 function ClickerSync() {
@@ -32,6 +33,7 @@ function ClickerSync() {
 
 function SeasonSync() {
   useSeasonSync()
+  useIapSync()
   return null
 }
 

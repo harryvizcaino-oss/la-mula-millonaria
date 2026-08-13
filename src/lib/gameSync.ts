@@ -32,6 +32,9 @@ export interface GameStateRow {
   millas: number;
   streak_days: number;
   last_claim_date: string | null;
+  /** IAP entitlements — owned by iapSync; never written by serializeGameState. */
+  ad_free_until?: string | null;
+  starter_iap_bought?: boolean;
   multiplier_target: number | null;
   bar_fill_percent: number;
   current_multiplier: number;
@@ -51,6 +54,7 @@ function toIsoDate(dayKey: string): string | null {
  * Snapshot completo del clicker store → fila de `game_state`.
  * `millas` NO se incluye a propósito: MillasProvider es dueño de esa columna
  * y la actualiza con upserts parciales para no pisarse entre sí.
+ * `ad_free_until` / `starter_iap_bought` los escribe solo iapSync (upsert parcial).
  */
 export function serializeGameState(userId: string, state: ClickerState) {
   const daily = useDailyStore.getState();
