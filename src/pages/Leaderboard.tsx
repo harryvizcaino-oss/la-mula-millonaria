@@ -114,10 +114,18 @@ function Podium({ players, category }: { players: Player[]; category: CategoryFi
   const [second, first, third] = [top3[1], top3[0], top3[2]];
 
   const positions = [
-    { player: second, rank: 2, height: 'h-[100px]', width: 'w-20', avatarSize: 'w-12 h-12', borderColor: 'border-[#C0C0C0]', badge: assetUrl('/badge-silver.png'), offset: 'translate-y-0' },
-    { player: first, rank: 1, height: 'h-[130px]', width: 'w-24', avatarSize: 'w-16 h-16', borderColor: 'border-[#FFD700]', badge: assetUrl('/badge-gold.png'), offset: '-translate-y-5' },
-    { player: third, rank: 3, height: 'h-[80px]', width: 'w-20', avatarSize: 'w-12 h-12', borderColor: 'border-[#CD7F32]', badge: assetUrl('/badge-bronze.png'), offset: 'translate-y-5' },
-  ];
+    second && { player: second, rank: 2, height: 'h-[100px]', width: 'w-20', avatarSize: 'w-12 h-12', borderColor: 'border-[#C0C0C0]', badge: assetUrl('/badge-silver.png'), offset: 'translate-y-0' },
+    first && { player: first, rank: 1, height: 'h-[130px]', width: 'w-24', avatarSize: 'w-16 h-16', borderColor: 'border-[#FFD700]', badge: assetUrl('/badge-gold.png'), offset: '-translate-y-5' },
+    third && { player: third, rank: 3, height: 'h-[80px]', width: 'w-20', avatarSize: 'w-12 h-12', borderColor: 'border-[#CD7F32]', badge: assetUrl('/badge-bronze.png'), offset: 'translate-y-5' },
+  ].filter((p): p is NonNullable<typeof p> => Boolean(p));
+
+  if (positions.length === 0) {
+    return (
+      <div className="pt-6 pb-4 px-4 text-center text-slate-400 text-sm">
+        Aún no hay jugadores en el ranking.
+      </div>
+    );
+  }
 
   return (
     <div className="flex items-end justify-center gap-3 pt-6 pb-4 px-4">
