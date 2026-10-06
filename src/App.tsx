@@ -1,5 +1,6 @@
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { AnimatePresence, motion } from 'framer-motion'
+import { ReactLenis } from 'lenis/react'
 import Layout from './components/Layout'
 import Home from './pages/Home'
 import Game from './pages/Game'
@@ -84,12 +85,12 @@ function AnimatedRoutes() {
 
 export default function App() {
   return (
-    <>
+    <ReactLenis root options={{ lerp: 0.12, wheelMultiplier: 1, touchMultiplier: 1.5 }}>
       <ClickerEngine />
       <ClickerSync />
       <SeasonSync />
       <SessionTracker />
       <AnimatedRoutes />
-    </>
+    </ReactLenis>
   )
 }
