@@ -660,19 +660,25 @@ export default function Marketplace() {
   const [catalogLoading, setCatalogLoading] = useState(true);
   const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
   const [catalogRaw, setCatalogRaw] = useState<CatalogProduct[]>([]);
+  const [catalogUrl, setCatalogUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
+    const hasQuery = searchQuery.trim().length > 0;
     const timer = setTimeout(() => {
       setCatalogLoading(true);
       void fetchCatalogProducts({
         query: searchQuery.trim() || undefined,
         limit: 50,
+        // Sin búsqueda: pedimos «más buscados» (teaser). Con búsqueda, el feed
+        // ignora `popular` y busca por `q`.
+        popular: !hasQuery,
       }).then((res) => {
         if (cancelled) return;
         if (res) {
           setCatalogRaw(res.products);
           setCatalogProducts(res.products.map(mapCatalogProduct));
+          setCatalogUrl(res.catalogUrl);
           setCatalogOk(true);
         } else {
           setCatalogRaw([]);
@@ -1096,6 +1102,17 @@ export default function Marketplace() {
             {!hasMore && filteredProducts.length > 8 && (
               <p className="text-center text-slate-500 text-xs py-4">No hay mas productos</p>
             )}
+
+            {/* CTA: catálogo completo en redpostventa.com */}
+            <a
+              href={catalogUrl ?? 'https://www.redpostventa.com/comercial'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-4 flex items-center justify-center gap-2 w-full h-12 rounded-2xl bg-[#0D0E14] text-white text-xs font-black uppercase tracking-wider border border-white/10 active:scale-[0.98] transition-transform"
+            >
+              <ExternalLink size={14} />
+              Ver todo el catálogo en redpostventa.com
+            </a>
           </>
         ) : (
           /* ─── Empty State ─── */

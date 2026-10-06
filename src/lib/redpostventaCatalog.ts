@@ -38,12 +38,21 @@ export interface CatalogCategory {
 export interface FetchCatalogOptions {
   /** Búsqueda de texto (`q=`). */
   query?: string;
-  /** Índice inclusivo de inicio (slice local tras el feed). */
+  /**
+   * Índice inclusivo de inicio (slice local tras el feed).
+   * @deprecated El feed RPV ya pagina con `offset`/`limit`; este slice local
+   * solo opera sobre el lote devuelto. Preferir `offset`. Se conserva por
+   * compatibilidad con llamadas existentes.
+   */
   from?: number;
-  /** Índice inclusivo de fin (slice local tras el feed). */
+  /** @deprecated Ver `from`. */
   to?: number;
   /** Máximo de productos a pedir al feed (default 48). */
   limit?: number;
+  /** Paginación real del feed (default 0). */
+  offset?: number;
+  /** Ordena por «más buscados» (señal real del feed). Ignorado si hay `query`. */
+  popular?: boolean;
 }
 
 interface AgenticFeedProduct {
@@ -65,6 +74,21 @@ interface AgenticFeedProduct {
 interface AgenticFeedResponse {
   products?: unknown;
   total?: unknown;
+  has_more?: unknown;
+  offset?: unknown;
+  limit?: unknown;
+  merchant?: unknown;
+}
+
+interface AgenticFeedMerchant {
+  name?: unknown;
+  legal_name?: unknown;
+  url?: unknown;
+  catalog_url?: unknown;
+  country?: unknown;
+  currency?: unknown;
+  locale?: unknown;
+  contact_email?: unknown;
 }
 
 function getApiBase(): string | null {
@@ -146,20 +170,34 @@ export function deriveCategories(products: CatalogProduct[]): CatalogCategory[] 
 }
 
 /**
+ * Resultado del feed: productos + metadatos de paginación y catálogo.
+ * `catalogUrl` es la URL canónica del catálogo (deep link «Ver todo»).
+ */
+export interface CatalogFeedResult {
+  products: CatalogProduct[];
+  /** Conteo real del catálogo filtrado (no products.length). */
+  total: number;
+  /** `true` si hay más páginas tras el `offset`/`limit` actual. */
+  hasMore: boolean;
+  /** URL canónica del catálogo en redpostventa.com, si el feed la publica. */
+  catalogUrl: string | null;
+}
+
+/**
  * Productos del catálogo real vía feed agéntico.
  * `null` = catálogo no disponible (usar mocks).
  */
 export async function fetchCatalogProducts(
   opts: FetchCatalogOptions = {},
-): Promise<{ products: CatalogProduct[]; total: number } | null> {
+): Promise<CatalogFeedResult | null> {
   const base = getApiBase();
   if (!base) return null;
 
   const params = new URLSearchParams({ format: 'native' });
-  const limitFromRange =
-    opts.from != null && opts.to != null ? Math.max(1, opts.to - opts.from + 1) : undefined;
-  const limit = opts.limit ?? limitFromRange ?? 48;
-  params.set('limit', String(Math.max(1, Math.min(limit, 200))));
+  const limit = opts.limit ?? 48;
+  params.set('limit', String(Math.max(1, Math.min(limit, 1000))));
+  if (opts.offset != null && opts.offset > 0) params.set('offset', String(opts.offset));
+  if (opts.popular && !opts.query?.trim()) params.set('sort', 'popular');
   if (opts.query?.trim()) params.set('q', opts.query.trim());
 
   try {
@@ -176,6 +214,8 @@ export async function fetchCatalogProducts(
       if (mapped) products.push(mapped);
     }
 
+    // `from`/`to` (legacy) operan sobre el lote ya devuelto; para paginación
+    // real usa `offset`. Se conserva solo por compatibilidad.
     const sliced =
       opts.from != null || opts.to != null
         ? products.slice(opts.from ?? 0, (opts.to ?? products.length - 1) + 1)
@@ -186,7 +226,12 @@ export async function fetchCatalogProducts(
         ? data.total
         : sliced.length;
 
-    return { products: sliced, total };
+    const hasMore = typeof data.has_more === 'boolean' ? data.has_more : false;
+    const merchant = (data.merchant ?? {}) as AgenticFeedMerchant;
+    const catalogUrl =
+      asString(merchant.catalog_url) ?? asString(merchant.url) ?? null;
+
+    return { products: sliced, total, hasMore, catalogUrl };
   } catch {
     return null;
   }

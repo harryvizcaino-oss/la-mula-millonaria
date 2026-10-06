@@ -483,7 +483,7 @@ function MarketplacePreviewSection() {
 
   useEffect(() => {
     let cancelled = false;
-    void fetchCatalogProducts({ from: 0, to: 3, limit: 4 }).then((res) => {
+    void fetchCatalogProducts({ limit: 4, popular: true }).then((res) => {
       if (cancelled) return;
       if (res && res.products.length > 0) {
         setProducts(
