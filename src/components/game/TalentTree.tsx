@@ -19,6 +19,7 @@ interface TalentTreeProps {
 /** Árbol de talentos del camionero: 4 ramas × 3 niveles, se compra con ⭐ de prestigio. */
 export function TalentTree({ onBuy, onOverdrive }: TalentTreeProps) {
   const stars = useClickerStore((s) => s.stars);
+  const spendStars = useClickerStore((s) => s.spendStars);
   const levels = useTalentStore((s) => s.levels);
   const overdriveLevel = useTalentStore((s) => s.overdriveLevel);
   const buy = useTalentStore((s) => s.buy);
@@ -71,7 +72,15 @@ export function TalentTree({ onBuy, onOverdrive }: TalentTreeProps) {
                       )}
                       <motion.button
                         whileTap={{ scale: canBuy ? 0.92 : 1 }}
-                        onClick={() => canBuy && onBuy(talent, buy(talent.id))}
+                        onClick={() => {
+                          if (!canBuy) return;
+                          // Cobra las estrellas ANTES de aplicar la compra
+                          if (!spendStars(talent.cost)) {
+                            onBuy(talent, { success: false, reason: 'Estrellas insuficientes' });
+                            return;
+                          }
+                          onBuy(talent, buy(talent.id));
+                        }}
                         disabled={!canBuy}
                         title={`${talent.name}: ${talent.description} · ${talent.cost} ⭐`}
                         className={cn(
@@ -161,7 +170,11 @@ export function TalentTree({ onBuy, onOverdrive }: TalentTreeProps) {
             disabled={!overdriveReady || stars < overdriveCost}
             onClick={() => {
               if (!overdriveReady) return;
-              // buyOverdrive cobra estrellas internamente
+              // Cobra las estrellas ANTES de aplicar la compra
+              if (!spendStars(overdriveCost)) {
+                onOverdrive?.({ success: false, reason: 'Estrellas insuficientes', cost: overdriveCost });
+                return;
+              }
               onOverdrive?.(buyOverdrive());
             }}
             className={cn(

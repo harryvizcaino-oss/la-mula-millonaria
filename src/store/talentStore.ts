@@ -1,6 +1,5 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { useClickerStore } from '@/store/clickerStore';
 
 const TALENT_STORAGE_KEY = 'truckSurfers_talents_v1';
 
@@ -113,8 +112,16 @@ export interface TalentState {
   /** Niveles infinitos post-max: +1% click permanente c/u. Persistido en la misma key. */
   overdriveLevel: number;
 
-  buy: (talentId: string) => { success: boolean; reason?: string };
-  /** Sink post-talentos: gasta estrellas crecientes por +1% click permanente. */
+  /**
+   * Valida la compra de un talento (prerequisitos + no comprado) y la aplica.
+   * NO cobra estrellas: el cobro lo hace el caller vía clickerStore.spendStars.
+   * Devuelve el `cost` para que el caller lo cobre antes de aplicar.
+   */
+  buy: (talentId: string) => { success: boolean; reason?: string; cost?: number };
+  /**
+   * Sink post-talentos: +1% click permanente por nivel.
+   * NO cobra estrellas; devuelve `cost`/`level` para que el caller cobre.
+   */
   buyOverdrive: () => { success: boolean; reason?: string; cost?: number; level?: number };
   getOverdriveLevel: () => number;
 }
@@ -137,12 +144,8 @@ export const useTalentStore = create<TalentState>()(
             return { success: false, reason: 'Compra el nivel anterior primero' };
           }
         }
-        // Se paga con estrellas de prestigio del clickerStore
-        if (!useClickerStore.getState().spendStars(talent.cost)) {
-          return { success: false, reason: 'Estrellas insuficientes' };
-        }
         set({ levels: { ...state.levels, [talentId]: talent.level } });
-        return { success: true };
+        return { success: true, cost: talent.cost };
       },
 
       buyOverdrive: () => {
@@ -152,9 +155,6 @@ export const useTalentStore = create<TalentState>()(
         }
         const level = state.overdriveLevel ?? 0;
         const cost = getOverdriveCost(level);
-        if (!useClickerStore.getState().spendStars(cost)) {
-          return { success: false, reason: 'Estrellas insuficientes', cost };
-        }
         const next = level + 1;
         set({ overdriveLevel: next });
         return { success: true, cost, level: next };
