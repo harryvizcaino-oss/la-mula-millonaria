@@ -63,7 +63,7 @@ update public.profiles
 set role = 'owner'
 where id = (
   select id from auth.users
-  where email = 'harry@autofleet.com'
+  where email = 'harry.vizcaino@tiendacamion.com'
   limit 1
 );
 
