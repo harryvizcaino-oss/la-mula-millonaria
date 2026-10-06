@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useSyncExternalStore } from 'react';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 export interface DailyRankEntry {
@@ -15,128 +15,163 @@ interface DailyRankState {
   loading: boolean;
 }
 
+const EMPTY: DailyRankState = { top: [], myRank: null, totalPlayers: 0, loading: true };
+
 /**
- * Ranking diario mundial en tiempo real (cps_day).
- * Se suscribe a `postgres_changes` en `leaderboard_global` con debounce de 2s
- * para no saturar la UI cuando muchos jugadores actualizan simultáneamente.
+ * Suscripción global ÚNICA al ranking diario (singleton).
+ *
+ * El canal de Supabase Realtime NO se puede suscribir dos veces con el mismo
+ * nombre: el segundo `.on('postgres_changes')` lanza "cannot add callbacks
+ * after subscribe()" y rompe el render de /game. Aquí mantenemos un solo
+ * canal compartido y una lista de listeners; cada `useDailyRank` se engancha
+ * a esa única fuente, sin crear canales duplicados.
  */
-export function useDailyRank(userId: string | undefined) {
-  const [state, setState] = useState<DailyRankState>({
-    top: [],
-    myRank: null,
-    totalPlayers: 0,
-    loading: true,
-  });
 
-  const load = useCallback(async () => {
-    if (!isSupabaseConfigured) return;
+type Listener = () => void;
 
-    try {
-      // Top 10 del día
-      const topResult = await supabase
+let state: DailyRankState = EMPTY;
+const listeners = new Set<Listener>();
+let channel: ReturnType<typeof supabase.channel> | null = null;
+let started = false;
+let userId: string | undefined;
+let poll: ReturnType<typeof setInterval> | null = null;
+let debounce: ReturnType<typeof setTimeout> | null = null;
+
+function emit() {
+  for (const l of listeners) l();
+}
+
+function setState(next: DailyRankState) {
+  state = next;
+  emit();
+}
+
+function snapshot(): DailyRankState {
+  return state;
+}
+
+function subscribe(listener: Listener): () => void {
+  listeners.add(listener);
+  if (listeners.size === 1) start();
+  return () => {
+    listeners.delete(listener);
+    if (listeners.size === 0) stop();
+  };
+}
+
+function stop() {
+  if (poll) {
+    clearInterval(poll);
+    poll = null;
+  }
+  if (debounce) {
+    clearTimeout(debounce);
+    debounce = null;
+  }
+  if (channel) {
+    void supabase.removeChannel(channel);
+    channel = null;
+  }
+  started = false;
+}
+
+async function load() {
+  if (!isSupabaseConfigured) {
+    setState({ top: [], myRank: null, totalPlayers: 0, loading: false });
+    return;
+  }
+
+  try {
+    const topResult = await supabase
+      .from('leaderboard_global')
+      .select('user_id, username, avatar_url, cps_day')
+      .order('cps_day', { ascending: false })
+      .limit(10);
+
+    let topData = (topResult.data ?? []) as DailyRankEntry[];
+    if (topResult.error) {
+      const fallback = await supabase
         .from('leaderboard_global')
-        .select('user_id, username, avatar_url, cps_day')
-        .order('cps_day', { ascending: false })
+        .select('user_id, username, avatar_url, cps_total')
+        .order('cps_total', { ascending: false })
         .limit(10);
+      topData = (fallback.data ?? []).map((row) => ({
+        user_id: row.user_id,
+        username: row.username,
+        avatar_url: row.avatar_url,
+        cps_day: row.cps_total,
+      })) as DailyRankEntry[];
+    }
 
-      // Fallback silencioso a cps_total si cps_day aún no existe
-      let topData = (topResult.data ?? []) as DailyRankEntry[];
-      if (topResult.error) {
-        const fallback = await supabase
-          .from('leaderboard_global')
-          .select('user_id, username, avatar_url, cps_total')
-          .order('cps_total', { ascending: false })
-          .limit(10);
-        topData = (fallback.data ?? []).map((row) => ({
-          user_id: row.user_id,
-          username: row.username,
-          avatar_url: row.avatar_url,
-          cps_day: row.cps_total,
-        })) as DailyRankEntry[];
-      }
+    let totalPlayers = 0;
+    try {
+      const countResult = await supabase
+        .from('leaderboard_global')
+        .select('*', { count: 'exact', head: true })
+        .gt('cps_day', 0);
+      totalPlayers = countResult.count ?? 0;
+    } catch {
+      const fallbackCount = await supabase
+        .from('leaderboard_global')
+        .select('*', { count: 'exact', head: true });
+      totalPlayers = fallbackCount.count ?? 0;
+    }
 
-      // Total de jugadores activos hoy
-      let totalPlayers = 0;
+    let myRank: number | null = null;
+    if (userId) {
       try {
-        const countResult = await supabase
+        const meResult = await supabase
+          .from('leaderboard_global')
+          .select('cps_day')
+          .eq('user_id', userId)
+          .maybeSingle();
+        const myCpsDay = meResult.data?.cps_day ?? 0;
+        const rankResult = await supabase
           .from('leaderboard_global')
           .select('*', { count: 'exact', head: true })
-          .gt('cps_day', 0);
-        totalPlayers = countResult.count ?? 0;
+          .gt('cps_day', myCpsDay);
+        myRank = (rankResult.count ?? 0) + 1;
       } catch {
-        // cps_day puede no existir aún; fallback a total de jugadores
-        const fallbackCount = await supabase
-          .from('leaderboard_global')
-          .select('*', { count: 'exact', head: true });
-        totalPlayers = fallbackCount.count ?? 0;
+        myRank = null;
       }
-
-      // Mi posición (cuántos tienen más CPS hoy que yo)
-      let myRank: number | null = null;
-      if (userId) {
-        try {
-          const meResult = await supabase
-            .from('leaderboard_global')
-            .select('cps_day')
-            .eq('user_id', userId)
-            .maybeSingle();
-          const myCpsDay = meResult.data?.cps_day ?? 0;
-          const rankResult = await supabase
-            .from('leaderboard_global')
-            .select('*', { count: 'exact', head: true })
-            .gt('cps_day', myCpsDay);
-          myRank = (rankResult.count ?? 0) + 1;
-        } catch {
-          // Si falla (columna no existe, error de red), no mostramos rank
-          myRank = null;
-        }
-      }
-
-      setState({
-        top: topData as DailyRankEntry[],
-        myRank,
-        totalPlayers,
-        loading: false,
-      });
-    } catch (err) {
-      console.error('[useDailyRank] Failed to load:', err);
-      setState((prev) => ({ ...prev, loading: false }));
     }
-  }, [userId]);
 
-  useEffect(() => {
-    if (!isSupabaseConfigured) return;
-    let cancelled = false;
-    let debounce: ReturnType<typeof setTimeout> | null = null;
+    setState({ top: topData, myRank, totalPlayers, loading: false });
+  } catch (err) {
+    console.error('[useDailyRank] Failed to load:', err);
+    setState({ ...snapshot(), loading: false });
+  }
+}
 
-    const safeLoad = () => {
-      if (!cancelled) void load();
-    };
+function start() {
+  if (started) return;
+  started = true;
 
-    safeLoad();
-
-    const channel = supabase
+  if (isSupabaseConfigured) {
+    channel = supabase
       .channel('daily_rank_changes')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'leaderboard_global' },
         () => {
           if (debounce) clearTimeout(debounce);
-          debounce = setTimeout(safeLoad, 2000);
+          debounce = setTimeout(() => void load(), 2000);
         }
       )
       .subscribe();
+  }
 
-    // Poll de respaldo cada 30s
-    const poll = setInterval(safeLoad, 30000);
+  void load();
 
-    return () => {
-      cancelled = true;
-      if (debounce) clearTimeout(debounce);
-      clearInterval(poll);
-      void supabase.removeChannel(channel);
-    };
-  }, [load]);
+  // Poll de respaldo cada 30s
+  poll = setInterval(() => void load(), 30_000);
+}
 
-  return state;
+export function useDailyRank(currentUserId: string | undefined) {
+  // Actualiza el userId global (para el cálculo de myRank en el singleton)
+  userId = currentUserId;
+
+  // useSyncExternalStore arranca la suscripción única al montar el primer
+  // listener y la detiene al desmontar el último.
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
