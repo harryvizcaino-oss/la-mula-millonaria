@@ -8,6 +8,8 @@
  * devuelve false y la UI cae a sus toasts internos (comportamiento actual).
  */
 
+import { assetUrl } from '@/lib/assetUrl';
+
 const PUSH_SETTINGS_KEY = 'truckSurfers_push_v1';
 
 export type PushType = 'daily' | 'combo' | 'events' | 'league';
@@ -78,7 +80,7 @@ export function notifyPush(type: PushType, title: string, body: string): boolean
     new Notification(title, {
       body,
       tag: `mula-${type}`,
-      icon: '/badge-gold.png',
+      icon: assetUrl('/badge-gold.png'),
     });
     return true;
   } catch {

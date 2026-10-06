@@ -25,6 +25,13 @@ import { GameTutorial } from '@/components/GameTutorial';
 import { FLEET_VEHICLES } from '@/data/fleetVehicles';
 import { supabase } from '@/lib/supabase';
 import { fetchCatalogProducts } from '@/lib/redpostventaCatalog';
+import { Skeleton } from '@/components/ui/skeleton';
+import { assetUrl } from '@/lib/assetUrl';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+} from '@/components/ui/carousel';
 
 const HOME_MILLAS_PER_COP = 10_000;
 
@@ -535,60 +542,68 @@ function MarketplacePreviewSection() {
         {loading ? (
           <div className="space-y-3">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-[76px] rounded-2xl bg-white/5 animate-pulse" />
+              <Skeleton key={i} className="h-[76px] rounded-2xl" />
             ))}
           </div>
         ) : (
-          products.slice(0, 3).map((product) => (
-            <button
-              key={product.id}
-              onClick={() => navigate('/marketplace')}
-              className="w-full text-left bg-white rounded-2xl p-3 flex items-center gap-3 shadow-sm active:scale-[0.98] transition-transform hover:shadow-md"
-            >
-              <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0">
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
-                />
-              </div>
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-slate-900 text-sm leading-tight line-clamp-2">
-                  {product.name}
-                </h3>
-                <p className="text-slate-500 text-[11px] mt-0.5">{product.brand}</p>
-                <div className="flex items-center gap-2 mt-1">
-                  {product.redeemable ? (
-                    <>
-                      {product.priceCOP != null && (
-                        <span className="text-slate-400 text-[11px] line-through">
-                          ${product.priceCOP.toLocaleString('es-CO')}
+          <Carousel
+            opts={{ align: 'start', loop: products.length > 2 }}
+            className="w-full"
+          >
+            <CarouselContent className="-ml-3">
+              {products.slice(0, 6).map((product) => (
+                <CarouselItem key={product.id} className="pl-3 basis-[82%] sm:basis-[48%]">
+                  <button
+                    onClick={() => navigate('/marketplace')}
+                    className="w-full text-left bg-white rounded-2xl p-3 flex items-center gap-3 shadow-sm active:scale-[0.98] transition-transform hover:shadow-md h-full"
+                  >
+                    <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 flex-shrink-0">
+                      <img
+                        src={product.image}
+                        alt={product.name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-slate-900 text-sm leading-tight line-clamp-2">
+                        {product.name}
+                      </h3>
+                      <p className="text-slate-500 text-[11px] mt-0.5">{product.brand}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {product.redeemable ? (
+                          <>
+                            {product.priceCOP != null && (
+                              <span className="text-slate-400 text-[11px] line-through">
+                                ${product.priceCOP.toLocaleString('es-CO')}
+                              </span>
+                            )}
+                            <span className="text-[#ff3131] font-bold text-sm">
+                              {product.millasCost.toLocaleString('es-CO')} M
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-[#ff3131] text-xs font-bold">Solo en redpostventa.com</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex-shrink-0 text-right pl-2">
+                      {product.redeemable && millas >= product.millasCost ? (
+                        <span className="text-[10px] font-bold text-[#10B981]">Puedes redimirlo!</span>
+                      ) : product.redeemable ? (
+                        <span className="text-[10px] text-slate-500">
+                          Te faltan<br />{Math.max(0, product.millasCost - millas).toLocaleString('es-CO')} M
                         </span>
-                      )}
-                      <span className="text-[#ff3131] font-bold text-sm">
-                        {product.millasCost.toLocaleString('es-CO')} M
-                      </span>
-                    </>
-                  ) : (
-                    <span className="text-[#ff3131] text-xs font-bold">Solo en redpostventa.com</span>
-                  )}
-                </div>
-              </div>
-              <div className="flex-shrink-0 text-right pl-2">
-                {product.redeemable && millas >= product.millasCost ? (
-                  <span className="text-[10px] font-bold text-[#10B981]">Puedes redimirlo!</span>
-                ) : product.redeemable ? (
-                  <span className="text-[10px] text-slate-500">
-                    Te faltan<br />{Math.max(0, product.millasCost - millas).toLocaleString('es-CO')} M
-                  </span>
-                ) : null}
-                <div className="mt-1.5 w-8 h-8 rounded-full bg-gradient-to-br from-[#ff3131] to-[#b91c1c] flex items-center justify-center shadow-md">
-                  <ArrowRight size={14} className="text-white" />
-                </div>
-              </div>
-            </button>
-          ))
+                      ) : null}
+                      <div className="mt-1.5 w-8 h-8 rounded-full bg-gradient-to-br from-[#ff3131] to-[#b91c1c] flex items-center justify-center shadow-md">
+                        <ArrowRight size={14} className="text-white" />
+                      </div>
+                    </div>
+                  </button>
+                </CarouselItem>
+              ))}
+            </CarouselContent>
+          </Carousel>
         )}
       </motion.div>
     </section>
@@ -784,16 +799,16 @@ function LeaderboardSneakPeekSection() {
         if (error || !data || data.length === 0) {
           // Fallback a datos hardcodeados si no hay datos
           setTopPlayers([
-            { rank: 2, name: 'AnaR23', score: 38940, avatar: '/badge-silver.png', borderColor: '#C0C0C0', size: 'sm' },
-            { rank: 1, name: 'CarlosM', score: 45230, avatar: '/badge-gold.png', borderColor: '#FFD700', size: 'lg' },
-            { rank: 3, name: 'TruckKing', score: 31200, avatar: '/badge-bronze.png', borderColor: '#CD7F32', size: 'sm' },
+            { rank: 2, name: 'AnaR23', score: 38940, avatar: assetUrl('/badge-silver.png'), borderColor: '#C0C0C0', size: 'sm' },
+            { rank: 1, name: 'CarlosM', score: 45230, avatar: assetUrl('/badge-gold.png'), borderColor: '#FFD700', size: 'lg' },
+            { rank: 3, name: 'TruckKing', score: 31200, avatar: assetUrl('/badge-bronze.png'), borderColor: '#CD7F32', size: 'sm' },
           ]);
           return;
         }
 
         const players = data.map((entry, i) => {
           const rank = i + 1;
-          const badges = ['/badge-gold.png', '/badge-silver.png', '/badge-bronze.png'];
+          const badges = [assetUrl('/badge-gold.png'), assetUrl('/badge-silver.png'), assetUrl('/badge-bronze.png')];
           const colors = ['#FFD700', '#C0C0C0', '#CD7F32'];
           return {
             rank,

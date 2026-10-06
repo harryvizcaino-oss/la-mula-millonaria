@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import confetti from 'canvas-confetti';
+import { assetUrl } from '@/lib/assetUrl';
 
 export interface BoomTrigger {
   id: number;
@@ -61,7 +62,7 @@ export function BoomEffect({ trigger }: BoomEffectProps) {
 
           {/* Explosión PNG: scale 0.3→1.2→1→1.5, opacity 0→1→1→0, 1.2s */}
           <motion.img
-            src="/assets/efecto_boom_poder_activado.png"
+            src={assetUrl('/assets/efecto_boom_poder_activado.png')}
             alt=""
             draggable={false}
             initial={{ scale: 0.3, opacity: 0 }}

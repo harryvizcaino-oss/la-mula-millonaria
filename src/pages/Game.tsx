@@ -54,6 +54,8 @@ import { PowerupMenu } from '@/components/game/PowerupMenu';
 import { SponsorPowerCard } from '@/components/game/SponsorPowerCard';
 import { FleetVehicleCard } from '@/components/game/FleetVehicleCard';
 import { FloatingNumber } from '@/components/game/FloatingNumber';
+import { RolloverNumber } from '@/components/game/RolloverNumber';
+import { RadialGauge } from '@/components/game/RadialGauge';
 import { BoomEffect } from '@/components/game/BoomEffect';
 import { MinigameModal } from '@/components/game/MinigameModal';
 import {
@@ -84,6 +86,7 @@ import type { SessionRewardSet } from '@/data/sessionRewards';
 
 import { useTruckHorn } from '@/hooks/useTruckHorn';
 import { getTruckAsset } from '@/data/truckAssets';
+import { assetUrl } from '@/lib/assetUrl';
 
 interface FloatingNumberEntry {
   id: number;
@@ -264,6 +267,7 @@ export default function Game() {
   const [ticketBurst, setTicketBurst] = useState(false);
   const [autoclickRemaining, setAutoclickRemaining] = useState(0);
   const [truckTilt, setTruckTilt] = useState({ rotateX: 0, rotateY: 0 });
+  const [bokehShift, setBokehShift] = useState({ x: 0, y: 0 });
   const [shockwaves, setShockwaves] = useState<{ id: number; x: number; y: number }[]>([]);
   const [exhaustPuffs, setExhaustPuffs] = useState<{ id: number; x: number; y: number; scale: number; opacity: number }[]>([]);
   const [milestone, setMilestone] = useState(false);
@@ -913,10 +917,13 @@ export default function Game() {
       rotateX: -percentY * 14,
       rotateY: percentX * 14,
     });
+    // Parallax atmosférico: los bokeh se mueven en sentido contrario al camión.
+    setBokehShift({ x: -percentX * 14, y: -percentY * 10 });
   }, []);
 
   const handlePointerLeave = useCallback(() => {
     setTruckTilt({ rotateX: 0, rotateY: 0 });
+    setBokehShift({ x: 0, y: 0 });
   }, []);
 
   const handleTruckClick = useCallback(
@@ -1230,6 +1237,12 @@ export default function Game() {
     });
   }, [store.powerLevels, store.cpsBalance]);
 
+  // Niveles totales comprados (para el gauge radial de la pestaña Poderes)
+  const totalPowerLevels = useMemo(
+    () => SPONSOR_POWERS.reduce((sum, p) => sum + (store.powerLevels[p.id] || 0), 0),
+    [store.powerLevels]
+  );
+
   // Flota: multiplicadores comprados con Golden Tickets
   const fleetView = useMemo(() => {
     return FLEET_VEHICLES.map((v) => {
@@ -1323,13 +1336,17 @@ export default function Game() {
             </AnimatePresence>
 
             {/* Atmospheric background layers (más sutiles sobre el fondo) */}
-            <div className="game-bg game-bg--subtle !absolute !inset-0 !z-[2]">
+            <motion.div
+              className="game-bg game-bg--subtle !absolute !inset-0 !z-[2]"
+              animate={{ x: bokehShift.x, y: bokehShift.y }}
+              transition={{ type: 'spring', stiffness: 60, damping: 20 }}
+            >
               <div className="bg-glow" />
               <div className="bg-bokeh bg-bokeh--gold" />
               <div className="bg-bokeh bg-bokeh--blue" />
               <div className="bg-bokeh bg-bokeh--orange" />
               <div className="bg-noise" />
-            </div>
+            </motion.div>
 
             {/* Indicadores flotantes (sin header: el fondo llega al borde superior) */}
             <div className="absolute top-2 left-0 right-0 z-[8] flex items-center justify-between gap-1.5 px-3 pointer-events-none">
@@ -1475,7 +1492,7 @@ export default function Game() {
                       ['--cv-dur' as string]: `${3.2 + (i % 3) * 0.9}s`,
                     }}
                   >
-                    <img src="/assets/camion_base_orange_front.png" alt="" draggable={false} />
+                    <img src={assetUrl('/assets/camion_base_orange_front.png')} alt="" draggable={false} />
                   </span>
                 ))}
               </div>
@@ -1539,15 +1556,16 @@ export default function Game() {
                   nitroActive && 'nitro-counter'
                 )}
               >
-                <span
+                <RolloverNumber
+                  value={store.cpsBalance}
+                  duration={450}
                   className={cn(
                     'cps-counter-value',
                     milestone && 'counter-milestone',
                     counterBlur && 'cps-counter-blur'
                   )}
-                >
-                  {formatFull(store.cpsBalance)}
-                </span>
+                  format={formatFull}
+                />
                 {/* V15: badge pequeño del multiplicador actual ligado a la barra */}
                 {barMultActive && (
                   <span className="cps-multiplier-badge">
@@ -1806,7 +1824,7 @@ export default function Game() {
                     onClick={(e) => e.stopPropagation()}
                   >
                     <img
-                      src="/assets/anuncio_xN_activado.png"
+                      src={assetUrl('/assets/anuncio_xN_activado.png')}
                       alt="Poder activado"
                       className="epic-announcement-img"
                     />
@@ -2059,10 +2077,17 @@ export default function Game() {
 
         {activeTab === 'upgrades' && (
           <>
-            <p className="text-slate-500 text-[11px] px-1">
-              Cada nivel suma verdes según la <span className="font-black text-slate-700">marca patrocinadora</span> actual.
-              Sube 10 niveles para desbloquear la siguiente marca.
-            </p>
+            <div className="flex items-center gap-3 mb-3">
+              <RadialGauge
+                progress={totalPowerLevels / (SPONSOR_POWERS.length * MAX_SPONSOR_LEVEL)}
+                centerLabel={`Nv ${totalPowerLevels}`}
+                subLabel={`de ${SPONSOR_POWERS.length * MAX_SPONSOR_LEVEL}`}
+              />
+              <p className="text-slate-500 text-[11px] flex-1">
+                Cada nivel suma verdes según la <span className="font-black text-slate-700">marca patrocinadora</span> actual.
+                Sube 10 niveles para desbloquear la siguiente marca.
+              </p>
+            </div>
             {powersView.map((p, idx) => (
               <SponsorPowerCard
                 key={p.power.id}

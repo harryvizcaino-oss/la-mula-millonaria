@@ -1,3 +1,5 @@
+import { assetUrl } from '@/lib/assetUrl';
+
 export interface BrandPartner {
   id: number;
   name: string;
@@ -16,7 +18,7 @@ export const brandPartners: BrandPartner[] = [
   {
     id: 1,
     name: 'Transportes del Norte',
-    logo: '/brand-logo-norte.png',
+    logo: assetUrl('/brand-logo-norte.png'),
     tagline: 'Conectando el pais, kilometro a kilometro',
     color: '#1E40AF',
     tier: 'Oro',
@@ -29,7 +31,7 @@ export const brandPartners: BrandPartner[] = [
   {
     id: 2,
     name: 'Carga Express',
-    logo: '/brand-logo-express.png',
+    logo: assetUrl('/brand-logo-express.png'),
     tagline: 'Rapidez y seguridad en cada envio',
     color: '#DC2626',
     tier: 'Oro',
@@ -42,7 +44,7 @@ export const brandPartners: BrandPartner[] = [
   {
     id: 3,
     name: 'Logistica Andina',
-    logo: '/brand-logo-andina.png',
+    logo: assetUrl('/brand-logo-andina.png'),
     tagline: 'Soluciones logisticas sostenibles',
     color: '#059669',
     tier: 'Plata',
@@ -55,7 +57,7 @@ export const brandPartners: BrandPartner[] = [
   {
     id: 4,
     name: 'EcoTransporte',
-    logo: '/brand-logo-eco.png',
+    logo: assetUrl('/brand-logo-eco.png'),
     tagline: 'Transporte eco-amigable del futuro',
     color: '#10B981',
     tier: 'Plata',
@@ -68,7 +70,7 @@ export const brandPartners: BrandPartner[] = [
   {
     id: 5,
     name: 'Transporte Veloz',
-    logo: '/brand-logo-veloz.png',
+    logo: assetUrl('/brand-logo-veloz.png'),
     tagline: 'Velocidad que cumple',
     color: '#EA580C',
     tier: 'Bronce',
@@ -81,7 +83,7 @@ export const brandPartners: BrandPartner[] = [
   {
     id: 6,
     name: 'El Camion',
-    logo: '/brand-logo-camion.png',
+    logo: assetUrl('/brand-logo-camion.png'),
     tagline: 'El amigo de tu carga',
     color: '#EAB308',
     tier: 'Bronce',

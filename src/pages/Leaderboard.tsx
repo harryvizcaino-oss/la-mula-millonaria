@@ -15,6 +15,7 @@ import {
   TrendingDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { assetUrl } from '@/lib/assetUrl';
 import { mockPlayers, mockCurrentUser, weeklyPrizes } from '@/data/mockLeaderboard';
 import type { Player } from '@/data/mockLeaderboard';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -113,9 +114,9 @@ function Podium({ players, category }: { players: Player[]; category: CategoryFi
   const [second, first, third] = [top3[1], top3[0], top3[2]];
 
   const positions = [
-    { player: second, rank: 2, height: 'h-[100px]', width: 'w-20', avatarSize: 'w-12 h-12', borderColor: 'border-[#C0C0C0]', badge: '/badge-silver.png', offset: 'translate-y-0' },
-    { player: first, rank: 1, height: 'h-[130px]', width: 'w-24', avatarSize: 'w-16 h-16', borderColor: 'border-[#FFD700]', badge: '/badge-gold.png', offset: '-translate-y-5' },
-    { player: third, rank: 3, height: 'h-[80px]', width: 'w-20', avatarSize: 'w-12 h-12', borderColor: 'border-[#CD7F32]', badge: '/badge-bronze.png', offset: 'translate-y-5' },
+    { player: second, rank: 2, height: 'h-[100px]', width: 'w-20', avatarSize: 'w-12 h-12', borderColor: 'border-[#C0C0C0]', badge: assetUrl('/badge-silver.png'), offset: 'translate-y-0' },
+    { player: first, rank: 1, height: 'h-[130px]', width: 'w-24', avatarSize: 'w-16 h-16', borderColor: 'border-[#FFD700]', badge: assetUrl('/badge-gold.png'), offset: '-translate-y-5' },
+    { player: third, rank: 3, height: 'h-[80px]', width: 'w-20', avatarSize: 'w-12 h-12', borderColor: 'border-[#CD7F32]', badge: assetUrl('/badge-bronze.png'), offset: 'translate-y-5' },
   ];
 
   return (

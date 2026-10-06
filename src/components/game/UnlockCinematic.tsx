@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useUnlockStore, type PendingCinematic } from '@/store/unlockStore';
+import { assetUrl } from '@/lib/assetUrl';
 
 const DURATIONS: Record<PendingCinematic['type'], number> = {
   small: 3000,
@@ -132,7 +133,7 @@ export function UnlockCinematic() {
             <div className="unlock-descend flex flex-col items-center">
               <span className="text-4xl">🪂</span>
               <img
-                src="/assets/camion_base_orange_front.png"
+                src={assetUrl("/assets/camion_base_orange_front.png")}
                 alt="Tractomula"
                 draggable={false}
                 className="drop-shadow-[0_0_36px_rgba(250,204,21,0.95)]"

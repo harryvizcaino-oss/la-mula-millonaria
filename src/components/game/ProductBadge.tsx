@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils';
+import { assetUrl } from '@/lib/assetUrl';
 
 // Spritesheet de badges de producto. El archivo real mide 1536×1024
 // (5 columnas × 2 filas → celda de 307.2×512), no 1280×512 como se
@@ -36,7 +37,7 @@ export function ProductBadge({ index, size = 48, className }: ProductBadgeProps)
       style={{
         width: size,
         height: size,
-        backgroundImage: "url('/assets/assets_10_badges_productos.png')",
+        backgroundImage: `url('${assetUrl('/assets/assets_10_badges_productos.png')}')`,
         backgroundRepeat: 'no-repeat',
         backgroundSize: `${(SHEET_W * k).toFixed(2)}px ${(SHEET_H * k).toFixed(2)}px`,
         backgroundPosition: `-${(x0 * k).toFixed(2)}px -${(y0 * k).toFixed(2)}px`,

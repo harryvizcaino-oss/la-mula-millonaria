@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { assetUrl } from '@/lib/assetUrl';
 
 type Phase = 'countdown' | 'launch' | 'space' | 'land' | 'fade';
 
@@ -120,7 +121,7 @@ export function AscensionCinematic({ ascension, onAscend, onComplete }: Ascensio
         <div className="relative z-10 flex items-center justify-center h-full">
           <div className="ascend-truck-launch relative">
             <img
-              src="/assets/camion_base_orange_front.png"
+              src={assetUrl("/assets/camion_base_orange_front.png")}
               alt="Tractomula"
               draggable={false}
               style={{ height: '8rem', width: 'auto' }}
@@ -135,7 +136,7 @@ export function AscensionCinematic({ ascension, onAscend, onComplete }: Ascensio
           <div className="golden-truck-descend flex flex-col items-center">
             <span className="text-5xl">🪂</span>
             <img
-              src="/assets/camion_base_orange_front.png"
+              src={assetUrl("/assets/camion_base_orange_front.png")}
               alt="Tractomula dorada"
               draggable={false}
               className="golden-truck"
@@ -160,7 +161,7 @@ export function AscensionCinematic({ ascension, onAscend, onComplete }: Ascensio
             />
           ))}
           <img
-            src="/assets/camion_base_orange_front.png"
+            src={assetUrl("/assets/camion_base_orange_front.png")}
             alt="Tractomula dorada"
             draggable={false}
             className="golden-truck"
