@@ -56,6 +56,7 @@ import { FleetVehicleCard } from '@/components/game/FleetVehicleCard';
 import { FloatingNumber } from '@/components/game/FloatingNumber';
 import { RolloverNumber } from '@/components/game/RolloverNumber';
 import { RadialGauge } from '@/components/game/RadialGauge';
+import { DumpTruckGauge } from '@/components/game/DumpTruckGauge';
 import { BoomEffect } from '@/components/game/BoomEffect';
 import { MinigameModal } from '@/components/game/MinigameModal';
 import {
@@ -426,11 +427,29 @@ export default function Game() {
     return () => clearInterval(iv);
   }, []);
 
-  // V16: barra al 100% → celebración natural (texto) + siguiente target
+  // V16: barra al 100% → celebración natural (texto) + golden tickets + siguiente target
   useEffect(() => {
     if (barCharge < 100 || barFlashProcessingRef.current) return;
     barFlashProcessingRef.current = true;
     setMilestoneHit({ label: barMilestone.label, id: Date.now() });
+
+    // El volco se llena: suelta varios golden tickets flotantes
+    const ticketCount = 3 + Math.floor(Math.random() * 3); // 3-5 🎟️
+    for (let i = 0; i < ticketCount; i++) {
+      const id = ++collectibleIdRef.current;
+      const newItem: FloatingCollectible = {
+        id,
+        emoji: '🎟️',
+        x: 45 + (Math.random() - 0.5) * 40,
+        y: 8,
+        vx: (Math.random() - 0.5) * 20,
+        vy: 10 + Math.random() * 12,
+        reward: 1,
+        expiresAt: Date.now() + 12000 + Math.random() * 4000,
+      };
+      setCollectibles((prev) => [...prev, newItem]);
+    }
+
     setBarCharge(0);
     setBarTargetIdx(barMilestoneIdx + 1);
     setTimeout(() => {
@@ -1619,10 +1638,21 @@ export default function Game() {
                     src={getTruckAsset(store.selectedFleet)}
                     alt={`${activeVehicle.brand} ${activeVehicle.model}`}
                     title={`${activeVehicle.brand} ${activeVehicle.model} · x${activeVehicle.multiplier}`}
-                    className={cn('truck-image', shake && 'truck-shake')}
+                    className={cn('truck-image', shake && 'truck-shake', barMultActive && 'opacity-0')}
                     style={truckVisual.filter ? { filter: truckVisual.filter } : undefined}
                     draggable={false}
                   />
+                  {/* Volquete en uso: reemplaza al camión cuando el multiplicador corre */}
+                  {barMultActive && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <DumpTruckGauge
+                        charge={barCharge}
+                        label={barMilestone.label}
+                        active
+                        size={160}
+                      />
+                    </div>
+                  )}
                   {/* F8: sticker equipado (sobre el camión) */}
                   {truckVisual.stickerEmoji && (
                     <span className="absolute top-1 right-4 text-3xl pointer-events-none z-20 drop-shadow-lg">
@@ -1868,33 +1898,21 @@ export default function Game() {
               ))}
             </AnimatePresence>
 
-            {/* V8: stack inferior — barra THICK */}
+            {/* V8: stack inferior — volquete de arena (reemplaza la barra THICK) */}
             <div className="arena-bottom-stack">
-              {/* THICK progress bar V9: se carga con cada click; al 100% activa el multiplicador por 30s */}
               <div className="milestone-v8">
                 <div className="milestone-v8-row">
                   <span>
                     {formatNumber(clickPower)} / {formatNumber(barMilestone.target)}
                   </span>
                 </div>
-                <div className="milestone-v8-bar-wrap">
-                  <div className={cn('milestone-v8-bar', milestoneHit && 'milestone-flash')}>
-                    <div
-                      className={cn(
-                        'milestone-v8-fill',
-                        truckBump && 'milestone-v8-fill--pulse',
-                        barCharge <= 5 && 'milestone-v8-fill--danger',
-                        barCharge > 5 && barCharge <= 15 && 'milestone-v8-fill--warning'
-                      )}
-                      style={{ width: `${barCharge}%` }}
-                    />
-                  </div>
-                  <div
-                    className="milestone-v8-star"
-                    title={`Próximo multiplicador: ${barMilestone.label}`}
-                  >
-                    {barMilestone.label}
-                  </div>
+                <div className="flex items-center justify-center gap-2">
+                  <DumpTruckGauge
+                    charge={barCharge}
+                    label={barMilestone.label}
+                    active={barMultActive}
+                    size={110}
+                  />
                 </div>
               </div>
             </div>
