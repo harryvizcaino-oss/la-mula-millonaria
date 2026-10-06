@@ -52,24 +52,32 @@ export const useLeagueStore = create<LeagueState>()(
         if (state.weekKey === currentWeek) return;
 
         const weekly = state.weeklyCpsTotal;
-        let division = state.division;
+        const previousDivision = state.division;
+        let division = previousDivision;
         let outcome: LeagueOutcome = 'stay';
-        if (weekly >= promotionThreshold(state.division)) {
-          const next = Math.min(DIVISION_COUNT - 1, state.division + 1);
-          outcome = next > state.division ? 'up' : 'stay';
+        if (weekly >= promotionThreshold(previousDivision)) {
+          const next = Math.min(DIVISION_COUNT - 1, previousDivision + 1);
+          outcome = next > previousDivision ? 'up' : 'stay';
           division = next;
-        } else if (state.division > 0 && weekly < demotionThreshold(state.division)) {
-          division = state.division - 1;
+        } else if (previousDivision > 0 && weekly < demotionThreshold(previousDivision)) {
+          division = previousDivision - 1;
           outcome = 'down';
         }
 
+        // La recompensa se calcula con la división DONDE jugaste la semana
+        // (previousDivision); `division` del banner es la nueva división.
         set({
           weekKey: currentWeek,
           weeklyCpsTotal: 0,
           division,
           pendingReward:
             weekly > 0
-              ? { division, outcome, weekKey: state.weekKey, ...divisionRewards(division) }
+              ? {
+                  division,
+                  outcome,
+                  weekKey: state.weekKey,
+                  ...divisionRewards(previousDivision),
+                }
               : null,
         });
       },

@@ -630,6 +630,7 @@ const MOCK_PREVIEW_PRODUCTS: PreviewProduct[] = [
 function BrandPartnersSection() {
   const ref = useRef(null);
   const isInView = useInView(ref, { once: true });
+  const navigate = useNavigate();
 
   const brands = [
     { name: 'Transportes del Norte', logo: '/brand-logo-norte.png' },
@@ -676,6 +677,15 @@ function BrandPartnersSection() {
           ))}
         </div>
       </motion.div>
+
+      <div className="flex justify-center mt-4 px-4">
+        <button
+          onClick={() => navigate('/brands')}
+          className="px-5 py-2 rounded-full border border-[#F59E0B]/40 text-[#F59E0B] text-xs font-bold hover:bg-[#F59E0B]/10 transition-colors"
+        >
+          Conoce a los patrocinadores
+        </button>
+      </div>
     </section>
   );
 }
