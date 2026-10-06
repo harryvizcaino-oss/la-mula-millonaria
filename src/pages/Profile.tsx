@@ -517,23 +517,6 @@ export default function Profile() {
         </div>
       </Section>
 
-      {/* ============ Section 2.1: Garaje (acceso) ============ */}
-      <Section className="px-4 mt-4" delay={0.22}>
-        <button
-          onClick={() => navigate('/garage')}
-          className="w-full flex items-center gap-3 bg-white rounded-2xl border border-slate-200 px-4 py-3 shadow-[0_2px_12px_rgba(0,0,0,0.06)] active:scale-[0.99] transition-transform"
-        >
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#3B82F6] to-[#2563EB] flex items-center justify-center">
-            <Gauge size={20} className="text-white" />
-          </div>
-          <div className="flex-1 text-left">
-            <p className="font-fredoka font-bold text-sm text-slate-900">Mi garaje</p>
-            <p className="text-slate-500 text-[11px]">Consulta tu flota y vehículos</p>
-          </div>
-          <ChevronRight size={18} className="text-slate-400" />
-        </button>
-      </Section>
-
       {/* ============ Section 2.5: Amigos y Caravanas (Wave 3, F10) ============ */}
       <Section className="px-4 mt-6" delay={0.25}>
         <h2 className="font-fredoka font-bold text-xl text-slate-900 mb-2">Amigos y Caravanas</h2>
