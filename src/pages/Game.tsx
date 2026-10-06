@@ -67,7 +67,6 @@ import { TalentTree } from '@/components/game/TalentTree';
 import { AchievementToast } from '@/components/game/AchievementToast';
 import { LootBoxModal } from '@/components/game/LootBoxModal';
 import { AdRewardModal } from '@/components/game/AdRewardModal';
-import { GameAdBanner } from '@/components/game/GameAdBanner';
 import { InterstitialAd } from '@/components/game/InterstitialAd';
 import { useIapStore } from '@/store/iapStore';
 import { RouteMap } from '@/components/game/RouteMap';
@@ -2363,7 +2362,6 @@ export default function Game() {
         }}
       />
 
-      <GameAdBanner />
       <InterstitialAd open={showInterstitial} onClose={() => setShowInterstitial(false)} />
 
       <GameTutorial
