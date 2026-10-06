@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import { safeStorage } from '@/lib/persistStorage';
 
 const TALENT_STORAGE_KEY = 'truckSurfers_talents_v1';
 
@@ -164,6 +165,7 @@ export const useTalentStore = create<TalentState>()(
     }),
     {
       name: TALENT_STORAGE_KEY,
+      storage: createJSONStorage(safeStorage),
       partialize: (state) => ({
         levels: state.levels,
         overdriveLevel: state.overdriveLevel ?? 0,
