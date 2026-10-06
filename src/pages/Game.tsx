@@ -286,8 +286,6 @@ export default function Game() {
   // V9: barra THICK cargada por clicks (0-100), multiplicador activo y flash "×N ACTIVADO!"
   const [barCharge, setBarCharge] = useState(0);
   const [barTargetIdx, setBarTargetIdx] = useState<number | null>(null);
-  // V16: anuncio épico al activar multiplicador
-  const [epicAnnouncement, setEpicAnnouncement] = useState<{ label: string; id: number } | null>(null);
   // V18: streak perdido cuando la barra llega a 0%
   const [streakLost, setStreakLost] = useState<{ id: number } | null>(null);
   // Wave 1: misiones, talentos, logros y cajas de loot
@@ -428,18 +426,17 @@ export default function Game() {
     return () => clearInterval(iv);
   }, []);
 
-  // V16: barra al 100% → anuncio épico + siguiente target
+  // V16: barra al 100% → celebración natural (texto) + siguiente target
   useEffect(() => {
     if (barCharge < 100 || barFlashProcessingRef.current) return;
     barFlashProcessingRef.current = true;
-    const now = Date.now();
-    setEpicAnnouncement({ label: barMilestone.label, id: now });
+    setMilestoneHit({ label: barMilestone.label, id: Date.now() });
     setBarCharge(0);
     setBarTargetIdx(barMilestoneIdx + 1);
     setTimeout(() => {
-      setEpicAnnouncement(null);
+      setMilestoneHit(null);
       barFlashProcessingRef.current = false;
-    }, 5000);
+    }, 1800);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [barCharge]);
 
@@ -1803,37 +1800,7 @@ export default function Game() {
               )}
             </AnimatePresence>
 
-            {/* V17: anuncio épico al activar multiplicador — dismiss con cualquier click */}
-            <AnimatePresence>
-              {epicAnnouncement && (
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="epic-announcement-backdrop"
-                  onClick={() => setEpicAnnouncement(null)}
-                >
-                  <motion.div
-                    key={epicAnnouncement.id}
-                    initial={{ opacity: 0, scale: 0.3, x: '-50%', y: '-50%' }}
-                    animate={{ opacity: 1, scale: 1, x: '-50%', y: '-50%' }}
-                    exit={{ opacity: 0, scale: 1.3, x: '-50%', y: '-50%' }}
-                    transition={{ type: 'spring', stiffness: 400, damping: 22 }}
-                    className="epic-announcement-popup"
-                    onClick={(e) => e.stopPropagation()}
-                  >
-                    <img
-                      src={assetUrl('/assets/anuncio_xN_activado.png')}
-                      alt="Poder activado"
-                      className="epic-announcement-img"
-                    />
-                    <span className="epic-announcement-text">
-                      {epicAnnouncement.label}
-                    </span>
-                  </motion.div>
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* V17: anuncio épico al activar multiplicador — quitado; se usa milestone-hit-text */}
 
             {/* V18: streak perdido cuando la barra llega a 0% */}
             <AnimatePresence>
@@ -1911,7 +1878,7 @@ export default function Game() {
                   </span>
                 </div>
                 <div className="milestone-v8-bar-wrap">
-                  <div className={cn('milestone-v8-bar', (milestoneHit || epicAnnouncement) && 'milestone-flash')}>
+                  <div className={cn('milestone-v8-bar', milestoneHit && 'milestone-flash')}>
                     <div
                       className={cn(
                         'milestone-v8-fill',

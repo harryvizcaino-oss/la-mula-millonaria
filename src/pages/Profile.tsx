@@ -487,17 +487,21 @@ export default function Profile() {
           {[
             { icon: Gamepad2, label: 'Clics', value: totalClicksLocal },
             { icon: Zap, label: 'CPS total', value: Math.floor(cpsTotal) },
-            { icon: Trophy, label: 'Rank', value: rank, prefix: rank > 0 ? '#' : undefined, empty: rank <= 0 },
+            { icon: Trophy, label: 'Rank', value: rank, prefix: rank > 0 ? '#' : undefined, empty: rank <= 0, path: '/leaderboard' },
             { icon: Coins, label: 'TicaMillas', value: Math.floor(millas) },
           ].map((stat, i) => {
             const Icon = stat.icon;
             return (
-              <motion.div
+              <motion.button
                 key={stat.label}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25 + i * 0.05, duration: 0.4 }}
-                className="flex flex-col items-center text-center"
+                onClick={() => stat.path && navigate(stat.path)}
+                className={cn(
+                  'flex flex-col items-center text-center',
+                  stat.path && 'active:scale-95 transition-transform'
+                )}
               >
                 <Icon size={18} className="text-[#F59E0B] mb-1" />
                 <span className="font-fredoka font-bold text-base text-slate-900">
@@ -511,7 +515,7 @@ export default function Profile() {
                   )}
                 </span>
                 <span className="text-slate-500 text-[10px]">{stat.label}</span>
-              </motion.div>
+              </motion.button>
             );
           })}
         </div>

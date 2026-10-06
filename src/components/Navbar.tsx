@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Home, ShoppingCart, Trophy, User, Gamepad2 } from 'lucide-react';
+import { Home, ShoppingCart, Zap, User, Gamepad2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const sideItems = [
   { path: '/', label: 'Inicio', icon: Home },
-  { path: '/leaderboard', label: 'Ranking', icon: Trophy },
+  { path: '/game', label: 'Powers', icon: Zap, gameTab: 'upgrades' },
   { path: '/marketplace', label: 'Tienda', icon: ShoppingCart },
   { path: '/profile', label: 'Perfil', icon: User },
 ];
@@ -112,16 +112,23 @@ function NavItem({
   tappedItem,
   onTap,
 }: {
-  item: { path: string; label: string; icon: React.ElementType };
+  item: { path: string; label: string; icon: React.ElementType; gameTab?: string };
   tappedItem: string | null;
   onTap: (path: string) => void;
 }) {
   const Icon = item.icon;
 
+  const handleClick = () => {
+    if (item.gameTab) {
+      sessionStorage.setItem('gameTab', item.gameTab);
+    }
+    onTap(item.path);
+  };
+
   return (
     <NavLink
       to={item.path}
-      onClick={() => onTap(item.path)}
+      onClick={handleClick}
       className={({ isActive }) =>
         cn(
           'relative flex flex-col items-center justify-center',
