@@ -26,6 +26,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/skeleton';
 import PrimaryButton from '@/components/PrimaryButton';
 import { mockProducts, categories, getGradientClass } from '@/data/mockProducts';
 import type { Product } from '@/data/mockProducts';
@@ -1066,8 +1067,10 @@ export default function Marketplace() {
       {/* ─── Product Grid ─── */}
       <div className="px-4 mt-4">
         {catalogLoading ? (
-          <div className="flex justify-center py-16">
-            <Loader2 size={24} className="text-[#ff3131] animate-spin" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-[92px] rounded-2xl" />
+            ))}
           </div>
         ) : visibleProducts.length > 0 ? (
           <>

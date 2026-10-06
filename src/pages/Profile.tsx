@@ -48,6 +48,7 @@ import { getTruckVisual } from '@/data/truckSkins';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { fetchTransactions, type TransactionRow } from '@/lib/transactions';
 import { FriendsSection } from '@/components/FriendsSection';
+import { CpsHistoryChart } from '@/components/profile/CpsHistoryChart';
 import { MFASettings } from '@/components/MFASettings';
 import {
   getPushPermission,
@@ -520,6 +521,12 @@ export default function Profile() {
       <Section className="px-4 mt-6" delay={0.25}>
         <h2 className="font-fredoka font-bold text-xl text-slate-900 mb-2">Amigos y Caravanas</h2>
         <FriendsSection />
+      </Section>
+
+      {/* ============ Section 2.7: Historial CPS (gráfica) ============ */}
+      <Section className="px-4 mt-6" delay={0.27}>
+        <h2 className="font-fredoka font-bold text-xl text-slate-900 mb-2">Historial de CPS</h2>
+        <CpsHistoryChart transactions={txRows} currentCps={cpsTotal} />
       </Section>
 
       {/* ============ Section: Seguridad (MFA) ============ */}
